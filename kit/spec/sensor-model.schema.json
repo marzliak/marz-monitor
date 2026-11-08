@@ -1,0 +1,218 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MonitorTray Snapshot (contrato Core → UI)",
+  "type": "object",
+  "required": [
+    "at",
+    "summary",
+    "devices"
+  ],
+  "properties": {
+    "at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "cpuLoad": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "cpuTemp": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "cpuPower": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "gpuLoad": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "gpuTemp": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "gpuPower": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "memUsed": {
+          "type": "integer"
+        },
+        "memTotal": {
+          "type": "integer"
+        },
+        "diskReadBps": {
+          "type": "number"
+        },
+        "diskWriteBps": {
+          "type": "number"
+        },
+        "netDownBps": {
+          "type": "number"
+        },
+        "netUpBps": {
+          "type": "number"
+        }
+      }
+    },
+    "devices": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "family",
+          "category",
+          "displayName",
+          "sensors"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "examples": [
+              "/intelcpu/0",
+              "family:Memory"
+            ]
+          },
+          "family": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "rawName": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "isNew": {
+            "type": "boolean"
+          },
+          "sourceIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sensors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "name",
+                "kind",
+                "unit",
+                "value",
+                "role",
+                "quality"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "Temperature",
+                    "Load",
+                    "Power",
+                    "Clock",
+                    "Voltage",
+                    "Current",
+                    "Fan",
+                    "Control",
+                    "Flow",
+                    "SmallData",
+                    "Data",
+                    "Throughput",
+                    "Level",
+                    "Factor",
+                    "Timing",
+                    "Energy",
+                    "Noise",
+                    "Unknown"
+                  ]
+                },
+                "kindRaw": {
+                  "type": "string"
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "min": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "max": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "role": {
+                  "enum": [
+                    "Reading",
+                    "Limit",
+                    "Metadata",
+                    "Accumulated",
+                    "Estimate"
+                  ]
+                },
+                "quality": {
+                  "enum": [
+                    "Ok",
+                    "Partial",
+                    "Unavailable"
+                  ]
+                },
+                "allZero": {
+                  "type": "boolean"
+                },
+                "tag": {
+                  "enum": [
+                    "",
+                    "sem leitura",
+                    "parcial",
+                    "margem",
+                    "acumulado",
+                    "estimativa",
+                    "limite",
+                    "SPD"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

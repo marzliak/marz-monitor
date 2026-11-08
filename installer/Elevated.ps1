@@ -1,0 +1,96 @@
+﻿#Requires -Version 5.1
+# Etapa elevada: copia o pacote para Program Files\MonitorTray\<SID>, com backup e rollback, e registra as tarefas da conta.
+param([Parameter(Mandatory=$true)][string]$RequestPath)
+Set-StrictMode -Version Latest
+$ErrorActionPreference='Stop'
+$rq=Get-Content $RequestPath -Raw | ConvertFrom-Json
+$out=[ordered]@{ Success=$false; Error=$null; Version=$rq.Version; InstallDir=$null; Exe=$null; Backup=$null; Tasks=@(); DisabledTask=$null }
+function Hash([string]$p){ (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant() }
+function Save { ($out | ConvertTo-Json -Depth 5) | Set-Content $rq.Result -Encoding UTF8 }
+try {
+    if($rq.Sid -notmatch '^S-1-5-21-[\d-]+$'){ throw 'SID invalido.' }
+    $root=Join-Path $env:ProgramFiles 'MonitorTray'; $dir=Join-Path $root $rq.Sid
+    $out.InstallDir=$dir; $out.Exe=Join-Path $dir 'MonitorTray.exe'
+    $tLaunch="MonitorTray-$($rq.Sid)"; $tLogon="MonitorTray-Logon-$($rq.Sid)"
+    $schtasks="$env:SystemRoot\System32\schtasks.exe"
+
+    if($rq.Mode -eq 'Uninstall'){
+        foreach($t in @($tLaunch,$tLogon)){ & $schtasks /Delete /TN $t /F 2>$null | Out-Null }
+        if(Get-Process MonitorTray -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$dir*" }){ throw 'O app ainda esta aberto.' }
+        Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+        if((Test-Path $root) -and @(Get-ChildItem $root -Force).Count -eq 0){ Remove-Item $root -Force }
+        $out.Success=$true; Save; return
+    }
+
+    # Revalida o pacote dentro da etapa elevada (o request veio de processo nao elevado).
+    if((Hash $rq.Manifest) -ne $rq.ManifestHash){ throw 'Manifesto alterado.' }
+    $m=Get-Content $rq.Manifest -Raw -Encoding UTF8 | ConvertFrom-Json
+    foreach($e in $m.Files){ if((Hash (Join-Path $rq.Source ($e.Name -replace '/','\'))) -ne $e.SHA256){ throw "Arquivo alterado: $($e.Name)" } }
+
+    if(Get-Process MonitorTray -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$dir*" }){ throw 'O app instalado ainda esta aberto.' }
+    New-Item -ItemType Directory $root -Force | Out-Null
+    $stage=Join-Path $root (".staging-"+[guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory $stage | Out-Null
+    Copy-Item (Join-Path $rq.Source '*') $stage -Recurse -Force
+    if(-not(Test-Path (Join-Path $stage 'MonitorTray.exe'))){ throw 'Copia do pacote incompleta.' }
+    $backup=$null
+    if(Test-Path $dir){
+        $bdir=Join-Path $root '_backups'; New-Item -ItemType Directory $bdir -Force | Out-Null
+        $backup=Join-Path $bdir ($rq.Sid+'-'+(Get-Date -Format 'yyyyMMdd-HHmmss'))
+        Move-Item $dir $backup
+    }
+    try {
+        Move-Item $stage $dir
+        # ACL: Administradores/SYSTEM total; o usuario so le e executa (o app nao se reescreve).
+        # ACL so na pasta raiz (herdavel); os arquivos voltam a herdar. Aplicar (OI)(CI) arquivo a arquivo deixava-os sem ACE.
+        & icacls.exe $dir /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' "*$($rq.Sid):(OI)(CI)RX" /C /Q | Out-Null
+        if($LASTEXITCODE -ne 0){ throw 'Falha ao aplicar a ACL da pasta.' }
+        & icacls.exe (Join-Path $dir '*') /reset /T /C /Q | Out-Null
+        $exe=$out.Exe
+        foreach($t in @(@{N=$tLaunch;Logon=$false},@{N=$tLogon;Logon=$true})){
+            $trig = if($t.Logon){ "<Triggers><LogonTrigger><Enabled>true</Enabled><UserId>$($rq.Sid)</UserId><Delay>PT10S</Delay></LogonTrigger></Triggers>" } else { '<Triggers/>' }
+            $args = if($t.Logon){ '--tray' } else { '' }
+            $xml=@"
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo><Author>MarzOps</Author><Description>Marz Monitor $($rq.Version)</Description></RegistrationInfo>
+  $trig
+  <Principals><Principal id="Author"><UserId>$($rq.Sid)</UserId><LogonType>InteractiveToken</LogonType><RunLevel>HighestAvailable</RunLevel></Principal></Principals>
+  <Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit><Priority>6</Priority><Enabled>$(if($t.Logon){([string][bool]$rq.Startup).ToLower()}else{'true'})</Enabled></Settings>
+  <Actions Context="Author"><Exec><Command>$exe</Command><Arguments>$args</Arguments><WorkingDirectory>$dir</WorkingDirectory></Exec></Actions>
+</Task>
+"@
+            $xf=Join-Path $env:TEMP ("mt-task-"+[guid]::NewGuid().ToString('N')+'.xml')
+            [IO.File]::WriteAllText($xf,$xml,[Text.Encoding]::Unicode)
+            & $schtasks /Create /TN $t.N /XML $xf /F | Out-Null
+            $code=$LASTEXITCODE; Remove-Item $xf -Force
+            if($code -ne 0){ throw "Falha ao registrar a tarefa $($t.N)." }
+            $out.Tasks += $t.N
+        }
+        $v=[string](Get-Item -LiteralPath $exe).VersionInfo.ProductVersion
+        if(-not $v -or -not $v.StartsWith($rq.Version)){ throw "Versao do exe instalado ($v) diverge de $($rq.Version)." }
+    } catch {
+        # Rollback: devolve a versao anterior.
+        if(Test-Path $dir){ Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue }
+        if($backup -and (Test-Path $backup) -and -not (Test-Path $dir)){ Move-Item $backup $dir }
+        throw
+    }
+    # Mantem so os 2 backups mais recentes desta conta.
+    if($backup){ Get-ChildItem (Join-Path $root '_backups') -Directory | Where-Object Name -like "$($rq.Sid)-*" | Sort-Object Name -Descending | Select-Object -Skip 2 | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }
+    $out.Backup=$backup
+    # Entrada em "Aplicativos instalados" do Windows.
+    $u="HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\MonitorTray-$($rq.Sid)"
+    New-Item $u -Force | Out-Null
+    $vals=@{DisplayName="Marz Monitor ($($rq.User))";DisplayVersion=$rq.Version;Publisher='MarzOps';DisplayIcon="$($out.Exe),0";InstallLocation=$dir;NoModify=1;NoRepair=1;
+            UninstallString="powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$dir\Uninstall.ps1`""}
+    foreach($k in $vals.Keys){ New-ItemProperty $u -Name $k -Value $vals[$k] -Force | Out-Null }
+    # Substituir o GPU by MarzOps: so desativa a tarefa de logon dele (reversivel; nada e apagado).
+    if($rq.DisableTask){
+        if($rq.DisableTask -ne "CmpInf-OLED-Rodinha-$($rq.Sid)"){ throw 'Tarefa do GPU by MarzOps inesperada.' }
+        & $schtasks /Change /TN $rq.DisableTask /DISABLE | Out-Null
+        if($LASTEXITCODE -eq 0){ $out.DisabledTask=$rq.DisableTask }
+    }
+    $out.Success=$true
+} catch { $out.Error="$($_.Exception.Message) [linha $($_.InvocationInfo.ScriptLineNumber): $($_.InvocationInfo.Line.Trim())]" }
+Save

@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>MonitorTray</AssemblyName>
+    <RootNamespace>MonitorTray.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <AssemblyTitle>Marz Monitor</AssemblyTitle>
+    <Description>Marz Monitor</Description>
+    <!-- Memória: app de bandeja, alocação baixa (~1 MB/s). GC de estação sem thread de fundo e compactando mais cedo. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>false</TieredPGO>
+  </PropertyGroup>
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="7" />
+    <RuntimeHostConfigurationOption Include="System.GC.RetainVM" Value="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MonitorTray.Core\MonitorTray.Core.csproj" />
+    <ProjectReference Include="..\MonitorTray.Sensors\MonitorTray.Sensors.csproj" />
+    <ProjectReference Include="..\MonitorTray.Gpu\MonitorTray.Gpu.csproj" />
+    <ProjectReference Include="..\MonitorTray.Keyboard\MonitorTray.Keyboard.csproj" />
+    <ProjectReference Include="..\MonitorTray.Ryujin\MonitorTray.Ryujin.csproj" />
+    <PackageReference Include="H.NotifyIcon.Wpf" Version="2.4.1" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Fonts\*.ttf" />
+    <Resource Include="Assets\app.ico" />
+    <Resource Include="Assets\app-256.png" />
+    <Resource Include="Assets\tray_dark.ico" />
+    <Resource Include="Assets\tray_light.ico" />
+    <None Include="..\..\kit\prototype\data\sensores.json" Link="sim\sensores.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

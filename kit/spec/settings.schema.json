@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MonitorTray settings",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "theme": {
+      "enum": [
+        "claro",
+        "escuro",
+        "sistema"
+      ],
+      "default": "escuro"
+    },
+    "palette": {
+      "enum": [
+        "eletrico",
+        "neon",
+        "lima",
+        "brasa",
+        "violeta",
+        "aco"
+      ],
+      "default": "eletrico"
+    },
+    "opacity": {
+      "type": "integer",
+      "minimum": 40,
+      "maximum": 100,
+      "multipleOf": 5,
+      "default": 90
+    },
+    "refreshMs": {
+      "enum": [
+        500,
+        1000,
+        2000
+      ],
+      "default": 1000
+    },
+    "history": {
+      "enum": [
+        30,
+        60,
+        120
+      ],
+      "default": 60,
+      "description": "nº de amostras visíveis no gráfico de rede"
+    },
+    "scale": {
+      "enum": [
+        "independente",
+        "compartilhada"
+      ],
+      "default": "independente"
+    },
+    "autostart": {
+      "type": "boolean",
+      "default": true
+    },
+    "autohide": {
+      "type": "boolean",
+      "default": true
+    },
+    "detailsWindow": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number",
+          "minimum": 720
+        },
+        "h": {
+          "type": "number",
+          "minimum": 440
+        },
+        "maximized": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "required": [
+    "version"
+  ]
+}
