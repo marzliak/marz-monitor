@@ -2,6 +2,13 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: **0.1.x** series (each delivered package bumps the last number).
 
+## [0.1.37] - 2026-11-08
+### Changed
+- Lower CPU use:
+  - Network adapter list cached for 10 s (enumerating adapters cost ~6 ms per tick; only the byte counters are read each tick).
+  - LibreHardwareMonitor read at most once per second, even at a 0.5 s refresh.
+  - With the popup and Details closed the sensor loop runs at most once per second (tray tooltip/icon, keyboard screens and fan safety don't need 2 Hz).
+
 ## [0.1.36] - 2026-11-08
 ### Fixed
 - Sensor loop running non-stop (~1.6 cores of CPU, values and charts jumping): every keyboard-screen send and cooler status update re-set `KeepHardware`, which woke the sensor loop at once; the new reading triggered the next send, and so on. The loop is now woken only when `KeepHardware` turns on.

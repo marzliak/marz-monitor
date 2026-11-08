@@ -87,11 +87,16 @@ public sealed class NetworkRate
 {
     private readonly Stopwatch sw = new();
     private Dictionary<string, (long Rx, long Tx)> prev = new();
+    /// <summary>Adapter list cached for 10 s: enumerating adapters costs ~6 ms; reading their counters is ~free.</summary>
+    private List<System.Net.NetworkInformation.NetworkInterface> nics = [];
+    private readonly Stopwatch nicsAge = new();
+    public static readonly TimeSpan NicRefresh = TimeSpan.FromSeconds(10);
 
     public (double Down, double Up) Sample()
     {
+        if (!nicsAge.IsRunning || nicsAge.Elapsed >= NicRefresh) { nics = NetworkFilter.Real(upOnly: true).ToList(); nicsAge.Restart(); }
         var now = new Dictionary<string, (long, long)>();
-        foreach (var ni in NetworkFilter.Real(upOnly: true))
+        foreach (var ni in nics)
         {
             try { var s = ni.GetIPv4Statistics(); now[ni.Id] = (s.BytesReceived, s.BytesSent); } catch (Exception) { }
         }

@@ -43,6 +43,11 @@ public sealed class SensorService : IDisposable
     private IReadOnlyList<RawSensor> lastRaw = [];
     private IReadOnlyList<Device> lastDevices = [];
     private volatile bool lhmBusy;
+    private readonly Stopwatch lhmStarted = new();
+
+    /// <summary>LHM (the most expensive read) at most once per second, even at a 0.5 s refresh (small tolerance for timer jitter).</summary>
+    public const int LhmMinIntervalMs = 1000;
+    public static bool LhmDue(long? msSinceLast) => msSinceLast is not long ms || ms >= LhmMinIntervalMs - 60;
     private volatile bool hardwareReady;
 
     public event Action<Snapshot>? Published;
@@ -104,10 +109,16 @@ public sealed class SensorService : IDisposable
         {
             var started = sw.Elapsed;
             try { Tick(); } catch (Exception) { }
-            var wait = TimeSpan.FromMilliseconds(refreshMs) - (sw.Elapsed - started);
+            var wait = TimeSpan.FromMilliseconds(PeriodMs(refreshMs, fullCollection)) - (sw.Elapsed - started);
             if (wait > TimeSpan.Zero) wake.WaitOne(wait);
         }
     }
+
+    /// <summary>
+    /// Loop period: the chosen refresh while the popup/Details is open; at least 1 s when they are closed (tray tooltip,
+    /// tray icon temperature, keyboard screens and fan safety do not need 2 Hz).
+    /// </summary>
+    public static int PeriodMs(int refreshMs, bool windowsOpen) => windowsOpen ? refreshMs : Math.Max(refreshMs, 1000);
 
     private void Prefill()
     {
@@ -137,8 +148,9 @@ public sealed class SensorService : IDisposable
         if ((fullCollection || keepHardware) && hardwareReady)
         {
             if (hardware.IsSimulated) CollectHardware();
-            else if (!lhmBusy)
+            else if (!lhmBusy && LhmDue(lhmStarted.IsRunning ? lhmStarted.ElapsedMilliseconds : (long?)null))
             {
+                lhmStarted.Restart();
                 // LHM is slow (Storage/Motherboard): runs off this thread; a late tick is skipped, not queued.
                 lhmBusy = true;
                 ThreadPool.UnsafeQueueUserWorkItem(_ => { try { CollectHardware(); } finally { lhmBusy = false; } }, null);
