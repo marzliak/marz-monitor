@@ -181,6 +181,7 @@ public sealed class App : Application
         if (opt.Simulate == null) StartKeyboard();
         if (opt.Simulate == null) StartRyujin();
         if (opt.Simulate == null) popup.Content2.RestoreGame();
+        if (opt.Simulate == null) popup.Content2.RestoreChoices(); else FanChoices.Enabled = false;
         if (opt.Simulate == null) StartGameWatch();
         UpdateKeepHardware();
         popup.IsVisibleChanged += (_, _) => UpdateCollection();

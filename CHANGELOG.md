@@ -2,6 +2,13 @@
 
 Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Versionamento: série **0.1.x** (cada pacote entregue sobe o último número).
 
+## [0.1.33] - 2026-11-07
+### Corrigido
+- As escolhas de fan agora ficam salvas e voltam ao abrir o app: modo da placa (CURVAS/SILENT/STD/TURBO/FULL), fans da placa em OFF ou MANUAL e o preset da GPU (A/30/50/75/100). Antes o app sempre abria com a placa em CURVAS, os fans ligados e a GPU no automático.
+- Sair do modo game volta às suas escolhas (antes: placa em CURVAS e GPU no automático).
+### Notas
+- Ao sair do app tudo continua voltando ao seguro (GPU automática, placa nas curvas User); só a escolha fica guardada (`state\fan-choices.json`). OFF só é reaplicado com a opção "DESLIGAR FAN DA PLACA" ligada e depois da primeira leitura da CPU. Proteções e modo game não alteram a escolha guardada.
+
 ## [0.1.32] - 2026-11-07
 ### Corrigido
 - Fan embutido do RYUJIN preso em 100%: o modo game o punha no preset FULL e, quando o game desligava sozinho (GPU/placa mudadas por fora), o cooler não voltava ao que era antes. Agora qualquer saída do modo game devolve cada parte do cooler que ainda está como o game deixou.

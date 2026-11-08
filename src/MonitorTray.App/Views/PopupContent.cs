@@ -117,6 +117,52 @@ public sealed class PopupContent : StackPanel
     }
 
     private bool pendingBoardRestore;
+
+    // ---- Escolhas de fan guardadas (FanChoices): reaplicadas ao abrir e ao sair do modo game.
+    private FanChoices.Data? pendingChoices;
+    private bool restoreStartup;
+    private IReadOnlyCollection<string>? pendingChoicesFans;
+    private List<string> pendingOff = [];
+    private DateTime pendingOffUntil;
+
+    /// <summary>Ao abrir o app (fora do modo game): placa, OFF/MANUAL e GPU como você deixou.</summary>
+    public void RestoreChoices() { if (!gameOn) BeginRestoreChoices(gpuDelayMs: 3000, boardFans: null, gpu: true, startup: true); }
+
+    /// <param name="boardFans">Fans que voltam ao modo guardado (null = os das Configurações).</param>
+    /// <param name="startup">Ao abrir: nada escolhido = não mexe (o app já sobe no automático/curvas).</param>
+    private void BeginRestoreChoices(int gpuDelayMs, IReadOnlyCollection<string>? boardFans, bool gpu, bool startup = false)
+    {
+        var d = FanChoices.Load();
+        restoreStartup = startup;
+        pendingChoices = d; pendingChoicesFans = boardFans;
+        TryRestoreChoices();
+        if (gpu && fanService != null && !(startup && d.Gpu == null))
+        {
+            var g = d.Gpu;
+            _ = Task.Run(async () => { try { if (gpuDelayMs > 0) await Task.Delay(gpuDelayMs); await fanService.CommandAsync(g); } catch (Exception) { } });
+        }
+    }
+
+    /// <summary>Placa: espera o Armoury Crate (COM) ficar disponível. OFF espera a primeira leitura da CPU (regra de segurança).</summary>
+    private void TryRestoreChoices()
+    {
+        if (pendingChoices is not { } d || ac is not { Available: true }) return;
+        pendingChoices = null;
+        var fans = pendingChoicesFans ?? app.Settings.AcFans.Where(ac.Fans.Contains).ToList();
+        if (fans.Count > 0 && !(restoreStartup && d.BoardMode is null or "curvas")) ac.Apply(d.BoardMode ?? "curvas", fans, remember: false);
+        foreach (var (f, pct) in d.Manual) if (ac.Fans.Contains(f)) ac.SetManual(f, pct);
+        pendingOff = d.Off.Where(f => ac.Fans.Contains(f) && !d.Manual.ContainsKey(f)).ToList();
+        pendingOffUntil = DateTime.UtcNow.AddMinutes(2);
+        TryRestoreOff();
+    }
+
+    private void TryRestoreOff()
+    {
+        if (pendingOff.Count == 0 || ac is not { Available: true } || !app.Settings.BoardFanOff) { if (!app.Settings.BoardFanOff) pendingOff.Clear(); return; }
+        if (cpuTemp == null && DateTime.UtcNow < pendingOffUntil) return; // sem leitura da CPU o OFF é recusado: espera
+        foreach (var f in pendingOff) ac.TurnOff(f, cpuTemp, gpuTemp);
+        pendingOff.Clear();
+    }
     private bool shuttingDown;
     /// <summary>Saída do app: a GPU volta ao automático e o ícone apagaria sozinho; o estado salvo do modo game não pode ser apagado.</summary>
     public void BeginShutdown() => shuttingDown = true;
@@ -125,7 +171,7 @@ public sealed class PopupContent : StackPanel
     {
         if (!pendingBoardRestore || ac is not { Available: true }) return;
         var fans = GameBoardFans();
-        if (fans.Count > 0) ac.Apply("full", fans);
+        if (fans.Count > 0) ac.Apply("full", fans, remember: false);
         pendingBoardRestore = false; gameAt = DateTime.UtcNow; // nova carência para o FULL confirmar
     }
 
@@ -158,10 +204,11 @@ public sealed class PopupContent : StackPanel
         if (t.Contains("board") && ac is { Available: true })
         {
             var fans = GameBoardFans();
-            if (fans.Count > 0) ac.Apply(gameOn ? "full" : "curvas", fans); // FULL também religa os fans desligados
+            if (fans.Count > 0 && gameOn) ac.Apply("full", fans, remember: false); // FULL também religa os fans desligados
         }
-        if (gameOn && ac is { Available: true } && ac.Off.Any) ac.TurnOn(ac.Off.Off, "modo game"); // game religa todos, mesmo sem a placa no game
-        if (t.Contains("gpu") && fanService != null) _ = Task.Run(async () => { try { await fanService.CommandAsync(gameOn ? (uint)s.GameGpuPercent : null); } catch (Exception) { } });
+        if (gameOn && ac is { Available: true } && ac.Off.Any) ac.TurnOn(ac.Off.Off, "modo game", remember: false); // game religa todos, mesmo sem a placa no game
+        if (t.Contains("gpu") && fanService != null && gameOn) _ = Task.Run(async () => { try { await fanService.CommandAsync((uint)s.GameGpuPercent); } catch (Exception) { } });
+        if (!gameOn) BeginRestoreChoices(gpuDelayMs: 0, boardFans: t.Contains("board") ? GameBoardFans() : null, gpu: t.Contains("gpu")); // volta ao que você tinha escolhido
         bool anyCooler = t.Contains("pump") || t.Contains("radiator") || t.Contains("embedded");
         if (anyCooler && cooler is { DeviceFound: true })
         {
@@ -501,6 +548,7 @@ public sealed class PopupContent : StackPanel
             b.Click += async () =>
             {
                 if (fanService == null || !b.IsEnabled) return;
+                FanChoices.Update(d => d with { Gpu = value });
                 try { await fanService.CommandAsync(value); } catch (Exception) { }
             };
             fanButtons.Add((v, b, t));
@@ -844,7 +892,7 @@ public sealed class PopupContent : StackPanel
     public void AttachAsus(AsusFanModes m)
     {
         ac = m;
-        m.Changed += () => Dispatcher.BeginInvoke(() => { TryRestoreBoard(); RenderAc(); RenderGameIcon(); });
+        m.Changed += () => Dispatcher.BeginInvoke(() => { TryRestoreBoard(); TryRestoreChoices(); RenderAc(); RenderGameIcon(); });
         m.OffRejected += _ => Dispatcher.BeginInvoke(RenderAcRpm); // curva de proteção não conferiu: card volta a ligado (erro no status)
         RenderAc();
     }
@@ -1356,6 +1404,7 @@ public sealed class PopupContent : StackPanel
         storageLabel.ToolTip = $"Total L/E: {rd.Text} / {wr.Text} MB/s";
         UpdateVolumes(snap.Volumes);
         cpuTemp = s.CpuTemp; gpuTemp = s.GpuTemp ?? (fanService?.State.Reading?.TemperatureC is uint g ? (float?)g : null);
+        TryRestoreOff();
         mbRpm = snap.MbFanRpm; mbCtl = snap.MbFanControl; RenderAcRpm(); RenderGameIcon(); RenderCooler();
         lhmTemps = snap.Temps; tempSources = snap.TempSources; RenderTemps();
         var d = Formatter.Net(s.NetDownBps); var u = Formatter.Net(s.NetUpBps);

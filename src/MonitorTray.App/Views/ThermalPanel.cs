@@ -598,7 +598,7 @@ public sealed class ThermalPanel : DockPanel
             string? block = val is uint p ? st.BlockFor(p, now) : !st.CanControl ? st.ReadOnlyReason ?? "Controle indisponível." : st.Busy ? "Comando em andamento." : null;
             var x = val;
             modes.Children.Add(ModeBtn(val is uint pv ? pv.ToString(CultureInfo.InvariantCulture) : "A", on, val == 100, block ?? (val is null ? "Devolver ao automático do driver" : $"Fixar as fans em {val}%"), block == null,
-                async () => { try { await gpu.CommandAsync(x); } catch (Exception) { } Dispatcher.Invoke(() => Refresh()); }));
+                async () => { FanChoices.Update(d => d with { Gpu = x }); try { await gpu.CommandAsync(x); } catch (Exception) { } Dispatcher.Invoke(() => Refresh()); }));
         }
     }
 

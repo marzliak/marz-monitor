@@ -20,6 +20,7 @@ public static class Preview
 {
     public static int Run(Options opt)
     {
+        FanChoices.Enabled = false; // prévia nunca grava as escolhas do usuário
         var dir = Path.GetFullPath(opt.Preview!);
         Directory.CreateDirectory(dir);
         var sim = opt.Simulate ?? Path.Combine(AppContext.BaseDirectory, "sim", "sensores.json");

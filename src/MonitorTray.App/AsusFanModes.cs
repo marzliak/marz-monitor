@@ -197,9 +197,11 @@ public sealed class AsusFanModes : IDisposable
     public event Action<string>? OffRejected;
 
     /// <summary>Aplica um modo nas ventoinhas escolhidas. "curvas" = perfil User (o seu) intacto.</summary>
-    public void Apply(string mode, IReadOnlyCollection<string> fans)
+    /// <param name="remember">Escolha do usuário (guarda em fan-choices.json). O modo game e a restauração passam false.</param>
+    public void Apply(string mode, IReadOnlyCollection<string> fans, bool remember = true)
     {
         var targets = Off.ModeTargets(mode, fans);
+        if (remember) { FanChoices.Update(d => d with { BoardMode = mode }); RememberOffManual(); }
         Pending = mode; Changed?.Invoke();
         queue.Add(() =>
         {
@@ -215,6 +217,7 @@ public sealed class AsusFanModes : IDisposable
     public bool TurnOff(string fan, float? cpuC, float? gpuC)
     {
         if (!Available || !Off.TurnOff(fan, cpuC, gpuC)) return false;
+        RememberOffManual();
         Changed?.Invoke();
         queue.Add(() =>
         {
@@ -226,10 +229,12 @@ public sealed class AsusFanModes : IDisposable
     }
 
     /// <summary>Religa fans desligados: devolve a curva User e reaplica o modo atual neles.</summary>
-    public void TurnOn(IReadOnlyCollection<string> fans, string why)
+    /// <param name="remember">false = religado pelo app (proteção, modo game): a escolha OFF do usuário fica guardada.</param>
+    public void TurnOn(IReadOnlyCollection<string> fans, string why, bool remember = true)
     {
         foreach (var f in fans) Off.TurnOn(f);
         if (fans.Count == 0) return;
+        if (remember) RememberOffManual();
         Changed?.Invoke();
         queue.Add(() =>
         {
@@ -245,7 +250,7 @@ public sealed class AsusFanModes : IDisposable
         var back = Off.Check(cpuC, gpuC);
         if (back.Count == 0) return;
         LastSafety = new SafetyEvent(DateTimeOffset.Now, back, cpuC, gpuC);
-        TurnOn(back, $"segurança: CPU {cpuC?.ToString("0") ?? "—"} °C, GPU {gpuC?.ToString("0") ?? "—"} °C");
+        TurnOn(back, remember: false, why: $"segurança: CPU {cpuC?.ToString("0") ?? "—"} °C, GPU {gpuC?.ToString("0") ?? "—"} °C");
     }
 
     /// <summary>Último religamento pela proteção (faixa do popup); a UI zera ao dispensar.</summary>
@@ -259,6 +264,7 @@ public sealed class AsusFanModes : IDisposable
     {
         if (!Available || mgr == null) { Error = $"{fan}: Armoury Crate indisponível."; return false; }
         int p = Off.SetManual(fan, BoardFanOff.Locked(fan) ? Math.Max(percent, ThermalMap.BoardLockedMinPercent) : percent);
+        RememberOffManual();
         Changed?.Invoke();
         queue.Add(() =>
         {
@@ -279,6 +285,7 @@ public sealed class AsusFanModes : IDisposable
     public void ClearManual(string fan)
     {
         if (!Off.ClearManual(fan)) return;
+        RememberOffManual();
         Changed?.Invoke();
         queue.Add(() =>
         {
@@ -375,9 +382,17 @@ public sealed class AsusFanModes : IDisposable
         }
     }
 
+    /// <summary>Guarda os fans em OFF/MANUAL (para reaplicar ao abrir o app).</summary>
+    private void RememberOffManual()
+    {
+        var man = Off.Manual.Select(f => (f, Off.ManualPercent(f))).Where(x => x.Item2 != null).ToDictionary(x => x.f, x => x.Item2!.Value);
+        FanChoices.Update(d => d with { Off = Off.Off.ToList(), Manual = man });
+    }
+
     /// <summary>Saída do app: devolve tudo para as curvas do usuário e espera terminar.</summary>
     public void RestoreAndWait(TimeSpan timeout)
     {
+        FanChoices.Enabled = false; // a escolha do usuário fica guardada; isto é só a devolução segura
         if (!Available) return;
         Off.ClearAll(); Off.ClearAllManual(); // desligado/manual não persistem: a curva User de cada um volta junto com as demais
         using var done = new ManualResetEventSlim();

@@ -59,6 +59,7 @@ public sealed class FanPanel : StackPanel
         b.Click += async () =>
         {
             if (!b.IsEnabled) return;
+            MonitorTray.App.FanChoices.Update(d => d with { Gpu = value });
             try { await service.CommandAsync(value); }
             catch (Exception) { /* o erro já está em State.Error e aparece na linha de aviso */ }
         };
