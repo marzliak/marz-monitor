@@ -9,10 +9,10 @@ public sealed record KeyboardState(bool Enabled, bool WheelEnabled, bool WheelRe
     int Page, int PageCount, bool Pinned, OledDelivery Delivery, string? GgStatus);
 
 /// <summary>
-/// Ciclo do OLED (portado do GPU by MarzOps): compõe a página atual a partir de um provedor de valores,
-/// envia pelo OledOutput, respeita a duração por página e reage na hora a gestos da rodinha.
-/// Rodinha: Raw Input só no Consumer Control do Apex (VID_1038 PID_1640 MI_03 COL01); 1 clique avança, 2 cliques fixam.
-/// A captura precisa de uma janela de mensagens na thread de UI: o App chama <see cref="AttachWindow"/> e repassa WM_INPUT.
+/// OLED loop (ported from GPU by MarzOps): composes the current page from a value provider,
+/// sends it through OledOutput, honors the per-page duration and reacts immediately to wheel gestures.
+/// Wheel: Raw Input only on the Apex Consumer Control (VID_1038 PID_1640 MI_03 COL01); 1 click advances, 2 clicks pin.
+/// Capture needs a message window on the UI thread: the App calls <see cref="AttachWindow"/> and forwards WM_INPUT.
 /// </summary>
 public sealed class KeyboardService : IDisposable
 {
@@ -48,7 +48,8 @@ public sealed class KeyboardService : IDisposable
         return migrated ?? new KeyboardConfig();
     }
 
-    /// <summary>Primeira execução: importa as páginas do GPU by MarzOps (profile-rodinha.json), se existir.</summary>
+    /// <summary>First run: imports the pages from GPU by MarzOps (profile-rodinha.json), if present.
+    /// "profile-rodinha.json" under CmpInf-Apex is the other program's own file name: keep it unchanged.</summary>
     private static KeyboardConfig? MigrateFromCmpInf()
     {
         try
@@ -111,7 +112,7 @@ public sealed class KeyboardService : IDisposable
             catch (OperationCanceledException) when (token.IsCancellationRequested) { break; }
             catch (Exception ex) { Log.Warn("OLED: " + ex.Message); }
             Publish(force: true);
-            // Espera até 1 s, acordando na hora se a rodinha mudar a página.
+            // Waits up to 1 s, waking immediately if the wheel changes the page.
             while (!token.IsCancellationRequested)
             {
                 var cur = wheel.Snapshot(Now);
@@ -134,7 +135,7 @@ public sealed class KeyboardService : IDisposable
         Publish(true);
     }
 
-    // ---- Rodinha (thread de UI)
+    // ---- Wheel (UI thread)
     public void AttachWindow(IntPtr hwnd) { window = hwnd; if (config.WheelEnabled) EnableWheel(); }
 
     public void OnWindowMessage(int msg, IntPtr lParam)
@@ -145,7 +146,7 @@ public sealed class KeyboardService : IDisposable
             else if (msg == 0x00FE) input?.DeviceChanged(lParam);
             audio?.Pump();
         }
-        catch (Exception ex) { Log.Warn("Rodinha: " + ex.Message); DisableWheel(); }
+        catch (Exception ex) { Log.Warn("Wheel: " + ex.Message); DisableWheel(); }
     }
 
     private void Media(bool target, bool down)
@@ -159,14 +160,14 @@ public sealed class KeyboardService : IDisposable
     private void EnableWheel()
     {
         if (input != null || window == IntPtr.Zero || disposed) return;
-        try { input = new R33Input(window, Media, () => wheel.CancelInput(Now, false)); Log.Info("Rodinha ativa (Consumer Control do Apex)."); }
-        catch (Exception ex) { input = null; Log.Warn("Captura da rodinha indisponível: " + ex.Message); }
+        try { input = new R33Input(window, Media, () => wheel.CancelInput(Now, false)); Log.Info("Wheel active (Apex Consumer Control)."); }
+        catch (Exception ex) { input = null; Log.Warn("Wheel capture unavailable: " + ex.Message); }
         UpdateAudio();
     }
 
     private void DisableWheel()
     {
-        try { if (input != null && input.TryDisposeWithRetries(3)) input = null; } catch (Exception ex) { Log.Warn("Rodinha: " + ex.Message); }
+        try { if (input != null && input.TryDisposeWithRetries(3)) input = null; } catch (Exception ex) { Log.Warn("Wheel: " + ex.Message); }
         wheel.CancelInput(Now, true);
         UpdateAudio();
     }
@@ -174,7 +175,7 @@ public sealed class KeyboardService : IDisposable
     private void UpdateAudio()
     {
         bool want = input != null && config.MuteCompensation;
-        if (want && audio == null) { try { audio = new R33Audio(); } catch (Exception ex) { Log.Warn("Mudo: " + ex.Message); } }
+        if (want && audio == null) { try { audio = new R33Audio(); } catch (Exception ex) { Log.Warn("Mute: " + ex.Message); } }
         else if (!want && audio != null) { audio.Dispose(); audio = null; }
     }
 
@@ -183,14 +184,14 @@ public sealed class KeyboardService : IDisposable
         var v = wheel.Snapshot(Now);
         if (!force && v.Revision == shownRevision) return;
         shownRevision = v.Revision;
-        string? gg = GameSenseClient.CorePropsPath() == null ? "SteelSeries GG não encontrado" : null;
+        string? gg = GameSenseClient.CorePropsPath() == null ? "SteelSeries GG not found" : null;
         WriteStatus(v);
         Changed?.Invoke(new KeyboardState(config.Enabled, config.WheelEnabled, input != null, config.MuteCompensation, audio?.Ready == true,
             v.Page, config.Pages.Count, v.Pinned, output.Snapshot, gg));
     }
 
     private DateTime statusAt = DateTime.MinValue;
-    /// <summary>keyboard-status.json ao lado do keyboard.json (no máx. a cada 2 s): diagnóstico; HTTP aceito não prova pixels no teclado.</summary>
+    /// <summary>keyboard-status.json next to keyboard.json (at most every 2 s): diagnostics; an accepted HTTP call does not prove pixels on the keyboard.</summary>
     private void WriteStatus(View v)
     {
         if ((DateTime.UtcNow - statusAt).TotalSeconds < 2) return;
@@ -215,11 +216,11 @@ public sealed class KeyboardService : IDisposable
         {
             var v = wheel.Snapshot(Now);
             return new(config.Enabled, config.WheelEnabled, input != null, config.MuteCompensation, audio?.Ready == true, v.Page, config.Pages.Count, v.Pinned, output.Snapshot,
-                GameSenseClient.CorePropsPath() == null ? "SteelSeries GG não encontrado" : null);
+                GameSenseClient.CorePropsPath() == null ? "SteelSeries GG not found" : null);
         }
     }
 
-    /// <summary>Saída: libera o OLED (o GG volta à tela dele) e solta a rodinha.</summary>
+    /// <summary>Exit: releases the OLED (GG shows its own screen again) and lets go of the wheel.</summary>
     public void Dispose()
     {
         if (disposed) return;

@@ -1,4 +1,4 @@
-// Portado de CmpInf (homelab/hosts/nanim/apps/cmpinf/src, homolog 260a683f). Lógica de segurança mantida sem alterações.
+// Ported from CmpInf (homelab/hosts/nanim/apps/cmpinf/src, homolog 260a683f). Safety logic kept unchanged.
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -36,13 +36,13 @@ public sealed class GpuFanController
     internal GpuFanController(IGpuApi api, GpuIdentity identity)
     {
         if (string.IsNullOrWhiteSpace(identity.Uuid) || string.IsNullOrWhiteSpace(identity.Name) || identity.FanCount is < 1 or > 32)
-            throw new ArgumentException("Identidade/quantidade de fans invalida.");
+            throw new ArgumentException("Invalid identity/fan count.");
         this.api = api; this.identity = identity;
     }
     private void ValidateIdentity()
     {
         var matches = api.Discover().Where(g => g.Uuid == identity.Uuid).ToArray();
-        if (matches.Length != 1 || matches[0] != identity) throw new InvalidOperationException("Identidade ou quantidade de fans mudou; escrita recusada.");
+        if (matches.Length != 1 || matches[0] != identity) throw new InvalidOperationException("Identity or fan count changed; write refused.");
     }
     internal GpuReading Read()
     {
@@ -51,9 +51,9 @@ public sealed class GpuFanController
             ValidateIdentity();
             var r = api.Read(identity.Uuid);
             if (r.Identity != identity || r.Fans.Count != identity.FanCount || !r.Fans.Select(f => f.Index).Order().SequenceEqual(Enumerable.Range(0, identity.FanCount)))
-                throw new InvalidOperationException("Leitura nao corresponde a GPU/fans esperados.");
+                throw new InvalidOperationException("Reading does not match the expected GPU/fans.");
             if (r.CapturedAtUtc > DateTimeOffset.UtcNow.AddSeconds(1) || DateTimeOffset.UtcNow - r.CapturedAtUtc > TimeSpan.FromSeconds(6))
-                throw new InvalidOperationException("Leitura NVML vencida ou futura.");
+                throw new InvalidOperationException("NVML reading stale or in the future.");
             return r;
         }
     }
@@ -76,7 +76,7 @@ public sealed class GpuFanController
                 // A partially reduced/unverified set must not be maintained.
                 if (percent < 100)
                 {
-                    requested = 100; SafetyNotice = "Preset nao confirmado; protecao promoveu o alvo para 100%.";
+                    requested = 100; SafetyNotice = "Preset not confirmed; protection raised the target to 100%.";
                     try { Apply(100); } catch (Exception failHigh) { throw new AggregateException(SafetyNotice, ex, failHigh); }
                 }
                 throw;
@@ -93,15 +93,15 @@ public sealed class GpuFanController
             {
                 string? block;
                 try { block = GpuSafety.ReductionBlock(Read(), requested); }
-                catch (Exception ex) { block = "Falha de telemetria: " + ex.Message; }
-                if (block != null) { requested = 100; SafetyNotice = "PROTECAO 100%: " + block; }
+                catch (Exception ex) { block = "Telemetry failure: " + ex.Message; }
+                if (block != null) { requested = 100; SafetyNotice = "PROTECTION 100%: " + block; }
             }
             try { Apply(requested); }
             catch (Exception ex)
             {
                 if (requested < 100)
                 {
-                    requested = 100; SafetyNotice = "PROTECAO 100%: alvo manual nao confirmado.";
+                    requested = 100; SafetyNotice = "PROTECTION 100%: manual target not confirmed.";
                     try { Apply(100); } catch (Exception failHigh) { throw new AggregateException(SafetyNotice, ex, failHigh); }
                 }
                 throw;
@@ -128,10 +128,10 @@ public sealed class GpuFanController
             var result = Read();
             foreach (var fan in result.Fans)
                 if (fan.Policy != (percent.HasValue ? 1u : 0u) || (percent.HasValue && fan.TargetPercent != percent))
-                    errors.Add(new InvalidOperationException($"Fan {fan.Index}: politica/alvo nao confirmado."));
+                    errors.Add(new InvalidOperationException($"Fan {fan.Index}: policy/target not confirmed."));
         }
         catch (Exception ex) { errors.Add(ex); }
-        if (errors.Count != 0) throw new AggregateException("Comando GPU nao confirmado; veja cada fan.", errors);
+        if (errors.Count != 0) throw new AggregateException("GPU command not confirmed; check each fan.", errors);
     }
     internal void RestoreAutomatic()
     {
@@ -141,14 +141,14 @@ public sealed class GpuFanController
             try { Apply(null); }
             catch (Exception original)
             {
-                SafetyNotice = "Automatico nao confirmado; tentando protecao 100% em todos os fans.";
+                SafetyNotice = "Automatic not confirmed; trying 100% protection on all fans.";
                 try { Apply(100); }
                 catch (Exception failHigh)
                 {
-                    SafetyNotice = "Automatico e protecao 100% nao confirmados; verifique cada fan.";
+                    SafetyNotice = "Automatic and 100% protection not confirmed; check each fan.";
                     throw new AggregateException(SafetyNotice, original, failHigh);
                 }
-                SafetyNotice = "Automatico falhou; politica/alvo 100% confirmados por fan. Responsabilidade mantida; tente automatico novamente.";
+                SafetyNotice = "Automatic failed; 100% policy/target confirmed per fan. Still in control; try automatic again.";
                 throw new AggregateException(SafetyNotice, original);
             }
             holding = false; SafetyNotice = null;

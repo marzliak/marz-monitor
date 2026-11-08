@@ -41,7 +41,7 @@ public class TrayTempTests
     [Fact]
     public void AlertLevelIsWorstEvenIfNotShown()
     {
-        var t = TempCards.ForTray(["liq"], Cards, V, 0, 3)!; // GPU 77 °C está perto do limite (80)
+        var t = TempCards.ForTray(["liq"], Cards, V, 0, 3)!; // GPU 77 °C is near the limit (80)
         Assert.Equal("liq", t.Id);
         Assert.Equal(TempLevel.Near, t.Worst);
     }

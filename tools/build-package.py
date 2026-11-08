@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-r"""Gera o pacote de instalacao versionado do Marz Monitor.
+r"""Builds the versioned Marz Monitor installation package.
 
-Uso: python tools/build-package.py [--output-dir DIR]
-1. Le a versao de Directory.Build.props (fonte unica, 0.1.x).
+Usage: python tools/build-package.py [--output-dir DIR]
+1. Reads the version from Directory.Build.props (single source, 0.1.x).
 2. dotnet publish self-contained win-x64.
-3. Copia Uninstall.ps1 para o publish e gera payload-manifest.json (SHA256 de cada arquivo).
-4. Monta INSTALAR.cmd + Installer.ps1 (com versao e hash do manifesto embutidos) + scripts\Elevated.ps1 + LEIA-ME.
-5. ZIP em <output-dir>\MonitorTray-<versao>-win-x64.zip (recusa sobrescrever) e imprime tamanho/SHA256.
+3. Copies Uninstall.ps1 into publish and generates payload-manifest.json (SHA256 of every file).
+4. Assembles INSTALL.cmd + Installer.ps1 (with version and manifest hash embedded) + scripts\Elevated.ps1 + README.
+5. ZIP at <output-dir>\MarzMonitor-<version>-win-x64.zip (refuses to overwrite) and prints size/SHA256.
 """
 import argparse, hashlib, json, os, re, shutil, subprocess, tempfile, zipfile
 from pathlib import Path
@@ -19,7 +19,7 @@ def sha(p): return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 def version():
     m = re.search(r"<Version>([^<]+)</Version>", (ROOT / "Directory.Build.props").read_text(encoding="utf-8"))
     v = m.group(1)
-    if not re.fullmatch(r"0\.1\.\d+", v): raise SystemExit(f"Versao fora da serie 0.1.x: {v}")
+    if not re.fullmatch(r"0\.1\.\d+", v): raise SystemExit(f"Version outside the 0.1.x series: {v}")
     return v
 
 def main():
@@ -28,13 +28,13 @@ def main():
     a = ap.parse_args()
     v = version()
     out = Path(a.output_dir) / f"MarzMonitor-{v}-win-x64.zip"
-    if out.exists(): raise SystemExit(f"{out} ja existe: suba a versao em Directory.Build.props.")
+    if out.exists(): raise SystemExit(f"{out} already exists: bump the version in Directory.Build.props.")
     commit = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--short=7", "HEAD"], capture_output=True, text=True).stdout.strip() or "local"
     with tempfile.TemporaryDirectory(prefix="mt-pkg-") as tmp:
         tmp = Path(tmp); pub = tmp / "pkg" / "publish"
         r = subprocess.run([DOTNET, "publish", str(ROOT / "src/MonitorTray.App/MonitorTray.App.csproj"), "-c", "Release", "-r", "win-x64",
                             "--self-contained", "true", "-warnaserror", f"-p:SourceRevisionId={commit}", "-o", str(pub)], capture_output=True, text=True)
-        if r.returncode != 0: print(r.stdout[-4000:]); raise SystemExit("publish falhou")
+        if r.returncode != 0: print(r.stdout[-4000:]); raise SystemExit("publish failed")
         for p in pub.rglob("*.pdb"): p.unlink()
         shutil.copyfile(ROOT / "installer/Uninstall.ps1", pub / "Uninstall.ps1")
         files = sorted(p for p in pub.rglob("*") if p.is_file())
@@ -47,8 +47,8 @@ def main():
         (pkg / "Installer.ps1").write_text(inst.replace("__VERSION__", v).replace("__MANIFEST_SHA256__", mh), encoding="utf-8-sig", newline="\r\n")
         (pkg / "scripts").mkdir()
         shutil.copyfile(ROOT / "installer/Elevated.ps1", pkg / "scripts/Elevated.ps1")
-        (pkg / "INSTALAR.cmd").write_bytes(('@echo off\r\ncd /d "%~dp0"\r\n"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -STA -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "%~dp0Installer.ps1"\r\nexit /b %ERRORLEVEL%\r\n').encode("ascii"))
-        shutil.copyfile(ROOT / "docs/INSTALL.md", pkg / "LEIA-ME.md")
+        (pkg / "INSTALL.cmd").write_bytes(('@echo off\r\ncd /d "%~dp0"\r\n"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -STA -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "%~dp0Installer.ps1"\r\nexit /b %ERRORLEVEL%\r\n').encode("ascii"))
+        shutil.copyfile(ROOT / "docs/INSTALL.md", pkg / "README.md")
         shutil.copyfile(ROOT / "CHANGELOG.md", pkg / "CHANGELOG.md")
         sums = "".join(f"{sha(p)}  {p.relative_to(pkg).as_posix()}\n" for p in sorted(pkg.rglob("*")) if p.is_file())
         (pkg / "SHA256SUMS.txt").write_text(sums, encoding="ascii")

@@ -6,75 +6,82 @@ namespace MonitorTray.Core.Model;
 
 public sealed record DetailsWindowState(double? X, double? Y, double? W, double? H, bool Maximized);
 
-/// <summary>Configurações persistidas (spec/settings.schema.json). Valores inválidos → padrão.</summary>
+/// <summary>Persisted settings (spec/settings.schema.json). Invalid values → default.</summary>
 public sealed record Settings
 {
-    public static readonly string[] Themes = ["claro", "escuro", "sistema"];
-    public static readonly string[] Palettes = ["eletrico", "neon", "lima", "brasa", "violeta", "aco"];
+    public static readonly string[] Themes = ["light", "dark", "system"];
+    public static readonly string[] Palettes = ["electric", "neon", "lime", "ember", "violet", "steel"];
     public static readonly int[] RefreshOptions = [500, 1000, 2000];
-    public static readonly int[] HistoryOptions = [60, 300, 600, 1800, 3600, 7200]; // segundos; máx. 2 h
-    public static readonly string[] Scales = ["independente", "compartilhada"];
+    public static readonly int[] HistoryOptions = [60, 300, 600, 1800, 3600, 7200]; // seconds; max. 2 h
+    public static readonly string[] Scales = ["independent", "shared"];
     public static readonly string[] NetUnits = ["bytes", "bits"];
 
     public int Version { get; init; } = 1;
-    public string Theme { get; init; } = "escuro";
-    public string Palette { get; init; } = "eletrico";
+    public string Theme { get; init; } = "dark";
+    public string Palette { get; init; } = "electric";
     public int Opacity { get; init; } = 90;
     public int RefreshMs { get; init; } = 1000;
     public int History { get; init; } = 60;
-    public string Scale { get; init; } = "independente";
-    /// <summary>Rede em bytes/s (MB/s, base 1024) ou bits/s (Mbps, base 1000).</summary>
+    public string Scale { get; init; } = "independent";
+    /// <summary>Network in bytes/s (MB/s, base 1024) or bits/s (Mbps, base 1000).</summary>
     public string NetUnit { get; init; } = "bytes";
-    /// <summary>Modos da placa (Armoury Crate), na ordem dos botões.</summary>
-    public static readonly string[] AcModeIds = ["curvas", "silent", "standard", "turbo", "full"];
-    /// <summary>Modos da placa que aparecem no popup (padrão: todos) e ventoinhas que entram neles.</summary>
+    /// <summary>Board modes (Armoury Crate), in button order.</summary>
+    public static readonly string[] AcModeIds = ["curves", "silent", "standard", "turbo", "full"];
+    /// <summary>Board modes shown in the popup (default: all) and the fans they apply to.</summary>
     public IReadOnlyList<string> AcModes { get; init; } = AcModeIds;
     public IReadOnlyList<string> AcFans { get; init; } = ["Chassis Fan 1", "Chassis Fan 2", "Chassis Fan 3", "Chassis Fan 4"];
-    /// <summary>Nome curto de cada ventoinha da placa (conector do Armoury Crate → nome do usuário).</summary>
-    public IReadOnlyDictionary<string, string> AcFanNames { get; init; } = new Dictionary<string, string>
-    { ["Chassis Fan 1"] = "Exaustor", ["Chassis Fan 2"] = "Front top", ["Chassis Fan 3"] = "Front down", ["Chassis Fan 4"] = "Rear" };
-    /// <summary>Modo game: o que vai a 100% (gpu, board, pump, radiator, embedded).</summary>
+    /// <summary>Names the user gave to the board fans (Armoury Crate connector → name). Missing = the header name (CHA_FAN1...).</summary>
+    public IReadOnlyDictionary<string, string> AcFanNames { get; init; } = new Dictionary<string, string>();
+    /// <summary>Names the user gave to the cooler parts (pump, radiator, embedded). Missing = PUMP/RADIATOR/EMB.</summary>
+    public IReadOnlyDictionary<string, string> CoolerNames { get; init; } = new Dictionary<string, string>();
+    /// <summary>Board fan name shown everywhere: the user's name or the header printed on the board.</summary>
+    public string BoardFanName(string acName) => Fans.FanNames.Name(AcFanNames, acName, Fans.FanNames.BoardHeader(acName));
+    /// <summary>Tooltip form: "Exhaust · CHA_FAN1" when renamed.</summary>
+    public string BoardFanTip(string acName) => Fans.FanNames.Tip(AcFanNames, acName, Fans.FanNames.BoardHeader(acName));
+    public string CoolerName(string part) => Fans.FanNames.Name(CoolerNames, part, Fans.FanNames.CoolerHeader(part));
+    public string CoolerTip(string part) => Fans.FanNames.Tip(CoolerNames, part, Fans.FanNames.CoolerHeader(part));
+    /// <summary>Game mode: what goes to 100% (gpu, board, pump, radiator, embedded).</summary>
     public static readonly string[] GameTargetIds = ["gpu", "board", "pump", "radiator", "embedded"];
     public IReadOnlyList<string> GameTargets { get; init; } = GameTargetIds;
-    /// <summary>Ventoinhas da placa no modo game; null = todas as que o Armoury Crate expõe.</summary>
+    /// <summary>Board fans in game mode; null = all the ones Armoury Crate exposes.</summary>
     public IReadOnlyList<string>? GameBoardFans { get; init; }
     public static readonly int[] GamePercents = [70, 85, 100];
     public int GameGpuPercent { get; init; } = 100;
     public int GameCoolerPercent { get; init; } = 100;
-    /// <summary>Cards de temperatura do popup, na ordem (ids de TempCards; no máximo 8).</summary>
+    /// <summary>Popup temperature cards, in order (TempCards ids; at most 8).</summary>
     public IReadOnlyList<string> PopupTemps { get; init; } = TempCards.DefaultIds;
-    /// <summary>Fans da placa (nome do Armoury Crate) que viram card no popup. Padrão: CPU e chassis (sem bombas nem CPU_OPT).</summary>
+    /// <summary>Board fans (Armoury Crate name) shown as popup cards. Default: CPU and chassis (no pumps, no CPU_OPT).</summary>
     public static readonly string[] DefaultBoardCards = ["CPU Fan", "Chassis Fan 1", "Chassis Fan 2", "Chassis Fan 3", "Chassis Fan 4"];
     public IReadOnlyList<string> PopupBoardFans { get; init; } = DefaultBoardCards;
-    /// <summary>Partes do water cooler que viram card no popup (pump, radiator, embedded).</summary>
+    /// <summary>Water cooler parts shown as popup cards (pump, radiator, embedded).</summary>
     public static readonly string[] CoolerCardIds = ["pump", "radiator", "embedded"];
     public IReadOnlyList<string> PopupCoolerFans { get; init; } = CoolerCardIds;
-    /// <summary>Experimental (desligado por padrão): clique no card de um fan da placa desliga/religa (curva de proteção).</summary>
+    /// <summary>Experimental (off by default): clicking a board fan card turns it off/on again (protection curve).</summary>
     public bool BoardFanOff { get; init; } = false;
-    /// <summary>Ícone da bandeja mostra a maior temperatura entre os cards habilitados (PopupTemps).</summary>
+    /// <summary>Tray icon shows the highest temperature among the enabled cards (PopupTemps).</summary>
     public bool TrayTemp { get; init; } = false;
-    /// <summary>Ícone da bandeja muda de cor com algum card perto do limite (≥ limite − 5 °C).</summary>
+    /// <summary>Tray icon changes color when a card is near its limit (≥ limit − 5 °C).</summary>
     public bool TrayAlert { get; init; } = false;
-    /// <summary>Tamanho do número no ícone da bandeja: p (padrão, o menor legível), m ou g (ocupa o quadrado todo).</summary>
-    public static readonly string[] TrayFontSizes = ["pp", "p", "m", "g"];
-    public string TrayFontSize { get; init; } = "pp";
-    /// <summary>Altura máxima dos dígitos no ícone, em fração do lado (16/24/32 px).</summary>
-    public static double TrayFontScale(string size) => size switch { "g" => 1.0, "m" => 0.85, "p" => 0.72, _ => 0.58 };
-    /// <summary>Temperaturas do ícone da bandeja, na ordem do rodízio. Vazio = a mais quente entre os cards do popup.</summary>
+    /// <summary>Size of the number in the tray icon: xs (default, smallest legible), s, m or l (fills the whole square).</summary>
+    public static readonly string[] TrayFontSizes = ["xs", "s", "m", "l"];
+    public string TrayFontSize { get; init; } = "xs";
+    /// <summary>Maximum digit height in the icon, as a fraction of the side (16/24/32 px).</summary>
+    public static double TrayFontScale(string size) => size switch { "l" => 1.0, "m" => 0.85, "s" => 0.72, _ => 0.58 };
+    /// <summary>Tray icon temperatures, in rotation order. Empty = the hottest among the popup cards.</summary>
     public IReadOnlyList<string> TrayTemps { get; init; } = [];
-    /// <summary>Segundos entre uma temperatura e a próxima no ícone (com mais de uma escolhida).</summary>
+    /// <summary>Seconds between one temperature and the next in the icon (when more than one is chosen).</summary>
     public static readonly int[] TrayRotateSeconds = [2, 3, 5, 10];
     public int TrayRotateSec { get; init; } = 3;
-    /// <summary>Executáveis que ligam o modo game sozinhos enquanto rodam ("jogo.exe"; vazio = desligado).</summary>
+    /// <summary>Executables that turn game mode on by themselves while running ("game.exe"; empty = off).</summary>
     public IReadOnlyList<string> GameExes { get; init; } = [];
     public bool Autostart { get; init; } = true;
     public bool Autohide { get; init; } = false;
-    /// <summary>Iniciar com o Windows só na bandeja, sem abrir o popup.</summary>
+    /// <summary>Start with Windows in the tray only, without opening the popup.</summary>
     public bool StartHidden { get; init; } = true;
-    /// <summary>Fechar (X) esconde na bandeja; desligado = fechar encerra o app (fans voltam ao automático).</summary>
-    public bool CloseToTray { get; init; } = true; // usuário: popup fica aberto ao clicar em outra janela (desvio do kit)
+    /// <summary>Close (X) hides to the tray; off = close quits the app (fans go back to automatic).</summary>
+    public bool CloseToTray { get; init; } = true; // user: popup stays open when clicking another window (deviation from the kit)
     public DetailsWindowState? DetailsWindow { get; init; }
-    /// <summary>Escolha do sensor de cada cartão do Detalhes: chave "deviceId|tipo" → "avg", "max" ou id do sensor.</summary>
+    /// <summary>Sensor choice for each Details card: key "deviceId|kind" → "avg", "max" or sensor id.</summary>
     public IReadOnlyDictionary<string, string> CardPicks { get; init; } = new Dictionary<string, string>();
 
     public bool Equals(Settings? o) => o is not null && Version == o.Version && Theme == o.Theme && Palette == o.Palette && Opacity == o.Opacity
@@ -85,10 +92,49 @@ public sealed record Settings
         && TrayTemp == o.TrayTemp && TrayAlert == o.TrayAlert && TrayFontSize == o.TrayFontSize && TrayTemps.SequenceEqual(o.TrayTemps) && TrayRotateSec == o.TrayRotateSec && GameExes.SequenceEqual(o.GameExes)
         && Autostart == o.Autostart && Autohide == o.Autohide
         && StartHidden == o.StartHidden && CloseToTray == o.CloseToTray && Equals(DetailsWindow, o.DetailsWindow)
-        && CardPicks.Count == o.CardPicks.Count && CardPicks.All(kv => o.CardPicks.TryGetValue(kv.Key, out var v) && v == kv.Value);
+        && SameMap(CardPicks, o.CardPicks) && SameMap(AcFanNames, o.AcFanNames) && SameMap(CoolerNames, o.CoolerNames);
+    private static bool SameMap(IReadOnlyDictionary<string, string> a, IReadOnlyDictionary<string, string> b) =>
+        a.Count == b.Count && a.All(kv => b.TryGetValue(kv.Key, out var v) && v == kv.Value);
     public override int GetHashCode() => HashCode.Combine(Theme, Palette, Opacity, RefreshMs, History, Autohide, CardPicks.Count);
 
     public static Settings Default { get; } = new();
+
+    /// <summary>Ids written by versions up to 0.1.33 (Portuguese) → current id. Read only; ToJson writes the new ids.</summary>
+    private static readonly Dictionary<string, string> LegacyIds = new(StringComparer.Ordinal)
+    {
+        ["claro"] = "light", ["escuro"] = "dark", ["sistema"] = "system",
+        ["eletrico"] = "electric", ["lima"] = "lime", ["brasa"] = "ember", ["violeta"] = "violet", ["aco"] = "steel",
+        ["independente"] = "independent", ["compartilhada"] = "shared",
+    };
+    private static readonly Dictionary<string, string> LegacyTrayFontSizes = new(StringComparer.Ordinal) { ["pp"] = "xs", ["p"] = "s", ["g"] = "l" };
+    /// <summary>
+    /// Nicknames that used to be built-in defaults (up to 0.1.33, plus their English forms), per connector. Saved exactly like
+    /// this they are dropped so the header name shows; any other value is the user's own name and is kept.
+    /// </summary>
+    private static readonly Dictionary<string, string[]> LegacyDefaultFanNames = new(StringComparer.Ordinal)
+    {
+        ["Chassis Fan 1"] = ["Exaustor", "Exhaust"], ["Chassis Fan 2"] = ["Front top"],
+        ["Chassis Fan 3"] = ["Front down", "Front bottom"], ["Chassis Fan 4"] = ["Rear"],
+    };
+
+    /// <summary>Board mode id: "curvas" (up to 0.1.33) → "curves".</summary>
+    public static string? MigrateAcMode(string? id) => id == "curvas" ? "curves" : id;
+    /// <summary>True when <paramref name="name"/> is the old built-in default for that connector (not a name the user chose).</summary>
+    public static bool IsLegacyDefaultFanName(string acName, string name) =>
+        LegacyDefaultFanNames.TryGetValue(acName, out var l) && l.Contains(name, StringComparer.Ordinal);
+
+    /// <summary>Name dictionary from JSON: names trimmed and cut to 16, empty ones and the keys not accepted dropped.</summary>
+    private static Dictionary<string, string> Names(JsonNode? n, Func<string, string, bool> keep)
+    {
+        var d = new Dictionary<string, string>();
+        if (n is not JsonObject o) return d;
+        foreach (var kv in o)
+        {
+            try { var v = Fans.FanNames.Clean(kv.Value?.GetValue<string>()); if (v.Length > 0 && kv.Key.Length is > 0 and < 64 && keep(kv.Key, v)) d[kv.Key] = v; }
+            catch (Exception) { }
+        }
+        return d;
+    }
 
     public static Settings Parse(string json)
     {
@@ -102,6 +148,8 @@ public sealed record Settings
             try { var n = o[key]; if (n == null) return fallback; var v = n.GetValue<T>(); return valid(v) ? v : fallback; }
             catch (Exception) { return fallback; }
         }
+        string Id(string key, string fallback, string[] valid, Dictionary<string, string> legacy)
+            => Get(key, fallback, v => valid.Contains(v) || (legacy.TryGetValue(v, out var n) && valid.Contains(n))) is var v && legacy.TryGetValue(v, out var m) ? m : v;
         static IReadOnlyList<string>? Strings(JsonNode? n)
         {
             if (n is not JsonArray a) return null;
@@ -121,7 +169,7 @@ public sealed record Settings
         return new Settings
         {
             CardPicks = picks,
-            AcModes = Strings(o["acModes"])?.Where(AcModeIds.Contains).ToList() ?? d.AcModes,
+            AcModes = Strings(o["acModes"])?.Select(m => MigrateAcMode(m)!).Where(AcModeIds.Contains).Distinct().ToList() ?? d.AcModes,
             AcFans = Strings(o["acFans"]) ?? d.AcFans,
             GameTargets = Strings(o["gameTargets"])?.Where(GameTargetIds.Contains).ToList() ?? d.GameTargets,
             GameBoardFans = Strings(o["gameBoardFans"]),
@@ -133,17 +181,18 @@ public sealed record Settings
             BoardFanOff = Get("boardFanOff", d.BoardFanOff, _ => true),
             TrayTemp = Get("trayTemp", d.TrayTemp, _ => true),
             TrayAlert = Get("trayAlert", d.TrayAlert, _ => true),
-            TrayFontSize = Get("trayFontSize", d.TrayFontSize, TrayFontSizes.Contains),
+            TrayFontSize = Id("trayFontSize", d.TrayFontSize, TrayFontSizes, LegacyTrayFontSizes),
             TrayTemps = Strings(o["trayTemps"]) is { } tt ? PickList.Clean(tt, TempCards.Ids.ToList()) : d.TrayTemps,
             TrayRotateSec = Get("trayRotateSec", d.TrayRotateSec, TrayRotateSeconds.Contains),
             GameExes = Strings(o["gameExes"])?.Select(Fans.AutoGame.Clean).OfType<string>().Distinct().ToList() ?? d.GameExes,
-            AcFanNames = o["acFanNames"] is JsonObject fn ? fn.Where(kv => kv.Value != null).ToDictionary(kv => kv.Key, kv => { try { var v = kv.Value!.GetValue<string>().Trim(); return v.Length > 16 ? v[..16] : v; } catch (Exception) { return ""; } }) : d.AcFanNames,
-            Theme = Get("theme", d.Theme, Themes.Contains),
-            Palette = Get("palette", d.Palette, Palettes.Contains),
+            AcFanNames = Names(o["acFanNames"], (k, v) => !IsLegacyDefaultFanName(k, v)),
+            CoolerNames = Names(o["coolerNames"], (k, _) => Fans.FanNames.CoolerParts.Contains(k)),
+            Theme = Id("theme", d.Theme, Themes, LegacyIds),
+            Palette = Id("palette", d.Palette, Palettes, LegacyIds),
             Opacity = Get("opacity", d.Opacity, v => v is >= 40 and <= 100 && v % 5 == 0),
             RefreshMs = Get("refreshMs", d.RefreshMs, RefreshOptions.Contains),
             History = Get("history", d.History, HistoryOptions.Contains),
-            Scale = Get("scale", d.Scale, Scales.Contains),
+            Scale = Id("scale", d.Scale, Scales, LegacyIds),
             NetUnit = Get("netUnit", d.NetUnit, NetUnits.Contains),
             Autostart = Get("autostart", d.Autostart, _ => true),
             Autohide = Get("autohide", d.Autohide, _ => true),
@@ -172,6 +221,7 @@ public sealed record Settings
             ["trayTemps"] = new JsonArray(TrayTemps.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray()), ["trayRotateSec"] = TrayRotateSec,
             ["gameExes"] = new JsonArray(GameExes.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray()),
             ["acFanNames"] = new JsonObject(AcFanNames.Select(kv => new KeyValuePair<string, JsonNode?>(kv.Key, JsonValue.Create(kv.Value)))),
+            ["coolerNames"] = new JsonObject(CoolerNames.Select(kv => new KeyValuePair<string, JsonNode?>(kv.Key, JsonValue.Create(kv.Value)))),
         };
         if (GameBoardFans != null) o["gameBoardFans"] = new JsonArray(GameBoardFans.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
         if (CardPicks.Count > 0)
@@ -208,7 +258,7 @@ public sealed class SettingsStore
         catch (Exception) { return Settings.Default; }
     }
 
-    /// <summary>Gravação atômica com debounce de 300 ms.</summary>
+    /// <summary>Atomic write with a 300 ms debounce.</summary>
     public void Save(Settings s)
     {
         lock (gate)

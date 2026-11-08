@@ -2,7 +2,7 @@ using MonitorTray.Core.Model;
 
 namespace MonitorTray.Core.Normalize;
 
-/// <summary>Campos de CPU/GPU do Resumo a partir das leituras cruas (docs/02 §Mapeamento).</summary>
+/// <summary>Summary CPU/GPU fields from the raw readings (docs/02, mapping section).</summary>
 public static class SummaryPicker
 {
     public static bool IsGpuFamily(string family) => family.StartsWith("Gpu", StringComparison.Ordinal);
@@ -38,8 +38,8 @@ public static class SummaryPicker
     }
 
     /// <summary>
-    /// Sem admin o LHM devolve 0 W de package (não consegue ler o MSR). Um chip ligado não consome 0 W,
-    /// então isso é "sem leitura" ("—"), não um valor. Não inventa nada: só recusa um zero impossível.
+    /// Without admin LHM returns 0 W package power (it cannot read the MSR). A running chip does not draw 0 W,
+    /// so this is "no reading" ("—"), not a value. Invents nothing: it only rejects an impossible zero.
     /// </summary>
     internal static float? Plausible(float? watts) => watts is float w && w > 0 ? w : null;
 }

@@ -1,6 +1,6 @@
 namespace MonitorTray.Ryujin;
 
-/// <summary>Leituras decodificadas do ROG RYUJIN II (firmware S750). Protocol: https://github.com/marzliak/asus-rog-protocol-notes.</summary>
+/// <summary>Decoded readings from the ROG RYUJIN II (firmware S750). Protocol: https://github.com/marzliak/asus-rog-protocol-notes</summary>
 public sealed record RyujinPumpSensors(double WaterTempC, int PumpRpm, int EmbeddedFanRpm);
 public sealed record RyujinFanReading(int[] Rpm, int DutyRaw)
 {
@@ -8,8 +8,8 @@ public sealed record RyujinFanReading(int[] Rpm, int DutyRaw)
 }
 
 /// <summary>
-/// Quadro HID de 65 bytes: b0 = 0xEC (Report ID), b1 = comando, b2 = status (0 = ok), dados a partir de b3.
-/// Só os comandos de LEITURA estão aqui; escrita fica fora até haver GO (ver <see cref="IsReadCommand"/>).
+/// 65-byte HID frame: b0 = 0xEC (Report ID), b1 = command, b2 = status (0 = ok), data from b3 on.
+/// Only READ commands are here; writes stay out until there is a GO (see <see cref="IsReadCommand"/>).
 /// </summary>
 public static class RyujinProtocol
 {
@@ -23,20 +23,20 @@ public static class RyujinProtocol
     public const byte CmdDisplayStatus = 0xDC;
     public const byte CmdPumpConfig = 0x9A;
 
-    /// <summary>Allow-list: só estes comandos podem ser enviados pelo transporte de leitura.</summary>
+    /// <summary>Allow-list: only these commands may be sent through the read transport.</summary>
     public static bool IsReadCommand(byte cmd) =>
         cmd is CmdFirmware or CmdPumpSensors or CmdFanRpm or CmdFanDuty or CmdDisplayStatus or CmdPumpConfig;
 
-    // ---- LCD (escrita só de TEXTO e LAYOUT; validado ao vivo em 2026-11-02, docs §15-17)
+    // ---- LCD (writes only TEXT and LAYOUT; validated live on 2026-11-02, docs §15-17)
     public const byte CmdLcdLayout = 0x52;
     public const byte CmdLcdText = 0x53;
 
-    /// <summary>Allow-list de escrita do LCD. Nada de brilho (0x5C), mídia/flash (0x51, 0x70-0x73) ou fans (0x1A, 0x21).</summary>
+    /// <summary>LCD write allow-list. No brightness (0x5C), media/flash (0x51, 0x70-0x73) or fans (0x1A, 0x21).</summary>
     public static bool IsDisplayCommand(byte cmd) => cmd is CmdLcdLayout or CmdLcdText;
 
     public const int LcdNameMax = 11, LcdValueOffset = 39, LcdValueMax = 12;
 
-    /// <summary>0x53: b2 = slot (0..3), b3.. = nome ASCII (até 11), b39.. = valor UTF-8 com a unidade num caractere.</summary>
+    /// <summary>0x53: b2 = slot (0..3), b3.. = ASCII name (up to 11), b39.. = UTF-8 value with the unit as one character.</summary>
     public static byte[] BuildText(int slot, string name, string value)
     {
         if (slot is < 0 or > 3) throw new ArgumentOutOfRangeException(nameof(slot));
@@ -50,8 +50,8 @@ public static class RyujinProtocol
     }
 
     /// <summary>
-    /// 0x52 no tema escuro, byte a byte como o Armoury Crate envia: `EC 52 02 n-1 g g 00 00 00` + FF em b9..b25.
-    /// b3 = quantidade de informações - 1; b4 = b5 = grupo do sensor do slot 0 (numeração do protocolo).
+    /// 0x52 in the dark theme, byte for byte as Armoury Crate sends it: `EC 52 02 n-1 g g 00 00 00` + FF in b9..b25.
+    /// b3 = number of items - 1; b4 = b5 = sensor group of slot 0 (protocol numbering).
     /// </summary>
     public static byte[] BuildLayoutDark(int count, LcdGroup slot0Group)
     {
@@ -63,12 +63,12 @@ public static class RyujinProtocol
         return f;
     }
 
-    // ---- Fans (validado ao vivo em 2026-11-02, docs §18-19)
+    // ---- Fans (validated live on 2026-11-02, docs §18-19)
     public const byte CmdPumpSet = 0x1A;
     public const byte CmdRadiatorSet = 0x21;
     public static bool IsFanCommand(byte cmd) => cmd is CmdPumpSet or CmdRadiatorSet;
 
-    /// <summary>0x1A: b3 = % da bomba, b4 = % do fan embutido (0..100).</summary>
+    /// <summary>0x1A: b3 = pump %, b4 = embedded fan % (0..100).</summary>
     public static byte[] BuildPump(int pumpPercent, int embeddedPercent)
     {
         var f = new byte[FrameLength];
@@ -77,7 +77,7 @@ public static class RyujinProtocol
         return f;
     }
 
-    /// <summary>0x21: b4 = duty do radiador 0..255.</summary>
+    /// <summary>0x21: b4 = radiator duty 0..255.</summary>
     public static byte[] BuildRadiator(byte duty)
     {
         var f = new byte[FrameLength];
@@ -89,14 +89,14 @@ public static class RyujinProtocol
 
     public static byte[] BuildRequest(byte cmd)
     {
-        if (!IsReadCommand(cmd)) throw new ArgumentException($"comando 0x{cmd:X2} não é de leitura", nameof(cmd));
+        if (!IsReadCommand(cmd)) throw new ArgumentException($"command 0x{cmd:X2} is not a read command", nameof(cmd));
         var f = new byte[FrameLength];
         f[0] = ReportId;
         f[1] = cmd;
         return f;
     }
 
-    /// <summary>A resposta ecoa o comando sem o bit 7 (0xA0 -> 0x20).</summary>
+    /// <summary>The response echoes the command without bit 7 (0xA0 -> 0x20).</summary>
     public static bool IsResponseTo(byte[] frame, byte cmd) =>
         frame.Length >= FrameLength && frame[0] == ReportId && frame[1] == (cmd & 0x7F) && frame[2] == 0;
 
@@ -113,14 +113,14 @@ public static class RyujinProtocol
     public static RyujinFanReading ParseFans(byte[] rpmFrame, byte[] dutyFrame) =>
         new([U16(rpmFrame, 5), U16(rpmFrame, 7), U16(rpmFrame, 9)], dutyFrame[4]);
 
-    /// <summary>0x9A: b4 = % da bomba, b5 = % do fan embutido (eco do último 0x1A).</summary>
+    /// <summary>0x9A: b4 = pump %, b5 = embedded fan % (echo of the last 0x1A).</summary>
     public static (int PumpPercent, int EmbeddedPercent) ParsePumpConfig(byte[] f) => (f[4], f[5]);
 }
 
-/// <summary>Grupo do sensor do slot 0 no 0x52 (numeração do PROTOCOLO; Frequency/Water Flow são invertidos em relação ao SDK).</summary>
+/// <summary>Sensor group of slot 0 in 0x52 (PROTOCOL numbering; Frequency/Water Flow are swapped relative to the SDK).</summary>
 public enum LcdGroup : byte { Voltage = 0, FanSpeed = 1, Temperature = 2, Frequency = 3, WaterFlow = 4 }
 
-/// <summary>Texto aceito pelo LCD: nome em ASCII (sem acento), valor em UTF-8 com um caractere de unidade.</summary>
+/// <summary>Text accepted by the LCD: ASCII name (no accents), UTF-8 value with a single unit character.</summary>
 public static class LcdText
 {
     public const string Celsius = "℃", GHz = "㎓", Volt = "↊", Rpm = "↌", Flow = "↍";
@@ -143,7 +143,7 @@ public static class LcdText
         var b = System.Text.Encoding.UTF8.GetBytes(s ?? "");
         if (b.Length <= maxBytes) return b;
         int n = maxBytes;
-        while (n > 0 && (b[n] & 0xC0) == 0x80) n--; // não corta um caractere no meio
+        while (n > 0 && (b[n] & 0xC0) == 0x80) n--; // never cut a character in half
         return b[..n];
     }
 }

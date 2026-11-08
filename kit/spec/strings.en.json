@@ -1,0 +1,141 @@
+{
+  "popup": {
+    "title": "Monitor",
+    "details": "Details",
+    "cpu": "CPU",
+    "gpu": "GPU",
+    "mem": "MEM",
+    "disk": "Disk",
+    "net": "Network",
+    "read": "R",
+    "write": "W"
+  },
+  "tooltip": {
+    "close": "Close",
+    "back": "Back",
+    "settings": "Settings",
+    "details": "Open details",
+    "max": "Maximize",
+    "restore": "Restore",
+    "zero": "Show always-zero sensors",
+    "limits": "Show limits and SPD metadata"
+  },
+  "settings": {
+    "title": "Settings",
+    "color": "Color · {name}",
+    "theme": "Theme",
+    "themeOpts": {
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
+    "refresh": "Refresh",
+    "refreshOpts": {
+      "500": "0.5s",
+      "1000": "1s",
+      "2000": "2s"
+    },
+    "history": "History",
+    "historyOpts": {
+      "30": "30s",
+      "60": "60s",
+      "120": "120s"
+    },
+    "netscale": "Network scale",
+    "netscaleOpts": {
+      "independent": "Separate",
+      "shared": "Shared"
+    },
+    "opacity": "Opacity",
+    "autostart": "Start with Windows",
+    "autohide": "Close on focus loss"
+  },
+  "palettes": {
+    "electric": "Electric",
+    "neon": "Neon",
+    "lime": "Lime",
+    "ember": "Ember",
+    "violet": "Violet",
+    "steel": "Steel"
+  },
+  "details": {
+    "title": "System details",
+    "sub": "{n} devices · {m} entries",
+    "loading": "Loading sensors…",
+    "search": "Filter sensors",
+    "zero": "Zeros",
+    "limits": "Limits",
+    "meta": "{n} sensors · {id}",
+    "metaModules": "{n} modules · {list}",
+    "moduleSlot": "module {i} in slot {s}",
+    "min": "min {v}",
+    "max": "max {v}",
+    "avg": "avg {v}",
+    "stable": "stable {v}",
+    "emptyFilter": "No visible readings with the current filters.",
+    "emptySearch": "No sensor matches the filter.",
+    "footerVisible": "{n} sensors visible",
+    "footerZero": "{n} zeros hidden",
+    "footerLimits": "{n} limits/SPD hidden",
+    "refresh": "refreshes every {t}",
+    "new": "NEW",
+    "admin": "Some readings (CPU temperature and power, motherboard, RAM SPD) require running as administrator.",
+    "adminBtn": "Restart as admin"
+  },
+  "tags": {
+    "unavailable": "no reading",
+    "partial": "partial",
+    "margin": "margin",
+    "accumulated": "accumulated",
+    "estimate": "estimate",
+    "limit": "limit",
+    "spd": "SPD"
+  },
+  "categories": {
+    "CPU": "CPU",
+    "GPU": "GPU",
+    "Memory": "Memory",
+    "Motherboard": "Motherboard",
+    "Storage": "Storage",
+    "Network": "Network",
+    "Psu": "PSU",
+    "Controller": "Controller",
+    "Battery": "Battery",
+    "PowerMonitor": "Power"
+  },
+  "types": {
+    "Temperature": "Temperature",
+    "Load": "Load",
+    "Power": "Power",
+    "Clock": "Clock",
+    "Voltage": "Voltage",
+    "Current": "Current",
+    "Fan": "Fans",
+    "Control": "Fan control",
+    "Flow": "Flow",
+    "SmallData": "Memory",
+    "Data": "Data",
+    "Throughput": "Throughput",
+    "Level": "Level",
+    "Factor": "Counters",
+    "Timing": "SPD timings"
+  },
+  "fallbackNames": {
+    "Network": "Network adapter {n}",
+    "Storage": "Disk {n}",
+    "Memory": "Memory {n}",
+    "other": "{cat} {n}"
+  },
+  "memorySources": {
+    "total": "Physical",
+    "virtual": "Virtual",
+    "module": "Module {n}"
+  },
+  "tray": {
+    "open": "Open",
+    "details": "Details",
+    "settings": "Settings",
+    "exit": "Quit",
+    "tooltip": "↓ {down}  ↑ {up}"
+  }
+}

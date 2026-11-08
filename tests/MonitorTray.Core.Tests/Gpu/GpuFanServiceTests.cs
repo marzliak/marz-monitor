@@ -36,7 +36,7 @@ public sealed class GpuFanServiceTests
         Assert.Empty(api.Writes);
         Assert.False(st.Holding);
         Assert.Equal(FanMode.Mixed, st.Mode);
-        Assert.Contains("não assumido", st.SafetyNotice);
+        Assert.Contains("not taken over", st.SafetyNotice);
     }
 
     [Fact]
@@ -68,10 +68,10 @@ public sealed class GpuFanServiceTests
     [Fact]
     public async Task WhenAnotherProcessHoldsTheMutexEverythingIsReadOnly()
     {
-        // Simula o CmpInf segurando o mutex em outra thread (mutex é por thread).
+        // Simulates CmpInf holding the mutex on another thread (mutexes are per thread).
         using var held = new ManualResetEventSlim(); using var release = new ManualResetEventSlim();
         var name = GpuFanService.MutexName;
-        // Se o app instalado estiver rodando ele já detém o mutex: o cenário "outro processo segura" continua válido; só libera se esta thread obteve a posse.
+        // If the installed app is running it already owns the mutex: the "another process holds it" scenario stays valid; only release if this thread got ownership.
         var t = new Thread(() =>
         {
             using var m = new Mutex(false, name);

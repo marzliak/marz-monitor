@@ -4,12 +4,12 @@ namespace MonitorTray.Gpu;
 
 public enum FanMode { Unknown, Automatic, Manual, Mixed }
 
-/// <summary>Estado imutável do controle de fans para a UI.</summary>
+/// <summary>Immutable fan-control state for the UI.</summary>
 public sealed record FanState(
     GpuReading? Reading, bool Holding, uint? RequestedPercent, string? Error, string? SafetyNotice,
     bool CanControl, string? ReadOnlyReason, bool Busy)
 {
-    public static FanState Starting { get; } = new(null, false, null, "Iniciando leitura NVML", null, false, null, false);
+    public static FanState Starting { get; } = new(null, false, null, "Starting NVML read", null, false, null, false);
 
     public FanMode Mode => Reading == null || Reading.Fans.Count == 0 || Reading.Fans.Any(f => f.Policy is not (0 or 1)) ? FanMode.Unknown
         : Reading.Fans.All(f => f.Policy == 0) ? FanMode.Automatic : Reading.Fans.All(f => f.Policy == 1) ? FanMode.Manual : FanMode.Mixed;
@@ -17,24 +17,24 @@ public sealed record FanState(
     public bool IsFresh(DateTimeOffset now) => Reading != null && Error == null
         && now >= Reading.CapturedAtUtc.AddSeconds(-1) && now - Reading.CapturedAtUtc <= TimeSpan.FromSeconds(6);
 
-    /// <summary>Motivo pelo qual um preset abaixo de 100% está bloqueado agora (null = permitido).</summary>
+    /// <summary>Reason why a preset below 100% is blocked right now (null = allowed).</summary>
     public string? BlockFor(uint percent, DateTimeOffset now)
     {
-        if (!CanControl) return ReadOnlyReason ?? "Controle indisponível.";
-        if (Busy) return "Comando em andamento.";
-        if (!IsFresh(now)) return "Leitura ausente ou vencida.";
+        if (!CanControl) return ReadOnlyReason ?? "Control unavailable.";
+        if (Busy) return "Command in progress.";
+        if (!IsFresh(now)) return "Reading missing or stale.";
         if (percent >= 100) return null;
         return GpuSafety.ReductionBlock(Reading!, percent);
     }
 }
 
 /// <summary>
-/// Dono único do controle NVML neste app (mesma lógica do GpuTray do CmpInf, sem WinForms).
-/// - Usa o mesmo mutex global do CmpInf ("Global\CmpInf.NvidiaFans.v1"): só um processo escreve nas fans.
-///   Se o CmpInf estiver com ele, este app fica somente leitura.
-/// - Iniciar é sempre somente leitura; um estado manual anterior não é assumido.
-/// - Comandos aplicam no clique (sem diálogo); segurança: GpuSafety + verificação por fan + identidade.
-/// - Sair devolve as fans ao automático (GpuFanController.Close).
+/// Sole owner of NVML control in this app (same logic as CmpInf's GpuTray, without WinForms).
+/// - Uses the same global mutex as CmpInf ("Global\CmpInf.NvidiaFans.v1"): only one process writes to the fans.
+///   If CmpInf holds it, this app stays read-only.
+/// - Startup is always read-only; a previous manual state is not taken over.
+/// - Commands apply on click (no dialog); safety: GpuSafety + per-fan verification + identity.
+/// - Quitting returns the fans to automatic (GpuFanController.Close).
 /// </summary>
 public sealed class GpuFanService : IDisposable
 {
@@ -65,8 +65,8 @@ public sealed class GpuFanService : IDisposable
                 owner = new Mutex(false, MutexName);
                 try { ownsMutex = owner.WaitOne(0); } catch (AbandonedMutexException) { ownsMutex = true; }
             }
-            catch (Exception ex) { ownsMutex = false; readOnlyReason = "Mutex de controle indisponível: " + ex.Message; }
-            if (!ownsMutex) readOnlyReason ??= "Outro programa (GPU by MarzOps/CmpInf) controla as fans. Somente leitura.";
+            catch (Exception ex) { ownsMutex = false; readOnlyReason = "Control mutex unavailable: " + ex.Message; }
+            if (!ownsMutex) readOnlyReason ??= "Another program (GPU by MarzOps/CmpInf) controls the fans. Read-only.";
         }
         else ownsMutex = true;
     }
@@ -75,7 +75,7 @@ public sealed class GpuFanService : IDisposable
 
     private void Poll()
     {
-        if (!Monitor.TryEnter(gate)) return; // sem amostras enfileiradas/sobrepostas
+        if (!Monitor.TryEnter(gate)) return; // no queued/overlapping samples
         try
         {
             if (closing) return;
@@ -85,8 +85,8 @@ public sealed class GpuFanService : IDisposable
                 {
                     api ??= apiFactory();
                     var found = api.Discover();
-                    if (found.Count != 1) throw new InvalidOperationException(found.Count == 0 ? "Nenhuma GPU NVIDIA encontrada." : "Controle requer exatamente uma GPU NVIDIA.");
-                    if (found[0].FanCount < 1) throw new InvalidOperationException("GPU sem fans controláveis pelo driver.");
+                    if (found.Count != 1) throw new InvalidOperationException(found.Count == 0 ? "No NVIDIA GPU found." : "Control requires exactly one NVIDIA GPU.");
+                    if (found[0].FanCount < 1) throw new InvalidOperationException("GPU has no fans controllable by the driver.");
                     controller = new GpuFanController(api, found[0]);
                 }
                 if (controller.IsHoldingManual) controller.Maintain();
@@ -102,7 +102,7 @@ public sealed class GpuFanService : IDisposable
         var reading = controller!.Read();
         string? notice = controller.SafetyNotice;
         if (!controller.IsHoldingManual && reading.Fans.Any(f => f.Policy != 0))
-            notice = "Estado manual/desconhecido anterior, não assumido por este app. Devolva ao automático ou aplique um preset.";
+            notice = "Previous manual/unknown state, not taken over by this app. Return to automatic or apply a preset.";
         Publish(new FanState(reading, controller.IsHoldingManual, controller.RequestedPercent, null, notice, ownsMutex && !closing, readOnlyReason, busy));
     }
 
@@ -120,7 +120,7 @@ public sealed class GpuFanService : IDisposable
         Changed?.Invoke(s);
     }
 
-    /// <summary>Status para o instalador: só força o encerramento se provar que nenhuma fan está manual.</summary>
+    /// <summary>Status for the installer: it only forces shutdown if it proves no fan is in manual.</summary>
     private void WriteStatus(FanState s)
     {
         if (statusPath == null) return;
@@ -141,13 +141,13 @@ public sealed class GpuFanService : IDisposable
         catch (Exception) { }
     }
 
-    /// <summary>target = null → automático. Aplica e verifica cada fan; erro vai para State.Error e é relançado.</summary>
+    /// <summary>target = null → automatic. Applies and verifies each fan; errors go to State.Error and are rethrown.</summary>
     public Task CommandAsync(uint? target) => Task.Run(() =>
     {
-        if (busy || closing || disposed) throw new InvalidOperationException("Controle ocupado ou encerrando.");
+        if (busy || closing || disposed) throw new InvalidOperationException("Control busy or shutting down.");
         var snap = State;
-        if (!ownsMutex) throw new InvalidOperationException(readOnlyReason ?? "Somente leitura.");
-        if (snap.Reading == null) throw new InvalidOperationException("Sem leitura da GPU.");
+        if (!ownsMutex) throw new InvalidOperationException(readOnlyReason ?? "Read-only.");
+        if (snap.Reading == null) throw new InvalidOperationException("No GPU reading.");
         var expected = snap.Reading.Identity;
         busy = true;
         Publish(snap with { Busy = true });
@@ -157,9 +157,9 @@ public sealed class GpuFanService : IDisposable
             {
                 try
                 {
-                    if (closing || controller == null || api == null) throw new InvalidOperationException("Controle GPU encerrado.");
+                    if (closing || controller == null || api == null) throw new InvalidOperationException("GPU control closed.");
                     var actual = api.Discover().Single(g => g.Uuid == expected.Uuid);
-                    if (actual != expected) throw new InvalidOperationException("Identidade da GPU mudou; comando recusado.");
+                    if (actual != expected) throw new InvalidOperationException("GPU identity changed; command refused.");
                     if (target.HasValue) controller.SetSpeed(target.Value); else controller.RestoreAutomatic();
                     busy = false;
                     UpdateReading();
@@ -170,7 +170,7 @@ public sealed class GpuFanService : IDisposable
         finally { busy = false; }
     });
 
-    /// <summary>Antes de sair: devolve ao automático. false = restauração não confirmada (app deve continuar aberto).</summary>
+    /// <summary>Before quitting: returns to automatic. false = restore not confirmed (the app must stay open).</summary>
     public bool TryClose(TimeSpan timeout)
     {
         if (closing) return true;
@@ -184,7 +184,7 @@ public sealed class GpuFanService : IDisposable
         });
         try
         {
-            if (!work.Wait(timeout)) throw new TimeoutException("NVML não respondeu a tempo.");
+            if (!work.Wait(timeout)) throw new TimeoutException("NVML did not respond in time.");
             closing = true;
             poll?.Dispose();
             return true;
@@ -192,7 +192,7 @@ public sealed class GpuFanService : IDisposable
         catch (Exception ex)
         {
             var old = State;
-            Volatile.Write(ref state, old with { Error = "Restauração não confirmada: " + ErrorText(ex) });
+            Volatile.Write(ref state, old with { Error = "Restore not confirmed: " + ErrorText(ex) });
             return false;
         }
     }

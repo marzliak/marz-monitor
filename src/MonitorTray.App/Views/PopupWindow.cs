@@ -7,16 +7,16 @@ using MonitorTray.App.Platform;
 
 namespace MonitorTray.App.Views;
 
-/// <summary>Popup ancorado acima do relógio. Topmost, fora do Alt+Tab, some ao perder foco (opcional).</summary>
+/// <summary>Popup anchored above the clock. Topmost, out of Alt+Tab, hides on focus loss (optional).</summary>
 public sealed class PopupWindow : Window
 {
-    /// <summary>Sem margem fora da moldura: a margem transparente mostrava o acrílico como uma borda clara.</summary>
+    /// <summary>No margin outside the frame: the transparent margin showed the acrylic as a light border.</summary>
     public const double Margin6 = 0;
     private readonly AppState app;
     public PopupContent Content2 { get; }
     public DateTime HiddenByDeactivateAt { get; private set; }
     private Native.POINT? anchor;
-    /// <summary>Usuário arrastou o popup: fica onde foi deixado (nesta sessão) em vez de voltar para o relógio.</summary>
+    /// <summary>User dragged the popup: it stays where it was left (this session) instead of going back to the clock.</summary>
     private bool moved;
 
     private static bool IsInteractive(DependencyObject? d)
@@ -46,7 +46,7 @@ public sealed class PopupWindow : Window
         };
         Content2.LayoutChanged += () => Dispatcher.BeginInvoke(Reposition, System.Windows.Threading.DispatcherPriority.Loaded);
         SourceInitialized += (_, _) => { Native.ToolWindow(this); Native.SquareCorners(this); Native.NoBorder(this); ApplyBlur(); };
-        // Região pelo retângulo real da moldura (depois do layout), não pela margem: sem pixel de blur sem fundo nas bordas.
+        // Region from the real frame rectangle (after layout), not from the margin: no blurred pixel without background at the edges.
         void Clip() { if (!FrameRegion.Apply(this, frame)) FrameRegion.Apply(this, Margin6, true); }
         SizeChanged += (_, _) => { Clip(); Reposition(); };
         DpiChanged += (_, _) => Dispatcher.BeginInvoke(() => { Clip(); Reposition(); }, System.Windows.Threading.DispatcherPriority.Loaded);
@@ -54,7 +54,8 @@ public sealed class PopupWindow : Window
         {
             if (app.Settings.Autohide && IsVisible) { HiddenByDeactivateAt = DateTime.UtcNow; HideNow(); }
         };
-        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { if (Content2.InSettings) Content2.ShowSettings(false); else HideNow(); } };
+        // Esc inside a text box (fan names) belongs to the box: it undoes the typing instead of leaving Settings.
+        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape && Keyboard.FocusedElement is not System.Windows.Controls.TextBox) { if (Content2.InSettings) Content2.ShowSettings(false); else HideNow(); } };
         app.Changed += (_, s) => { Content2.ApplySettings(s); ApplyBlur(); };
     }
 

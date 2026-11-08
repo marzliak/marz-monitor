@@ -6,10 +6,10 @@ using Microsoft.Win32;
 namespace MonitorTray.App.Platform;
 
 /// <summary>
-/// Início e elevação. O instalador registra duas tarefas agendadas da conta (sessão interativa, privilégio mais alto, nunca SYSTEM):
-///  - "MonitorTray-&lt;SID&gt;": sob demanda, sem gatilho. Atalhos e o próprio exe a usam para abrir elevado sem UAC.
-///  - "MonitorTray-Logon-&lt;SID&gt;": no logon, com --tray. O toggle "Iniciar com o Windows" habilita/desabilita só esta.
-/// Sem instalação (execução portátil) o autostart cai na chave Run, que não eleva.
+/// Startup and elevation. The installer registers two scheduled tasks for the account (interactive session, highest privileges, never SYSTEM):
+///  - "MonitorTray-&lt;SID&gt;": on demand, no trigger. Shortcuts and the exe itself use it to open elevated without UAC.
+///  - "MonitorTray-Logon-&lt;SID&gt;": at logon, with --tray. The "Start with Windows" toggle enables/disables only this one.
+/// Without installation (portable run) autostart falls back to the Run key, which does not elevate.
 /// </summary>
 public static class Autostart
 {
@@ -42,14 +42,14 @@ public static class Autostart
 
     public static bool TaskExists(string name) => Schtasks($"/Query /TN \"{name}\"").Code == 0;
 
-    /// <summary>Executável dentro de Program Files\MonitorTray (instalado), e não uma cópia de build/teste.</summary>
+    /// <summary>Executable inside Program Files\MonitorTray (installed), not a build/test copy.</summary>
     public static bool IsInstalledCopy()
     {
         var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "MonitorTray") + Path.DirectorySeparatorChar;
         return (Environment.ProcessPath ?? "").StartsWith(root, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>Cópia instalada aberta sem elevação (atalho): reabre pela tarefa elevada. true = a tarefa assumiu; este processo sai.</summary>
+    /// <summary>Installed copy opened without elevation (shortcut): reopens through the elevated task. true = the task took over; this process exits.</summary>
     public static bool TryRelaunchElevated()
     {
         if (IsAdmin() || !IsInstalledCopy()) return false;

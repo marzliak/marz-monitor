@@ -14,6 +14,6 @@
     <ProjectReference Include="..\..\src\MonitorTray.Ryujin\MonitorTray.Ryujin.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\kit\prototype\data\sensores.json" Link="data\sensores.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\kit\prototype\data\sensors.json" Link="data\sensors.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

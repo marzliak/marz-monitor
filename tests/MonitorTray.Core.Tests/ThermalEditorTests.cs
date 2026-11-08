@@ -31,12 +31,12 @@ public class CurveEditTests
     public void MoveStaysBetweenNeighboursAndInsideLimits()
     {
         var c = P((25, 25), (30, 35), (35, 55));
-        Assert.Equal(new CurvePoint(34, 100), CurveEdit.Move(c, 1, 50, 140, Cooler)[1]); // não passa do vizinho (35 − 1)
-        Assert.Equal(new CurvePoint(26, 0), CurveEdit.Move(c, 1, 10, -9, Cooler)[1]);   // nem do anterior (25 + 1)
-        Assert.Equal(new CurvePoint(20, 25), CurveEdit.Move(c, 0, 3, 25, Cooler)[0]);   // primeiro: limite do eixo
-        Assert.Equal(new CurvePoint(60, 55), CurveEdit.Move(c, 2, 99, 55, Cooler)[2]);  // último: limite do eixo
-        Assert.Equal(30, CurveEdit.Move(P((20, 40), (70, 100)), 0, 20, 5, Pump)[0].Percent); // bomba ≥ 30%
-        Assert.Equal(c, CurveEdit.Move(c, 7, 30, 30, Cooler)); // índice inválido: nada muda
+        Assert.Equal(new CurvePoint(34, 100), CurveEdit.Move(c, 1, 50, 140, Cooler)[1]); // does not pass the next neighbour (35 − 1)
+        Assert.Equal(new CurvePoint(26, 0), CurveEdit.Move(c, 1, 10, -9, Cooler)[1]);   // nor the previous one (25 + 1)
+        Assert.Equal(new CurvePoint(20, 25), CurveEdit.Move(c, 0, 3, 25, Cooler)[0]);   // first: axis limit
+        Assert.Equal(new CurvePoint(60, 55), CurveEdit.Move(c, 2, 99, 55, Cooler)[2]);  // last: axis limit
+        Assert.Equal(30, CurveEdit.Move(P((20, 40), (70, 100)), 0, 20, 5, Pump)[0].Percent); // pump ≥ 30%
+        Assert.Equal(c, CurveEdit.Move(c, 7, 30, 30, Cooler)); // invalid index: nothing changes
     }
 
     [Fact]
@@ -46,11 +46,11 @@ public class CurveEditTests
         var (pts, idx) = CurveEdit.Add(c, 30.4, Cooler)!.Value;
         Assert.Equal(P((20, 20), (30, 40), (40, 60)), pts);
         Assert.Equal(1, idx);
-        Assert.Null(CurveEdit.Add(c, 40, Cooler));  // já tem ponto nessa temperatura
-        Assert.Null(CurveEdit.Add(c, 75, Cooler));  // fora do eixo
+        Assert.Null(CurveEdit.Add(c, 40, Cooler));  // already has a point at this temperature
+        Assert.Null(CurveEdit.Add(c, 75, Cooler));  // outside the axis
         var full = Enumerable.Range(0, 8).Select(i => new CurvePoint(20 + i * 5, i * 10)).ToList();
-        Assert.Null(CurveEdit.Add(full, 22, Cooler)); // 8 pontos: limite
-        Assert.Null(CurveEdit.Add(P((20, 0), (40, 30), (60, 60), (80, 100)), 50, Board)); // chip: quantidade fixa
+        Assert.Null(CurveEdit.Add(full, 22, Cooler)); // 8 points: limit
+        Assert.Null(CurveEdit.Add(P((20, 0), (40, 30), (60, 60), (80, 100)), 50, Board)); // chip: fixed count
     }
 
     [Fact]
@@ -58,8 +58,8 @@ public class CurveEditTests
     {
         var c = P((20, 20), (40, 60), (60, 100));
         Assert.Equal(new CurvePoint(30, 40), CurveEdit.AddAfter(c, 0, Cooler)!.Value.Points[1]);
-        Assert.Equal(new CurvePoint(50, 80), CurveEdit.AddAfter(c, 2, Cooler)!.Value.Points[2]); // último: trecho anterior
-        Assert.Null(CurveEdit.AddAfter(P((20, 0), (21, 10)), 0, Cooler)); // sem espaço
+        Assert.Equal(new CurvePoint(50, 80), CurveEdit.AddAfter(c, 2, Cooler)!.Value.Points[2]); // last: previous segment
+        Assert.Null(CurveEdit.AddAfter(P((20, 0), (21, 10)), 0, Cooler)); // no room
     }
 
     [Fact]
@@ -84,8 +84,8 @@ public class CurveEditTests
     public void FitsRejectsPointsOutsideTheAxisOrUnordered()
     {
         Assert.True(CurveEdit.Fits(P((44, 21), (48, 29), (60, 62), (66, 100)), Board));
-        Assert.False(CurveEdit.Fits(P((255, 40), (255, 40), (255, 40), (255, 40)), Board)); // modo fixo do Armoury Crate
-        Assert.False(CurveEdit.Fits(P((20, 0), (60, 100)), Board)); // chip tem 4
+        Assert.False(CurveEdit.Fits(P((255, 40), (255, 40), (255, 40), (255, 40)), Board)); // Armoury Crate fixed mode
+        Assert.False(CurveEdit.Fits(P((20, 0), (60, 100)), Board)); // chip has 4
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public class CurveEditTests
     [Fact]
     public void ChipCurveConvertsBothWays()
     {
-        // Curva lida do chip no log do serviço: (44,54)(48,74)(60,158)(66,255).
+        // Curve read from the chip in the service log: (44,54)(48,74)(60,158)(66,255).
         int[][] chip = [[44, 54], [48, 74], [60, 158], [66, 255]];
         var pts = CurveEdit.FromChip(chip);
         Assert.Equal(P((44, 21), (48, 29), (60, 62), (66, 100)), pts);
@@ -149,7 +149,7 @@ public class ThermalMapTests
     {
         const string water = "ryujin/water";
         Assert.Equal(ThermalMap.GpuSource, ThermalMap.SourceOf(ThermalMap.GpuId, water));
-        Assert.Equal(ThermalMap.GpuSource, ThermalMap.SourceOf(ThermalMap.BoardId("Chassis Fan 1"), water)); // exaustor segue a GPU
+        Assert.Equal(ThermalMap.GpuSource, ThermalMap.SourceOf(ThermalMap.BoardId("Chassis Fan 1"), water)); // exhaust follows the GPU
         Assert.Equal(ThermalMap.CpuSource, ThermalMap.SourceOf(ThermalMap.BoardId("Chassis Fan 2"), water));
         Assert.Equal(ThermalMap.CpuSource, ThermalMap.SourceOf(ThermalMap.BoardId("CPU Fan"), water));
         Assert.Equal(water, ThermalMap.SourceOf(ThermalMap.RadiatorId, water));
@@ -162,8 +162,8 @@ public class ThermalMapTests
         Assert.Equal((20, 60, 5), ThermalMap.Axis(true, [25, 45]));
         Assert.Equal((20, 75, 5), ThermalMap.Axis(true, [20, 65, 74]));
         Assert.Equal((20, 100, 10), ThermalMap.Axis(false, [60, 98]));
-        Assert.Equal((0, 100, 10), ThermalMap.Axis(false, [0, 100, 100])); // preset FULL: (0,100)
-        Assert.Equal((20, 120, 10), ThermalMap.Axis(false, [255])); // limite do eixo
+        Assert.Equal((0, 100, 10), ThermalMap.Axis(false, [0, 100, 100])); // FULL preset: (0,100)
+        Assert.Equal((20, 120, 10), ThermalMap.Axis(false, [255])); // axis limit
     }
 
     [Fact]
@@ -187,7 +187,7 @@ public class ThermalMapTests
         Assert.NotNull(ThermalMap.BoardEditBlock(true, "standard", null, false, false, true));
         Assert.NotNull(ThermalMap.BoardEditBlock(true, "full", null, false, false, true));
         Assert.NotNull(ThermalMap.BoardEditBlock(true, null, "turbo", false, false, true));
-        Assert.Contains("religue", ThermalMap.BoardEditBlock(true, null, null, true, false, true));
+        Assert.Contains("back on", ThermalMap.BoardEditBlock(true, null, null, true, false, true));
         Assert.NotNull(ThermalMap.BoardEditBlock(true, null, null, false, true, true));
         Assert.NotNull(ThermalMap.BoardEditBlock(true, null, null, false, false, false));
     }
@@ -198,10 +198,10 @@ public class ThermalMapTests
         var rpm = new Dictionary<int, float> { [0] = 0, [1] = 1268, [2] = 834 };
         var ctl = new Dictionary<int, float> { [0] = 0, [1] = 80, [2] = 55, [5] = 100 };
         var items = ThermalMap.BoardStrip(["CPU Fan", "Chassis Fan 1", "Chassis Fan 2", "Water Pump+"],
-            f => f == "Chassis Fan 1" ? "Exaustor" : null, rpm, ctl, f => f == "Chassis Fan 1");
+            f => f == "Chassis Fan 1" ? "Exhaust" : null, rpm, ctl, f => f == "Chassis Fan 1");
         Assert.Equal(["CPU_FAN", "CHA_FAN1", "CHA_FAN2", "W_PUMP+"], items.Select(i => i.Name));
-        Assert.Equal((null, 80, false, true), (items[0].Rpm, items[0].Percent, items[0].Off, items[0].Locked)); // rpm da CPU não medido
-        Assert.Equal((0, 0, true, "Exaustor"), (items[1].Rpm, items[1].Percent, items[1].Off, items[1].Nick));
+        Assert.Equal((null, 80, false, true), (items[0].Rpm, items[0].Percent, items[0].Off, items[0].Locked)); // CPU rpm not measured
+        Assert.Equal((0, 0, true, "Exhaust"),(items[1].Rpm, items[1].Percent, items[1].Off, items[1].Nick));
         Assert.Equal((834, 55), (items[2].Rpm, items[2].Percent));
         Assert.True(items[3].Locked);
         Assert.Equal("mb:Chassis Fan 2", items[2].ActuatorId);
@@ -211,9 +211,9 @@ public class ThermalMapTests
     public void CoolerAndGpuStrips()
     {
         var c = ThermalMap.CoolerStrip(2050, 59, [1268, 1281, 1276], 55, 3200, 60);
-        Assert.Equal(["BOMBA", "RAD 1", "RAD 2", "RAD 3", "EMBUTIDO"], c.Select(i => i.Name));
+        Assert.Equal(["PUMP", "RAD 1", "RAD 2", "RAD 3", "EMBEDDED"], c.Select(i => i.Name));
         Assert.All(c.Skip(1).Take(3), i => Assert.Equal(ThermalMap.RadiatorId, i.ActuatorId));
-        Assert.Equal(["BOMBA", "RADIADOR", "EMBUTIDO"], ThermalMap.CoolerStrip(null, null, [], null, null, null).Select(i => i.Name));
+        Assert.Equal(["PUMP", "RADIATOR", "EMBEDDED"], ThermalMap.CoolerStrip(null, null, [], null, null, null).Select(i => i.Name));
         var g = ThermalMap.GpuStrip([(53u, 1620u), (53u, null)]);
         Assert.Equal((1620, 53), (g[0].Rpm, g[0].Percent));
         Assert.Null(g[1].Rpm);

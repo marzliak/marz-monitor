@@ -52,8 +52,8 @@ public static partial class Native
     }
 
     /// <summary>
-    /// Sem a borda de 1 px que o DWM do Windows 11 desenha em volta da janela (aparece com o acrílico ligado).
-    /// Windows 10 não tem o atributo: a chamada só falha.
+    /// Removes the 1 px border the Windows 11 DWM draws around the window (it shows up with acrylic on).
+    /// Windows 10 does not have the attribute: the call just fails.
     /// </summary>
     public static void NoBorder(Window w)
     {
@@ -63,9 +63,9 @@ public static partial class Native
     }
 
     /// <summary>
-    /// Blur atrás da janela. Janelas WPF com AllowsTransparency são layered; o backdrop do DWM (Win11 SYSTEMBACKDROP)
-    /// não se aplica a elas, então usamos ACCENT_ENABLE_ACRYLICBLURBEHIND (funciona em Win10 e Win11).
-    /// A cor fica na nossa Border, por isso GradientColor quase transparente.
+    /// Blur behind the window. WPF windows with AllowsTransparency are layered; the DWM backdrop (Win11 SYSTEMBACKDROP)
+    /// does not apply to them, so we use ACCENT_ENABLE_ACRYLICBLURBEHIND (works on Win10 and Win11).
+    /// The color lives in our Border, hence the nearly transparent GradientColor.
     /// </summary>
     public static void Blur(Window w, bool on)
     {

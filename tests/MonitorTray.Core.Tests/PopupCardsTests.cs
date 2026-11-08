@@ -25,10 +25,10 @@ public class TempCardsTests
         };
         var t = TempCards.Resolve(raw);
         Assert.Equal(51f, t["cpu"]); Assert.Equal(55f, t["coremax"]);
-        Assert.Equal(48f, t["gpu"]); Assert.Equal(58f, t["hot"]); Assert.Equal(54f, t["vram"]); // primeira GPU por id
+        Assert.Equal(48f, t["gpu"]); Assert.Equal(58f, t["hot"]); Assert.Equal(54f, t["vram"]); // first GPU by id
         Assert.Equal(44f, t["socket"]); Assert.Equal(36f, t["mobo"]); Assert.Equal(58f, t["chip"]); Assert.Equal(51f, t["vrm"]);
-        Assert.Equal(42f, t["ram"]); // DIMM mais quente; limites do SPD fora
-        Assert.False(t.ContainsKey("liq")); // vem do cooler
+        Assert.Equal(42f, t["ram"]); // hottest DIMM; SPD limits left out
+        Assert.False(t.ContainsKey("liq")); // comes from the cooler
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public class TempCardsTests
     [Fact]
     public void SimulatedDumpHasDefaultCardsExceptLiquid()
     {
-        var src = new SimulatedSource(Path.Combine(AppContext.BaseDirectory, "data", "sensores.json"), seed: 1);
+        var src = new SimulatedSource(Path.Combine(AppContext.BaseDirectory, "data", "sensors.json"), seed: 1);
         src.Open();
         IReadOnlyList<RawSensor> raw = [];
         for (int i = 0; i < 3; i++) raw = src.Read();
@@ -109,11 +109,11 @@ public class TempLimitsTests
         var v = new Dictionary<string, float> { ["cpu"] = 70, ["gpu"] = 77, ["vram"] = 82, ["vrm"] = 99, ["liq"] = 33 };
         var h = TempCards.Hottest(["cpu", "gpu", "vram", "liq"], v)!;
         Assert.Equal("vram", h.Id); Assert.Equal(82f, h.Value);
-        Assert.Equal(TempLevel.Near, h.Worst); // GPU 77 está perto (75..80) mesmo não sendo a mais quente
-        Assert.Equal("vrm", TempCards.Hottest(["vrm", "cpu"], v)!.Id); // VRM só conta se habilitado
+        Assert.Equal(TempLevel.Near, h.Worst); // GPU 77 is near (75..80) even though it is not the hottest
+        Assert.Equal("vrm", TempCards.Hottest(["vrm", "cpu"], v)!.Id); // VRM only counts if enabled
         Assert.Equal(TempLevel.Near, TempCards.Hottest(["vrm"], v)!.Worst);
         Assert.Equal(TempLevel.Normal, TempCards.Hottest(["cpu", "liq"], v)!.Worst);
-        Assert.Null(TempCards.Hottest(["ram", "hot"], v)); // habilitados sem leitura
+        Assert.Null(TempCards.Hottest(["ram", "hot"], v)); // enabled but no reading
         Assert.Null(TempCards.Hottest([], v));
     }
 
@@ -121,9 +121,9 @@ public class TempLimitsTests
     public void MergePrefersLhmAndAddsNvmlAndLiquid()
     {
         var m = TempCards.Merge(new Dictionary<string, float> { ["gpu"] = 50 }, 34.8, 60, 70, 0);
-        Assert.Equal(50f, m["gpu"]); // LHM primeiro
+        Assert.Equal(50f, m["gpu"]); // LHM first
         Assert.Equal(70f, m["hot"]);
-        Assert.False(m.ContainsKey("vram")); // 0 da NVML = sem leitura
+        Assert.False(m.ContainsKey("vram")); // 0 from NVML = no reading
         Assert.Equal(34.8f, m["liq"], 0.01f);
     }
 
@@ -146,7 +146,7 @@ public class TempLimitsTests
         var raw = new RawSensor[] { new("/cpu/0/temperature/0", "/cpu/0", "x", "Cpu", "CPU Package", "Temperature", "", 51), new("/mem/1/t", "/mem/1", "x", "Memory", "DIMM #1", "Temperature", "", 40), new("/mem/2/t", "/mem/2", "x", "Memory", "DIMM #2", "Temperature", "", 44) };
         var t = TempCards.Resolve(raw, src);
         Assert.Equal("/cpu/0/temperature/0", src["cpu"]);
-        Assert.Equal("/mem/2/t", src["ram"]); // o DIMM mais quente
+        Assert.Equal("/mem/2/t", src["ram"]); // the hottest DIMM
         Assert.Equal(44f, t["ram"]);
     }
 }
@@ -164,7 +164,7 @@ public class BoardFanMapTests
     {
         var r = BoardFanMap.Read(fan, Rpm, Ctl);
         Assert.False(r.RpmMeasured);
-        Assert.Null(r.Rpm); // mesmo com leitura na saída estimada
+        Assert.Null(r.Rpm); // even with a reading on the estimated output
         Assert.NotNull(r.Percent);
     }
 
@@ -174,7 +174,7 @@ public class BoardFanMapTests
         var r = BoardFanMap.Read("Chassis Fan 2", Rpm, Ctl);
         Assert.True(r.RpmMeasured); Assert.Equal(611, r.Rpm); Assert.Equal(40, r.Percent);
         var noRpm = BoardFanMap.Read("Chassis Fan 3", Rpm, new Dictionary<int, float> { [3] = 55 });
-        Assert.Null(noRpm.Rpm); // só o % existe: rpm fica "—"
+        Assert.Null(noRpm.Rpm); // only the % exists: rpm stays "—"
         Assert.Equal(55, noRpm.Percent);
         var unknown = BoardFanMap.Read("CPU Optional Fan", Rpm, Ctl);
         Assert.Null(unknown.Rpm); Assert.Null(unknown.Percent);
@@ -212,8 +212,8 @@ public class AutoGameTests
         Assert.Equal(AutoGameAction.None, a.Step(["explorer"], Exes, false));
         Assert.Equal(AutoGameAction.TurnOn, a.Step(["explorer", "eldenring"], Exes, false));
         Assert.True(a.Owned); Assert.Equal("EldenRing.exe", a.Game);
-        Assert.Equal(AutoGameAction.None, a.Step(["eldenring", "cs2"], Exes, true)); // segue ligado
-        Assert.Equal(AutoGameAction.None, a.Step(["cs2"], Exes, true)); // um fechou, outro segue
+        Assert.Equal(AutoGameAction.None, a.Step(["eldenring", "cs2"], Exes, true)); // stays on
+        Assert.Equal(AutoGameAction.None, a.Step(["cs2"], Exes, true)); // one closed, the other keeps running
         Assert.Equal(AutoGameAction.TurnOff, a.Step(["explorer"], Exes, true));
         Assert.False(a.Owned);
         Assert.Equal(AutoGameAction.None, a.Step(["explorer"], Exes, false));
@@ -225,7 +225,7 @@ public class AutoGameTests
         var a = new AutoGame();
         a.ManualToggle(true, false);
         Assert.Equal(AutoGameAction.None, a.Step(["cs2"], Exes, true));
-        Assert.Equal(AutoGameAction.None, a.Step(["explorer"], Exes, true)); // jogo fechou: continua ligado (foi o usuário)
+        Assert.Equal(AutoGameAction.None, a.Step(["explorer"], Exes, true)); // game closed: stays on (the user turned it on)
         Assert.False(a.Owned);
     }
 
@@ -234,7 +234,7 @@ public class AutoGameTests
     {
         var a = new AutoGame();
         Assert.Equal(AutoGameAction.TurnOn, a.Step(["cs2"], Exes, false));
-        a.ManualToggle(false, true); a.ManualToggle(true, true); // desligou e religou no botão
+        a.ManualToggle(false, true); a.ManualToggle(true, true); // turned off and back on with the button
         Assert.Equal(AutoGameAction.None, a.Step([], Exes, true));
     }
 
@@ -244,9 +244,9 @@ public class AutoGameTests
         var a = new AutoGame();
         Assert.Equal(AutoGameAction.TurnOn, a.Step(["cs2"], Exes, false));
         a.ManualToggle(false, true);
-        Assert.Equal(AutoGameAction.None, a.Step(["cs2"], Exes, false)); // não religa
+        Assert.Equal(AutoGameAction.None, a.Step(["cs2"], Exes, false)); // does not turn back on
         Assert.Equal(AutoGameAction.None, a.Step([], Exes, false));
-        Assert.Equal(AutoGameAction.TurnOn, a.Step(["cs2"], Exes, false)); // próximo jogo liga de novo
+        Assert.Equal(AutoGameAction.TurnOn, a.Step(["cs2"], Exes, false)); // next game turns it on again
     }
 
     [Fact]
@@ -254,7 +254,7 @@ public class AutoGameTests
     {
         var a = new AutoGame();
         a.Step(["cs2"], Exes, false);
-        Assert.Equal(AutoGameAction.None, a.Step(["cs2"], Exes, false)); // o app desligou (ex.: usuário mudou a GPU)
+        Assert.Equal(AutoGameAction.None, a.Step(["cs2"], Exes, false)); // the app turned it off (e.g. user changed the GPU)
         Assert.False(a.Owned);
         Assert.Equal(AutoGameAction.None, a.Step(["cs2"], Exes, false));
     }
@@ -267,7 +267,7 @@ public class AutoGameTests
         Assert.Equal(AutoGameAction.TurnOff, a.Step([], Exes, true));
         var b = new AutoGame();
         b.Restore(true, "cs2.exe");
-        Assert.Equal(AutoGameAction.TurnOff, b.Step(["cs2"], [], true)); // lista esvaziada: devolve
+        Assert.Equal(AutoGameAction.TurnOff, b.Step(["cs2"], [], true)); // list emptied: hands it back
     }
 
     [Fact]
@@ -291,10 +291,10 @@ public class StatusStripTests
     [Fact]
     public void GameTextSaysAll100OnlyWhenEverythingIs100()
     {
-        Assert.Equal("tudo 100%", StatusStrip.GameText(Settings.GameTargetIds, 100, 100));
-        Assert.Equal("GPU 85% · placa 100% · cooler 100%", StatusStrip.GameText(Settings.GameTargetIds, 85, 100));
-        Assert.Equal("GPU e placa 100%", StatusStrip.GameText(["gpu", "board"], 100, 70));
-        Assert.Equal("nada selecionado", StatusStrip.GameText([], 100, 100));
+        Assert.Equal("all 100%", StatusStrip.GameText(Settings.GameTargetIds, 100, 100));
+        Assert.Equal("GPU 85% · board 100% · cooler 100%", StatusStrip.GameText(Settings.GameTargetIds, 85, 100));
+        Assert.Equal("GPU and board 100%", StatusStrip.GameText(["gpu", "board"], 100, 70));
+        Assert.Equal("nothing selected", StatusStrip.GameText([], 100, 100));
     }
 
     [Fact]
@@ -302,18 +302,18 @@ public class StatusStripTests
     {
         var now = DateTimeOffset.Now;
         var st = new StripState { BoardSafety = new SafetyEvent(now.AddSeconds(-10), ["Chassis Fan 1"], 86, 60) };
-        Assert.Equal("CHA1 religado · CPU 86°", Assert.Single(StatusStrip.Items(st, now, Short)).Text);
-        Assert.Equal("CHA1, CHA2 religados · GPU 81°", StatusStrip.Safety(new SafetyEvent(now, ["Chassis Fan 1", "Chassis Fan 2"], 60, 81), Short).Text);
-        Assert.Equal("CHA3 religado · sem leitura da CPU", StatusStrip.Safety(new SafetyEvent(now, ["Chassis Fan 3"], null, 50), Short).Text);
+        Assert.Equal("CHA1 back on · CPU 86°", Assert.Single(StatusStrip.Items(st, now, Short)).Text);
+        Assert.Equal("CHA1, CHA2 back on · GPU 81°", StatusStrip.Safety(new SafetyEvent(now, ["Chassis Fan 1", "Chassis Fan 2"], 60, 81), Short).Text);
+        Assert.Equal("CHA3 back on · no CPU reading", StatusStrip.Safety(new SafetyEvent(now, ["Chassis Fan 3"], null, 50), Short).Text);
         Assert.Empty(StatusStrip.Items(st, now + StatusStrip.EventTtl + TimeSpan.FromSeconds(11), Short));
     }
 
     [Fact]
     public void GameAndProtectionsListed()
     {
-        var st = new StripState { GameOn = true, GameBy = "cs2.exe", GameTargets = Settings.GameTargetIds, GpuProtection = "PROTECAO 100%: x", CoolerPanicC = 50.4 };
+        var st = new StripState { GameOn = true, GameBy = "cs2.exe", GameTargets = Settings.GameTargetIds, GpuProtection = "PROTECTION 100%: x", CoolerPanicC = 50.4 };
         var items = StatusStrip.Items(st, DateTimeOffset.Now, Short);
-        Assert.Equal(["GPU 100% · proteção", "COOLER 100% · água 50.4°", "MODO GAME · tudo 100%"], items.Select(i => i.Text));
+        Assert.Equal(["GPU 100% · protection", "COOLER 100% · water 50.4°", "GAME MODE · all 100%"], items.Select(i => i.Text));
         Assert.Contains("cs2.exe", items[2].Tip);
     }
 }
@@ -365,16 +365,16 @@ public class PopupSettingsTests
         Assert.Equal(["CPU Fan", "Chassis Fan 1", "Chassis Fan 2", "Chassis Fan 3", "Chassis Fan 4"], d.PopupBoardFans);
         Assert.Equal(["pump", "radiator", "embedded"], d.PopupCoolerFans);
         Assert.False(d.BoardFanOff);
-        Assert.Equal(["curvas", "silent", "standard", "turbo", "full"], d.AcModes); // placa: todos os modos visíveis
-        Assert.Equal("pp", d.TrayFontSize);
+        Assert.Equal(["curves", "silent", "standard", "turbo", "full"], d.AcModes); // board: every mode visible
+        Assert.Equal("xs", d.TrayFontSize);
     }
 
     [Fact]
     public void AcModesChoiceIsKeptAndCleaned()
     {
-        var s = Settings.Default with { AcModes = ["curvas", "full"] };
-        Assert.Equal(["curvas", "full"], Settings.Parse(s.ToJson()).AcModes);
-        Assert.Empty(Settings.Parse("{\"version\":1,\"acModes\":[]}").AcModes); // esconder todos é escolha válida
+        var s = Settings.Default with { AcModes = ["curves", "full"] };
+        Assert.Equal(["curves", "full"], Settings.Parse(s.ToJson()).AcModes);
+        Assert.Empty(Settings.Parse("{\"version\":1,\"acModes\":[]}").AcModes); // hiding all is a valid choice
         Assert.Equal(["turbo"], Settings.Parse("{\"version\":1,\"acModes\":[\"turbo\",\"nope\"]}").AcModes);
         Assert.Equal(Settings.AcModeIds, Settings.Parse("{\"version\":1}").AcModes);
     }
@@ -382,14 +382,14 @@ public class PopupSettingsTests
     [Fact]
     public void TrayFontSizeRoundTripsAndFallsBack()
     {
-        Assert.Equal("g", Settings.Parse((Settings.Default with { TrayFontSize = "g" }).ToJson()).TrayFontSize);
-        Assert.Equal("pp", Settings.Parse("{\"version\":1,\"trayFontSize\":\"xl\"}").TrayFontSize);
+        Assert.Equal("l", Settings.Parse((Settings.Default with { TrayFontSize = "l" }).ToJson()).TrayFontSize);
+        Assert.Equal("xs", Settings.Parse("{\"version\":1,\"trayFontSize\":\"xl\"}").TrayFontSize);
         Assert.NotEqual(Settings.Default, Settings.Default with { TrayFontSize = "m" });
-        Assert.True(Settings.TrayFontScale("pp") < Settings.TrayFontScale("p"));
-        Assert.True(Settings.TrayFontScale("p") < Settings.TrayFontScale("m"));
-        Assert.True(Settings.TrayFontScale("m") < Settings.TrayFontScale("g"));
-        Assert.Equal(1.0, Settings.TrayFontScale("g"));
-        Assert.Equal(Settings.TrayFontScale("pp"), Settings.TrayFontScale("?"));
+        Assert.True(Settings.TrayFontScale("xs") < Settings.TrayFontScale("s"));
+        Assert.True(Settings.TrayFontScale("s") < Settings.TrayFontScale("m"));
+        Assert.True(Settings.TrayFontScale("m") < Settings.TrayFontScale("l"));
+        Assert.Equal(1.0, Settings.TrayFontScale("l"));
+        Assert.Equal(Settings.TrayFontScale("xs"), Settings.TrayFontScale("?"));
     }
 
     [Fact]
@@ -406,9 +406,9 @@ public class PopupSettingsTests
     public void ParseCleansInvalidLists()
     {
         var s = Settings.Parse("{\"version\":1,\"popupTemps\":[\"cpu\",\"nope\",\"cpu\",\"gpu\",\"hot\",\"vram\",\"vrm\",\"chip\",\"liq\",\"ram\",\"mobo\"],\"popupCoolerFans\":[\"pump\",\"x\"]}");
-        Assert.Equal(["cpu", "gpu", "hot", "vram", "vrm", "chip", "liq", "ram"], s.PopupTemps); // máx. 8, sem desconhecidos
+        Assert.Equal(["cpu", "gpu", "hot", "vram", "vrm", "chip", "liq", "ram"], s.PopupTemps); // max. 8, no unknown ids
         Assert.Equal(["pump"], s.PopupCoolerFans);
-        Assert.Empty(Settings.Parse("{\"version\":1,\"popupTemps\":[]}").PopupTemps); // nenhum card é escolha válida
+        Assert.Empty(Settings.Parse("{\"version\":1,\"popupTemps\":[]}").PopupTemps); // no card is a valid choice
     }
 }
 
@@ -427,12 +427,12 @@ public class BoardFanOffTests
     {
         var o = new BoardFanOff();
         Assert.False(o.TurnOff("CPU Fan", 50, 50));
-        Assert.False(o.TurnOff("Chassis Fan 1", null, 50)); // sem leitura da CPU
+        Assert.False(o.TurnOff("Chassis Fan 1", null, 50)); // no CPU reading
         Assert.False(o.TurnOff("Chassis Fan 1", 86, 50));
         Assert.False(o.TurnOff("Chassis Fan 1", 50, 81));
-        Assert.True(o.TurnOff("Chassis Fan 1", 85, 80)); // limites são "acima de"
+        Assert.True(o.TurnOff("Chassis Fan 1", 85, 80)); // limits are "above"
         Assert.True(o.IsOff("Chassis Fan 1"));
-        Assert.False(o.TurnOff("Chassis Fan 1", 50, 50)); // já desligado
+        Assert.False(o.TurnOff("Chassis Fan 1", 50, 50)); // already off
     }
 
     [Fact]
@@ -458,7 +458,7 @@ public class BoardFanOffTests
         Assert.Equal(["Chassis Fan 2", "Chassis Fan 3"], o.ModeTargets("standard", ["Chassis Fan 1", "Chassis Fan 2", "Chassis Fan 3"]));
         Assert.True(o.IsOff("Chassis Fan 1"));
         var full = o.ModeTargets("full", ["Chassis Fan 1", "Chassis Fan 2"]);
-        Assert.Equal(["Chassis Fan 1", "Chassis Fan 2", "Chassis Fan 4"], full.Order()); // inclui o desligado fora da lista
+        Assert.Equal(["Chassis Fan 1", "Chassis Fan 2", "Chassis Fan 4"], full.Order()); // includes the fan that is off outside the list
         Assert.False(o.Any);
     }
 
@@ -468,7 +468,7 @@ public class BoardFanOffTests
         var o = new BoardFanOff();
         Assert.Equal(BoardFanClick.None, o.ClickAction("Chassis Fan 1", false, 50, 50));
         Assert.Equal(BoardFanClick.None, o.ClickAction("CPU Fan", true, 50, 50));
-        Assert.False(BoardFanOff.Clickable("Chassis Fan 1", false)); // sem mãozinha
+        Assert.False(BoardFanOff.Clickable("Chassis Fan 1", false)); // no hand cursor
         Assert.False(BoardFanOff.Clickable("AIO Pump", true));
         Assert.True(BoardFanOff.Clickable("Chassis Fan 1", true));
     }
@@ -481,7 +481,7 @@ public class BoardFanOffTests
         Assert.Equal(BoardFanClick.Blocked, o.ClickAction("Chassis Fan 1", true, 86, 50));
         Assert.Equal(BoardFanClick.Blocked, o.ClickAction("Chassis Fan 1", true, null, 50));
         o.TurnOff("Chassis Fan 1", 50, 50);
-        Assert.Equal(BoardFanClick.TurnOn, o.ClickAction("Chassis Fan 1", true, 86, 50)); // religar sempre pode
+        Assert.Equal(BoardFanClick.TurnOn, o.ClickAction("Chassis Fan 1", true, 86, 50)); // turning back on is always allowed
         Assert.Equal(BoardFanClick.None, o.ClickAction("Chassis Fan 1", false, 50, 50));
     }
 

@@ -1,4 +1,4 @@
-// Portado de CmpInf (homelab/hosts/nanim/apps/cmpinf/src, homolog 260a683f). Lógica de segurança mantida sem alterações.
+// Ported from CmpInf (homelab/hosts/nanim/apps/cmpinf/src, homolog 260a683f). Safety logic kept unchanged.
 using System;
 using System.Runtime.InteropServices;
 

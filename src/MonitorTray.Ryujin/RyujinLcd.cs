@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace MonitorTray.Ryujin;
 
-/// <summary>Uma informação do LCD: sensor (id do LHM, "calc:..." ou "/ryujin2/..."), rótulo ASCII e grupo (unidade/ícone).</summary>
+/// <summary>One LCD item: sensor (LHM id, "calc:..." or "/ryujin2/..."), ASCII label and group (unit/icon).</summary>
 public sealed record LcdSlot
 {
     public string SensorId { get; init; } = "";
@@ -12,14 +12,14 @@ public sealed record LcdSlot
     public LcdGroup Group { get; init; } = LcdGroup.Temperature;
 }
 
-/// <summary>Uma tela do LCD: 1 a 4 informações e o tempo na tela.</summary>
+/// <summary>One LCD screen: 1 to 4 items and the time on screen.</summary>
 public sealed record LcdPage
 {
     public int DurationMs { get; init; } = 10000;
     public IReadOnlyList<LcdSlot> Slots { get; init; } = [];
 }
 
-/// <summary>Configuração do LCD do cooler (%APPDATA%\MonitorTray\ryujin-lcd.json). Desligado por padrão.</summary>
+/// <summary>Cooler LCD settings (%APPDATA%\MonitorTray\ryujin-lcd.json). Off by default.</summary>
 public sealed record LcdConfig
 {
     public const int MaxPages = 20, MaxSlots = 4;
@@ -29,13 +29,17 @@ public sealed record LcdConfig
 
     public static IReadOnlyList<LcdPage> DefaultPages { get; } =
     [
-        new() { Slots = [S("calc:cpu-temp", "CPU Temp", LcdGroup.Temperature), S(RyujinSensorIds.Water, "Agua", LcdGroup.Temperature),
-                         S(RyujinSensorIds.Pump, "Bomba", LcdGroup.FanSpeed), S("calc:cpu-clock-max", "CPU Clock", LcdGroup.Frequency)] },
-        new() { Slots = [S("calc:gpu-temp", "GPU Temp", LcdGroup.Temperature), S(RyujinSensorIds.RadiatorFan(0), "Radiador", LcdGroup.FanSpeed),
-                         S(RyujinSensorIds.Embedded, "Fan AIO", LcdGroup.FanSpeed), S("calc:cpu-clock-avg", "Clock medio", LcdGroup.Frequency)] },
+        new() { Slots = [S("calc:cpu-temp", "CPU Temp", LcdGroup.Temperature), S(RyujinSensorIds.Water, "Water", LcdGroup.Temperature),
+                         S(RyujinSensorIds.Pump, "Pump", LcdGroup.FanSpeed), S("calc:cpu-clock-max", "CPU Clock", LcdGroup.Frequency)] },
+        new() { Slots = [S("calc:gpu-temp", "GPU Temp", LcdGroup.Temperature), S(RyujinSensorIds.RadiatorFan(0), "Radiator", LcdGroup.FanSpeed),
+                         S(RyujinSensorIds.Embedded, "Fan AIO", LcdGroup.FanSpeed), S("calc:cpu-clock-avg", "Clock avg", LcdGroup.Frequency)] },
     ];
 
     public static LcdSlot S(string id, string name, LcdGroup g) => new() { SensorId = id, Name = name, Group = g };
+
+    /// <summary>Old default slot names (up to 0.1.33) → new defaults. Names the user typed are kept.</summary>
+    private static readonly Dictionary<string, string> LegacyNames = new(StringComparer.Ordinal)
+    { ["Agua"] = "Water", ["Bomba"] = "Pump", ["Radiador"] = "Radiator", ["Clock medio"] = "Clock avg" };
 
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -45,7 +49,7 @@ public sealed record LcdConfig
 
     public string ToJson() => JsonSerializer.Serialize(this, Json);
 
-    /// <summary>Inválido → padrão (desligado). Valores fora da faixa são limitados.</summary>
+    /// <summary>Invalid → default (off). Out-of-range values are clamped.</summary>
     public static LcdConfig Parse(string json)
     {
         LcdConfig? c;
@@ -62,7 +66,7 @@ public sealed record LcdConfig
             Slots = (p.Slots ?? []).Take(MaxSlots).Select(s => s with
             {
                 SensorId = s.SensorId ?? "",
-                Name = LcdText.Ascii(s.Name ?? "", RyujinProtocol.LcdNameMax),
+                Name = LcdText.Ascii(LegacyNames.GetValueOrDefault(s.Name ?? "", s.Name ?? ""), RyujinProtocol.LcdNameMax),
                 Group = Enum.IsDefined(s.Group) ? s.Group : LcdGroup.Temperature,
             }).ToList(),
         }).Where(p => p.Slots.Count > 0).ToList();
@@ -71,7 +75,7 @@ public sealed record LcdConfig
     }
 }
 
-/// <summary>Ids dos sensores do próprio cooler (publicados junto com os do LHM).</summary>
+/// <summary>Ids of the cooler's own sensors (published alongside the LHM ones).</summary>
 public static class RyujinSensorIds
 {
     public const string Device = "/ryujin2";
@@ -84,7 +88,7 @@ public static class RyujinSensorIds
     public const string EmbeddedDuty = Device + "/control/2";
 }
 
-/// <summary>Monta o texto de cada informação como o Armoury Crate (valor + 1 caractere de unidade).</summary>
+/// <summary>Builds each item's text like Armoury Crate (value + 1 unit character).</summary>
 public static class LcdComposer
 {
     public static string Unit(LcdGroup g) => g switch
@@ -103,7 +107,7 @@ public static class LcdComposer
         return g switch
         {
             LcdGroup.Temperature => x.ToString("0.0", inv),
-            LcdGroup.Frequency => (x > 100 ? x / 1000 : x).ToString("0.000", inv), // aceita MHz do LHM ou GHz dos calculados
+            LcdGroup.Frequency => (x > 100 ? x / 1000 : x).ToString("0.000", inv), // accepts MHz from LHM or GHz from the calculated ones
             LcdGroup.FanSpeed => Math.Round(x).ToString("0", inv),
             LcdGroup.Voltage => x.ToString("0.000", inv),
             _ => x.ToString("0.0", inv),
@@ -115,20 +119,20 @@ public sealed record RyujinSnapshot(DateTimeOffset At, string? Firmware, RyujinP
 
 public sealed record LcdStatus(bool Enabled, bool DeviceFound, int Page, int PageCount, string? Error, DateTimeOffset? SentAt, IReadOnlyList<string> Lines);
 
-/// <summary>Estado do controle de fans do cooler para a UI.</summary>
-/// <param name="SourceC">Temperatura da fonte que a curva usa (média de ~5 s, <see cref="TempSmoother"/>).</param>
+/// <summary>Cooler fan-control state for the UI.</summary>
+/// <param name="SourceC">Source temperature the curve uses (~5 s average, <see cref="TempSmoother"/>).</param>
 public sealed record CoolerStatus(bool Enabled, bool Controlling, CoolerTargets? Applied, double? SourceC, string? Notice, string? Tuning)
 {
-    /// <summary>Auto Tuning: fração concluída (0..1); null = não está rodando.</summary>
+    /// <summary>Auto Tuning: fraction done (0..1); null = not running.</summary>
     public double? TuneProgress { get; init; }
-    /// <summary>Auto Tuning: segundos restantes (estimativa).</summary>
+    /// <summary>Auto Tuning: seconds left (estimate).</summary>
     public int? TuneSecondsLeft { get; init; }
 }
 
 /// <summary>
-/// Dono do RYUJIN II no Marz: lê bomba/água/fans (sempre, só leitura) e, se o LCD estiver ligado, desenha as telas.
-/// Escreve SÓ 0x53 (texto) e 0x52 (layout escuro); nunca fans, bomba, brilho ou mídia.
-/// O Armoury Crate também escreve no LCD a cada ~2 s: com os dois ativos, as telas disputam.
+/// Owner of the RYUJIN II in Marz: reads pump/water/fans (always, read-only) and, if the LCD is on, draws the screens.
+/// Writes ONLY 0x53 (text) and 0x52 (dark layout); never fans, pump, brightness or media.
+/// Armoury Crate also writes to the LCD every ~2 s: with both active, the screens fight.
 /// </summary>
 public sealed class RyujinService : IDisposable
 {
@@ -166,7 +170,7 @@ public sealed class RyujinService : IDisposable
     public bool DeviceFound => hid.IsOpen || simulated;
     private bool simulated;
 
-    /// <summary>Só para a prévia: leitura inventada, sem USB, controle "ligado" em Standard.</summary>
+    /// <summary>Preview only: made-up reading, no USB, control "on" in Standard.</summary>
     public void Simulate(RyujinSnapshot s, CoolerTargets applied, double source)
     {
         simulated = true; Latest = s;
@@ -196,7 +200,7 @@ public sealed class RyujinService : IDisposable
         wake.Set();
     }
 
-    /// <summary>Config própria (curvas/% fixo) de antes do último preset: o CURVAS volta a ela, mesmo depois de reiniciar o app.</summary>
+    /// <summary>Custom setup (curves/fixed %) from before the last preset: CURVES goes back to it, even after restarting the app.</summary>
     private string KeptPath => Path.Combine(Path.GetDirectoryName(Path.GetFullPath(fansPath))!, "ryujin-curves.json");
 
     private CoolerConfig? LoadKept()
@@ -204,7 +208,7 @@ public sealed class RyujinService : IDisposable
         try { return File.Exists(KeptPath) ? CoolerConfig.Parse(File.ReadAllText(KeptPath)) : null; } catch (Exception) { return null; }
     }
 
-    /// <summary>Preset único em bomba e radiador (guarda antes a config própria em uso). <paramref name="enable"/> liga o controle pelo Marz.</summary>
+    /// <summary>Single preset on pump and radiator (first saves the custom setup in use). <paramref name="enable"/> turns on control by Marz.</summary>
     public void ApplyPreset(RyujinCurves.Preset p, bool enable)
     {
         var c = FanConfig;
@@ -213,12 +217,12 @@ public sealed class RyujinService : IDisposable
         SaveFans(enable ? next with { Enabled = true } : next);
     }
 
-    /// <summary>CURVAS: volta à config própria guardada (ou às curvas padrão) e liga o controle pelo Marz.</summary>
+    /// <summary>CURVES: goes back to the saved custom setup (or the default curves) and turns on control by Marz.</summary>
     public void ApplyCurves() => SaveFans(CoolerModes.Curves(FanConfig, LoadKept()));
 
     /// <summary>
-    /// Correção ao abrir (fora do modo game): fan embutido preso no FULL de um game que não foi desfeito volta ao STD,
-    /// na config em uso e na guardada para o CURVAS. true = corrigiu algo.
+    /// Fix on startup (outside game mode): an embedded fan stuck on FULL from a game mode that was not undone goes back to STD,
+    /// in the setup in use and in the one saved for CURVES. true = fixed something.
     /// </summary>
     public bool UnstickEmbedded()
     {
@@ -240,7 +244,7 @@ public sealed class RyujinService : IDisposable
         catch (Exception) { }
     }
 
-    /// <summary>Tabela % para rpm do radiador em uso (Auto Tuning do Marz ou a padrão do Armoury Crate).</summary>
+    /// <summary>Radiator % to rpm table in use (Marz Auto Tuning or the Armoury Crate default).</summary>
     public IReadOnlyList<RpmPoint> RadiatorTable => FanConfig.RadiatorTable.Count >= 2 ? FanConfig.RadiatorTable : DefaultRadiatorTable;
     public static readonly RpmPoint[] DefaultRadiatorTable = [new(0, 0), new(10, 300), new(20, 420), new(30, 630), new(40, 810), new(50, 1020), new(60, 1140), new(70, 1320), new(80, 1500), new(90, 1680), new(100, 1890)];
     public static readonly RpmPoint[] PumpTable = [new(0, 840), new(10, 870), new(20, 900), new(30, 1140), new(40, 1470), new(50, 1650), new(60, 1890), new(70, 2130), new(80, 2310), new(90, 2520), new(100, 2800)];
@@ -299,41 +303,41 @@ public sealed class RyujinService : IDisposable
     }
 
     /// <summary>
-    /// Laço de controle (~1 s): curva no host como o Armoury Crate. Escreve só quando o % muda ou a cada 10 s (reforço).
-    /// Se a leitura mostrar outro valor que não o último escrito (outro programa escrevendo), para e avisa.
+    /// Control loop (~1 s): curve on the host like Armoury Crate. Writes only when the % changes or every 10 s (refresh).
+    /// If the reading shows a value other than the last one written (another program writing), it stops and warns.
     /// </summary>
     private void ControlFans()
     {
         var c = FanConfig;
         if (!c.Enabled || !hid.IsOpen)
         {
-            if (fanStatus.Controlling || fanStatus.Enabled != c.Enabled) PublishFans(new(c.Enabled, false, null, null, hid.IsOpen ? null : "cooler não encontrado", null));
+            if (fanStatus.Controlling || fanStatus.Enabled != c.Enabled) PublishFans(new(c.Enabled, false, null, null, hid.IsOpen ? null : "cooler not found", null));
             sentPump = sentEmb = sentRadDuty = null; curPump = curRad = curEmb = -1; foreignHits = 0;
             srcSmooth.Reset(); smoothAt = 0;
             return;
         }
         var snap = Latest;
-        // Outro escritor? Compara a leitura com o último valor escrito pelo Marz (3 s de folga).
+        // Another writer? Compares the reading with the last value written by Marz (3 s grace).
         if (foreignHits < 3 && sentRadDuty is int sd && snap?.Fans is { } f && Environment.TickCount64 - lastFanWrite > 3000)
         {
             bool foreign = Math.Abs(f.DutyRaw - sd) > 3 || (sentPump is int sp && snap.PumpPercent is int rp && Math.Abs(rp - sp) > 1);
             foreignHits = foreign ? foreignHits + 1 : 0;
             if (foreignHits >= 3)
             {
-                PublishFans(new(true, false, fanStatus.Applied, fanStatus.SourceC, "outro programa está controlando o cooler (Armoury Crate?). O Marz parou de escrever.", null));
+                PublishFans(new(true, false, fanStatus.Applied, fanStatus.SourceC, "another program is controlling the cooler (Armoury Crate?). Marz stopped writing.", null));
                 return;
             }
         }
         if (foreignHits >= 3) return;
         double? raw = Value(c.SourceId);
         if (raw is double s && (s < 1 || s > 125)) raw = null;
-        // A curva segue a média (~5 s) da fonte, não o instantâneo: a CPU oscila muito em picos curtos.
+        // The curve follows the source average (~5 s), not the instant value: the CPU swings a lot in short spikes.
         var nowMs = Environment.TickCount64;
         if (smoothId != c.SourceId) { srcSmooth.Reset(); smoothId = c.SourceId; }
         double? src = srcSmooth.Next(raw, smoothAt == 0 ? 1 : (nowMs - smoothAt) / 1000.0);
         smoothAt = nowMs;
         var t = CoolerLogic.Compute(c, src, snap?.Pump?.WaterTempC);
-        bool panic = t.Reason?.StartsWith("água", StringComparison.Ordinal) == true;
+        bool panic = t.Reason?.StartsWith("water", StringComparison.Ordinal) == true;
         curPump = curPump < 0 || panic ? t.PumpPercent : CoolerLogic.Smooth(curPump, t.PumpPercent);
         curRad = curRad < 0 || panic ? t.RadiatorPercent : CoolerLogic.Smooth(curRad, t.RadiatorPercent);
         curEmb = curEmb < 0 || panic ? t.EmbeddedPercent : CoolerLogic.Smooth(curEmb, t.EmbeddedPercent);
@@ -353,12 +357,12 @@ public sealed class RyujinService : IDisposable
 
     private void PublishFans(CoolerStatus s) { fanStatus = s; FanChanged?.Invoke(s); }
 
-    /// <summary>Retoma o controle depois de um aviso de outro escritor (o usuário fechou o outro programa).</summary>
+    /// <summary>Resumes control after another-writer warning (the user closed the other program).</summary>
     public void ResumeControl() { foreignHits = 0; lastFanWrite = 0; sentRadDuty = null; wake.Set(); }
 
     /// <summary>
-    /// Auto Tuning do radiador como o Armoury Crate: 0..100 % em degraus de 10 %, ~5,5 s cada, rpm médio dos 3 fans.
-    /// Bomba intocada. Aborta (e restaura) se a água passar de 45 °C. Grava a tabela em ryujin-fans.json.
+    /// Radiator Auto Tuning like Armoury Crate: 0..100 % in 10 % steps, ~5.5 s each, average rpm of the 3 fans.
+    /// Pump untouched. Aborts (and restores) if the water goes above 45 °C. Saves the table to ryujin-fans.json.
     /// </summary>
     public Task<IReadOnlyList<RpmPoint>?> TuneRadiatorAsync(CancellationToken ct = default) => Task.Run(() =>
     {
@@ -373,25 +377,25 @@ public sealed class RyujinService : IDisposable
             {
                 ct.ThrowIfCancellationRequested();
                 int step = pct / 10 + 1;
-                PublishFans(fanStatus with { Tuning = $"radiador em {pct}% · etapa {step}/11", TuneProgress = (step - 1) / 11.0, TuneSecondsLeft = (int)Math.Ceiling((12 - step) * 5.5) });
+                PublishFans(fanStatus with { Tuning = $"radiator at {pct}% · step {step}/11", TuneProgress = (step - 1) / 11.0, TuneSecondsLeft = (int)Math.Ceiling((12 - step) * 5.5) });
                 hid.SendFan(RyujinProtocol.BuildRadiator(RyujinCurves.RadiatorDuty(pct)));
                 ct.WaitHandle.WaitOne(5500);
                 ct.ThrowIfCancellationRequested();
                 var p = hid.ReadPump();
-                if (p is { WaterTempC: > 45 }) { abort = $"água {p.WaterTempC:0.0} °C"; break; }
+                if (p is { WaterTempC: > 45 }) { abort = $"water {p.WaterTempC:0.0} °C"; break; }
                 var f = hid.ReadFans();
-                if (f == null) { abort = "sem leitura do radiador"; break; }
+                if (f == null) { abort = "no radiator reading"; break; }
                 table.Add(new RpmPoint(pct, (int)Math.Round(f.Rpm.Average() / 10.0) * 10));
             }
         }
-        catch (OperationCanceledException) { abort = "cancelado"; }
+        catch (OperationCanceledException) { abort = "canceled"; }
         finally
         {
             hid.SendFan(RyujinProtocol.BuildRadiator((byte)(sentRadDuty ?? before ?? RyujinCurves.RadiatorDuty(60))));
             lastFanWrite = Environment.TickCount64;
             tuning = false;
         }
-        if (abort != null || table.Count != 11) { PublishFans(fanStatus with { Tuning = null, TuneProgress = null, TuneSecondsLeft = null, Notice = "auto tuning interrompido: " + (abort ?? "incompleto") }); return null; }
+        if (abort != null || table.Count != 11) { PublishFans(fanStatus with { Tuning = null, TuneProgress = null, TuneSecondsLeft = null, Notice = "auto tuning aborted: " + (abort ?? "incomplete") }); return null; }
         SaveFans(FanConfig with { RadiatorTable = table, RadiatorTunedAt = DateTimeOffset.Now });
         PublishFans(fanStatus with { Tuning = null, TuneProgress = null, TuneSecondsLeft = null, Notice = null });
         return (IReadOnlyList<RpmPoint>?)table;
@@ -399,7 +403,7 @@ public sealed class RyujinService : IDisposable
 
     public bool Tuning => tuning;
 
-    /// <summary>Saída: o cooler congela no último valor, então deixa um valor seguro (só se o Marz estava controlando).</summary>
+    /// <summary>Exit: the cooler freezes at the last value, so leave a safe value (only if Marz was in control).</summary>
     public void ReleaseFans()
     {
         if (!FanConfig.Enabled || !hid.IsOpen || foreignHits >= 3) return;
@@ -407,7 +411,7 @@ public sealed class RyujinService : IDisposable
         hid.SendFan(RyujinProtocol.BuildRadiator(RyujinCurves.RadiatorDuty(Math.Max(CoolerSafety.ExitRadiatorPercent, curRad))));
     }
 
-    /// <summary>Valor de um sensor: os do cooler vêm da última leitura; os demais, do provedor do app.</summary>
+    /// <summary>Value of a sensor: the cooler's come from the last reading; the others from the app's provider.</summary>
     public double? Value(string id)
     {
         var s = Latest;
@@ -438,7 +442,7 @@ public sealed class RyujinService : IDisposable
             if (now - pageStarted >= c.Pages[Math.Clamp(page, 0, c.Pages.Count - 1)].DurationMs) { page = (page + 1) % c.Pages.Count; pageStarted = now; }
             p = page = Math.Clamp(page, 0, c.Pages.Count - 1);
         }
-        if (!hid.IsOpen) { Publish("cooler não encontrado"); return; }
+        if (!hid.IsOpen) { Publish("cooler not found"); return; }
         var pg = c.Pages[p];
         var lines = new List<string>();
         string? error = null;
@@ -447,13 +451,13 @@ public sealed class RyujinService : IDisposable
             var sl = pg.Slots[i];
             var text = LcdComposer.Value(sl.Group, Value(sl.SensorId));
             lines.Add($"{sl.Name} {text}");
-            if (hid.SendDisplay(RyujinProtocol.BuildText(i, sl.Name, text)) == false) error = "falha ao escrever no LCD";
+            if (hid.SendDisplay(RyujinProtocol.BuildText(i, sl.Name, text)) == false) error = "failed to write to the LCD";
         }
-        // Como o Armoury Crate: textos primeiro; o layout só quando a quantidade ou o grupo do 1º slot muda.
+        // Like Armoury Crate: texts first; the layout only when the count or the 1st slot's group changes.
         var key = $"{pg.Slots.Count}:{pg.Slots[0].Group}";
         if (key != layoutKey)
         {
-            if (hid.SendDisplay(RyujinProtocol.BuildLayoutDark(pg.Slots.Count, pg.Slots[0].Group)) == false) error = "falha ao escrever no LCD";
+            if (hid.SendDisplay(RyujinProtocol.BuildLayoutDark(pg.Slots.Count, pg.Slots[0].Group)) == false) error = "failed to write to the LCD";
             else layoutKey = key;
         }
         status = new LcdStatus(true, true, p, c.Pages.Count, error, DateTimeOffset.Now, lines);

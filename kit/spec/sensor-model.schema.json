@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "MonitorTray Snapshot (contrato Core → UI)",
+  "title": "MonitorTray Snapshot (Core → UI contract)",
   "type": "object",
   "required": [
     "at",
@@ -199,12 +199,12 @@
                 "tag": {
                   "enum": [
                     "",
-                    "sem leitura",
-                    "parcial",
-                    "margem",
-                    "acumulado",
-                    "estimativa",
-                    "limite",
+                    "no reading",
+                    "partial",
+                    "margin",
+                    "accumulated",
+                    "estimate",
+                    "limit",
                     "SPD"
                   ]
                 }

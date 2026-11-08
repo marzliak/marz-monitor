@@ -13,20 +13,20 @@ using SD = System.Drawing;
 namespace MonitorTray.App;
 
 /// <summary>
-/// --preview &lt;dir&gt; [--simulate &lt;json&gt;]: renderiza as telas fora da tela (sem tray, sem hardware) em PNG.
-/// Usa dados simulados; serve para revisar o visual sem instalar nada.
+/// --preview &lt;dir&gt; [--simulate &lt;json&gt;]: renders the screens off-screen (no tray, no hardware) to PNG.
+/// Uses simulated data; meant for reviewing the visuals without installing anything.
 /// </summary>
 public static class Preview
 {
     public static int Run(Options opt)
     {
-        FanChoices.Enabled = false; // prévia nunca grava as escolhas do usuário
+        FanChoices.Enabled = false; // preview never saves the user's choices
         var dir = Path.GetFullPath(opt.Preview!);
         Directory.CreateDirectory(dir);
-        var sim = opt.Simulate ?? Path.Combine(AppContext.BaseDirectory, "sim", "sensores.json");
+        var sim = opt.Simulate ?? Path.Combine(AppContext.BaseDirectory, "sim", "sensors.json");
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         Controls.ScrollChart.AnimationsEnabled = false;
-        PopupContent.SettingsMaxHeight = double.PositiveInfinity; // Configurações inteiras no PNG
+        PopupContent.SettingsMaxHeight = double.PositiveInfinity; // whole Settings page in the PNG
         var tmp = Path.Combine(Path.GetTempPath(), "mt-preview-" + Guid.NewGuid().ToString("N"));
         var state = new AppState(tmp);
         App.InitResources(app, state.Settings);
@@ -37,7 +37,7 @@ public static class Preview
         while ((service.Latest?.Devices.Count ?? 0) == 0 && DateTime.UtcNow < until) Thread.Sleep(50);
         Thread.Sleep(400);
         service.RefreshMs = 100000;
-        // Unidades reais desta máquina (somente leitura) para revisar a lista de discos no popup.
+        // Real drives of this machine (read-only) to review the disk list in the popup.
         var vr = new MonitorTray.Sensors.Volumes(); vr.WithRates(vr.Read()); Thread.Sleep(600); var snap = service.Latest! with { Volumes = vr.WithRates(vr.Read()) };
         var outputs = new List<string>();
         var fans = new GpuFanService(() => new SimulatedGpuApi(), takeMutex: false);
@@ -55,12 +55,12 @@ public static class Preview
             outputs.Add(Save(Path.Combine(dir, name), Scene(new BlueprintFrame(pc, shadow: false, outline: false), 344, double.NaN, s), 2));
         }
         var dark = Settings.Default;
-        Popup("01-popup-resumo-escuro.png", dark, false);
-        Popup("02-popup-configuracoes-escuro.png", dark, true);
-        Popup("03-popup-resumo-claro.png", dark with { Theme = "claro" }, false);
-        Popup("04-popup-configuracoes-claro.png", dark with { Theme = "claro" }, true);
-        foreach (var (i, p) in new[] { (5, "neon"), (6, "lima"), (7, "brasa"), (8, "violeta"), (9, "aco") })
-            Popup($"{i:00}-paleta-{p}.png", dark with { Palette = p }, false);
+        Popup("01-popup-summary-dark.png", dark, false);
+        Popup("02-popup-settings-dark.png", dark, true);
+        Popup("03-popup-summary-light.png", dark with { Theme = "light" }, false);
+        Popup("04-popup-settings-light.png", dark with { Theme = "light" }, true);
+        foreach (var (i, p) in new[] { (5, "neon"), (6, "lime"), (7, "ember"), (8, "violet"), (9, "steel") })
+            Popup($"{i:00}-palette-{p}.png", dark with { Palette = p }, false);
 
         void Details(string name, Settings s, Func<Device, bool> pick, Filters f, double h = 640)
         {
@@ -71,50 +71,50 @@ public static class Preview
             dc.Update(snap);
             outputs.Add(Save(Path.Combine(dir, name), Scene(new BlueprintFrame(dc, shadow: false), 960, h, s), 1));
         }
-        Details("10-detalhes-cpu.png", dark, d => d.Category == "CPU", Filters.Default, 1500);
+        Details("10-details-cpu.png", dark, d => d.Category == "CPU", Filters.Default, 1500);
         var cpuId = snap.Devices.First(d => d.Category == "CPU").Id;
-        Details("11-detalhes-cpu-clock-media.png", dark with { CardPicks = new Dictionary<string, string> { [cpuId + "|Clock"] = "avg" } }, d => d.Category == "CPU", Filters.Default, 640);
-        Details("13-detalhes-gpu-auto.png", dark, d => d.Category == "GPU", Filters.Default, 900);
+        Details("11-details-cpu-clock-avg.png", dark with { CardPicks = new Dictionary<string, string> { [cpuId + "|Clock"] = "avg" } }, d => d.Category == "CPU", Filters.Default, 640);
+        Details("13-details-gpu-auto.png", dark, d => d.Category == "GPU", Filters.Default, 900);
         fans.CommandAsync(50).Wait();
         Thread.Sleep(1100);
-        Details("14-detalhes-gpu-manual50.png", dark, d => d.Category == "GPU", Filters.Default, 900);
+        Details("14-details-gpu-manual50.png", dark, d => d.Category == "GPU", Filters.Default, 900);
         Popup("01b-popup-fans-manual.png", dark, false);
-        Details("15-detalhes-memoria.png", dark, d => d.Family == "Memory", Filters.Default, 900);
-        Details("17-detalhes-placa-mae.png", dark, d => d.Category == "Placa-mãe", Filters.Default, 900);
-        Details("19-detalhes-ssd.png", dark, d => d.Family == "Storage", Filters.Default, 900);
-        Details("21-detalhes-ssd-zerados-limites.png", dark, d => d.Family == "Storage", Filters.Default with { ShowZero = true, ShowLimits = true }, 900);
-        Details("22-detalhes-rede.png", dark, d => d.Category == "Rede", Filters.Default, 900);
-        Details("23-detalhes-busca-fan.png", dark, _ => false, Filters.Default with { Query = "fan" });
-        Details("24-detalhes-busca-vazia.png", dark, _ => false, Filters.Default with { Query = "xyzzy" }, 440);
-        Details("26-detalhes-claro.png", dark with { Theme = "claro" }, d => d.Category == "CPU", Filters.Default);
-        if (opt.FakeNew) Details("27-detalhes-fonte-nova.png", dark, d => d.Category == "Fonte", Filters.Default, 640);
+        Details("15-details-memory.png", dark, d => d.Family == "Memory", Filters.Default, 900);
+        Details("17-details-motherboard.png", dark, d => d.Category == "Motherboard", Filters.Default, 900);
+        Details("19-details-ssd.png", dark, d => d.Family == "Storage", Filters.Default, 900);
+        Details("21-details-ssd-zeros-limits.png", dark, d => d.Family == "Storage", Filters.Default with { ShowZero = true, ShowLimits = true }, 900);
+        Details("22-details-network.png", dark, d => d.Category == "Network", Filters.Default, 900);
+        Details("23-details-search-fan.png", dark, _ => false, Filters.Default with { Query = "fan" });
+        Details("24-details-search-empty.png", dark, _ => false, Filters.Default with { Query = "xyzzy" }, 440);
+        Details("26-details-light.png", dark with { Theme = "light" }, d => d.Category == "CPU", Filters.Default);
+        if (opt.FakeNew) Details("27-details-new-psu.png", dark, d => d.Category == "PSU", Filters.Default, 640);
 
         {
             state.Update(_ => dark); App.InitResources(app, dark);
             var aw = new AboutWindow(state, fans, snap.Devices.Count, snap.EntryCount);
             var body = (FrameworkElement)aw.Content; aw.Content = null;
-            outputs.Add(Save(Path.Combine(dir, "30-sobre.png"), Scene(body, 432, double.NaN, dark), 2));
+            outputs.Add(Save(Path.Combine(dir, "30-about.png"), Scene(body, 432, double.NaN, dark), 2));
         }
 
         {
-            // Teclado: transporte falso (nada é enviado ao GG), sensores simulados.
+            // Keyboard: fake transport (nothing is sent to GG), simulated sensors.
             state.Update(_ => dark); App.InitResources(app, dark);
             var kv = new KeyboardValues(service, () => fans.State);
             var kb = new MonitorTray.Oled.KeyboardService(Path.Combine(tmp, "kb.json"), kv.Value, kv.Name, new NullTransport());
-            var pc = new PopupContent(state); pc.Update(snap); pc.AttachFans(fans); pc.UpdateKeyboard(kb.State with { Delivery = new(true, "ok", null, DateTimeOffset.UtcNow, ["CPU uso   7%", "CPU temp 61 C"]) });
-            outputs.Add(Save(Path.Combine(dir, "01c-popup-teclado.png"), Scene(new BlueprintFrame(pc, shadow: false), 344, double.NaN, dark), 2));
+            var pc = new PopupContent(state); pc.Update(snap); pc.AttachFans(fans); pc.UpdateKeyboard(kb.State with { Delivery = new(true, "ok", null, DateTimeOffset.UtcNow, ["CPU load  7%", "CPU temp 61 C"]) });
+            outputs.Add(Save(Path.Combine(dir, "01c-popup-keyboard.png"), Scene(new BlueprintFrame(pc, shadow: false), 344, double.NaN, dark), 2));
             MonitorTray.Core.Format.Formatter.NetBits = true;
             var pb = new PopupContent(state); pb.Update(snap); pb.AttachFans(fans);
             outputs.Add(Save(Path.Combine(dir, "01d-popup-mbps.png"), Scene(new BlueprintFrame(pb, shadow: false), 344, double.NaN, dark), 2));
             MonitorTray.Core.Format.Formatter.NetBits = false;
             {
                 var acf = AsusFanModes.Fake(tmp, ["CPU Fan", "Chassis Fan 1", "Chassis Fan 2", "Chassis Fan 3", "Chassis Fan 4", "Water Pump+", "AIO Pump"]);
-                state.Update(_ => dark with { AcModes = ["curvas", "turbo", "full"] });
+                state.Update(_ => dark with { AcModes = ["curves", "turbo", "full"] });
                 var snapR = snap with { } ; snapR = new Snapshot(snap.At, snap.Summary, snap.NetDownHistory, snap.NetUpHistory, snap.Devices, snap.EntryCount, snap.Status) { MbTemps = new Dictionary<string, float> { ["Motherboard"] = 46, ["Chipset"] = 88, ["VRM"] = 60 }, MbFanRpm = new Dictionary<int, float> { [0] = 1408, [2] = 629, [3] = 620, [4] = 641 }, HistoryPoints = snap.HistoryPoints, CpuHistory = snap.CpuHistory, GpuHistory = snap.GpuHistory, MemHistory = snap.MemHistory, Volumes = snap.Volumes };
                 var pa = new PopupContent(state); pa.Update(snapR); pa.AttachFans(fans); pa.AttachAsus(acf);
-                outputs.Add(Save(Path.Combine(dir, "01h-popup-placa-modos.png"), Scene(new BlueprintFrame(pa, shadow: false), 344, double.NaN, dark), 2));
+                outputs.Add(Save(Path.Combine(dir, "01h-popup-board-modes.png"), Scene(new BlueprintFrame(pa, shadow: false), 344, double.NaN, dark), 2));
                 var pb2 = new PopupContent(state); pb2.Update(snap); pb2.AttachFans(fans); pb2.AttachAsus(acf); pb2.ShowSettings(true);
-                outputs.Add(Save(Path.Combine(dir, "02c-config-modos-placa.png"), Scene(new BlueprintFrame(pb2, shadow: false), 344, double.NaN, dark), 2));
+                outputs.Add(Save(Path.Combine(dir, "02c-settings-board-modes.png"), Scene(new BlueprintFrame(pb2, shadow: false), 344, double.NaN, dark), 2));
                 state.Update(_ => dark);
             }
             state.Update(_ => dark with { History = 7200 }); service.HistorySeconds = 7200;
@@ -124,8 +124,8 @@ public static class Preview
             state.Update(_ => dark); service.HistorySeconds = 60;
             var kw = new KeyboardWindow(state, kb, kv, service);
             var body = (FrameworkElement)kw.Content; kw.Content = null;
-            outputs.Add(Save(Path.Combine(dir, "31-teclado.png"), Scene(body, 772, 572, dark), 1));
-            // Cooler: serviço não iniciado (nenhum acesso USB); só a janela com a configuração padrão.
+            outputs.Add(Save(Path.Combine(dir, "31-keyboard.png"), Scene(body, 772, 572, dark), 1));
+            // Cooler: service not started (no USB access); just the window with the default configuration.
             var ry = new MonitorTray.Ryujin.RyujinService(Path.Combine(tmp, "lcd.json"), kv.Value);
             ry.Simulate(new MonitorTray.Ryujin.RyujinSnapshot(DateTimeOffset.Now, "AURJ1-S750-0104", new(34.8, 1650, 3480),
                 new([1020, 1020, 1050], 130), 51, 60), new(51, 51, 60, null), 48.0);
@@ -135,52 +135,57 @@ public static class Preview
             outputs.Add(Save(Path.Combine(dir, "32-cooler-lcd.png"), Scene(lbody, 1300, 860, dark), 1));
             var pw = new PopupContent(state); pw.Update(snap); pw.AttachFans(fans);
             pw.AttachAsus(MonitorTray.App.AsusFanModes.Fake(tmp, ["Chassis Fan 1", "Chassis Fan 2", "Chassis Fan 3", "Chassis Fan 4"]));
-            state.Update(_ => dark with { AcModes = ["curvas", "full"] });
+            state.Update(_ => dark with { AcModes = ["curves", "full"] });
             pw.AttachCooler(ry);
             outputs.Add(Save(Path.Combine(dir, "01i-popup-water-cooler.png"), Scene(new BlueprintFrame(pw, shadow: false, outline: false), 344, double.NaN, dark), 2));
-            // Popup novo completo: placa com os 5 modos, CHA1 desligado (só estado da UI, nenhum acesso ao hardware) e o RYUJIN.
+            // Full new popup: board with the 5 modes, CHA1 off (UI state only, no hardware access) and the RYUJIN.
             {
                 var all = dark with { AcModes = AsusFanModes.AllModes, BoardFanOff = true, GameExes = ["cs2.exe", "eldenring.exe"], TrayTemp = true, TrayAlert = true };
                 state.Update(_ => all); App.InitResources(app, all);
                 var acAll = AsusFanModes.Fake(tmp, ["CPU Fan", "Chassis Fan 1", "Chassis Fan 2", "Chassis Fan 3", "Chassis Fan 4", "Water Pump+", "AIO Pump"]);
-                // CHA1 desligado: % de controle 0 e rpm 0. O CPU Fan (saída 1) tem % mas o rpm não é medido: o card mostra "—".
+                // CHA1 off: control % 0 and rpm 0. CPU Fan (output 1) has a % but its rpm is not measured: the card shows "—".
                 var ctl = new Dictionary<int, float>(snap.MbFanControl) { [0] = 0 };
                 var rpm = new Dictionary<int, float>(snap.MbFanRpm) { [0] = 0, [1] = 1268 };
                 var snapOff = snap with { MbFanControl = ctl, MbFanRpm = rpm };
                 var pn = new PopupContent(state); pn.AttachFans(fans); pn.AttachAsus(acAll); pn.AttachCooler(ry); pn.Update(snapOff);
                 pn.PreviewBoardOff("Chassis Fan 1"); pn.PreviewBoardManual("Chassis Fan 3", 40); pn.Update(snapOff);
-                outputs.Add(Save(Path.Combine(dir, "01j-popup-novo-off.png"), Scene(new BlueprintFrame(pn, shadow: false, outline: false), 344, double.NaN, all), 2));
-                // Quick card (botão direito): placa em MANUAL 40% e radiador do cooler. Só UI.
-                var q1 = pn.QuickCard("board", "Chassis Fan 3", "CHA3 · Front down");
-                outputs.Add(Save(Path.Combine(dir, "01p-quick-placa.png"), Scene(q1, 218, double.NaN, all), 2));
-                var q2 = pn.QuickCard("cooler", MonitorTray.Core.Fans.ThermalMap.RadiatorId, "Radiador");
-                outputs.Add(Save(Path.Combine(dir, "01q-quick-radiador.png"), Scene(q2, 218, double.NaN, all), 2));
-                // 125% (DPI fracionário) sobre fundo branco: qualquer emenda/contorno de alpha menor na borda apareceria como linha clara.
+                outputs.Add(Save(Path.Combine(dir, "01j-popup-new-off.png"), Scene(new BlueprintFrame(pn, shadow: false, outline: false), 344, double.NaN, all), 2));
+                // Quick card (right click): board in MANUAL 40% and the cooler radiator. UI only.
+                var q1 = pn.QuickCard("board", "Chassis Fan 3");
+                outputs.Add(Save(Path.Combine(dir, "01p-quick-board.png"), Scene(q1, 218, double.NaN, all), 2));
+                var q2 = pn.QuickCard("cooler", MonitorTray.Core.Fans.ThermalMap.RadiatorId);
+                outputs.Add(Save(Path.Combine(dir, "01q-quick-radiator.png"), Scene(q2, 218, double.NaN, all), 2));
+                // 125% (fractional DPI) over a white background: any seam/lower-alpha outline at the edge would show up as a light line.
                 var p125 = new PopupContent(state); p125.AttachFans(fans); p125.AttachAsus(acAll); p125.AttachCooler(ry); p125.Update(snapOff);
                 var f125 = new BlueprintFrame(p125, shadow: false, outline: false) { Width = 344, Margin = new Thickness(24), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, UseLayoutRounding = true };
-                outputs.Add(Save(Path.Combine(dir, "01o-popup-125-fundo-claro.png"), new Border { Background = Brushes.White, Child = f125 }, 1.25));
+                outputs.Add(Save(Path.Combine(dir, "01o-popup-125-light-bg.png"), new Border { Background = Brushes.White, Child = f125 }, 1.25));
                 var pt = new PopupContent(state); pt.AttachFans(fans); pt.AttachAsus(acAll); pt.AttachCooler(ry); pt.Update(snapOff); pt.ShowSettings(true);
-                outputs.Add(Save(Path.Combine(dir, "02j-config-popup-novo.png"), Scene(new BlueprintFrame(pt, shadow: false, outline: false), 344, double.NaN, all), 2));
-                // Ordem/escolha diferentes e um card quente (chipset 89 °C).
-                var custom = all with { PopupTemps = ["liq", "cpu", "coremax", "socket", "mobo", "chip"], PopupBoardFans = ["Chassis Fan 2", "Chassis Fan 3"], PopupCoolerFans = ["pump", "embedded"] };
+                outputs.Add(Save(Path.Combine(dir, "02j-settings-new-popup.png"), Scene(new BlueprintFrame(pt, shadow: false, outline: false), 344, double.NaN, all), 2));
+                // Different order/choice, a hot card (chipset 89 °C) and fans renamed by the user (a 16-character name is cut with an ellipsis).
+                var custom = all with { PopupTemps = ["liq", "cpu", "coremax", "socket", "mobo", "chip"], PopupBoardFans = ["Chassis Fan 1", "Chassis Fan 2", "Chassis Fan 3"], PopupCoolerFans = ["pump", "embedded"],
+                    AcFanNames = new Dictionary<string, string> { ["Chassis Fan 1"] = "Exhaust", ["Chassis Fan 3"] = "Rear exhaust top" }, CoolerNames = new Dictionary<string, string> { ["pump"] = "Main pump" } };
                 state.Update(_ => custom);
                 var hot = new Dictionary<string, float>(snap.Temps) { ["chip"] = 89 };
                 var pk = new PopupContent(state); pk.AttachFans(fans); pk.AttachAsus(acAll); pk.AttachCooler(ry); pk.Update(snapOff with { Temps = hot });
-                outputs.Add(Save(Path.Combine(dir, "01k-popup-escolhas.png"), Scene(new BlueprintFrame(pk, shadow: false, outline: false), 344, double.NaN, custom), 2));
+                outputs.Add(Save(Path.Combine(dir, "01k-popup-choices.png"), Scene(new BlueprintFrame(pk, shadow: false, outline: false), 344, double.NaN, custom), 2));
+                // Rename in the quick card (inline box) and the FAN NAMES list in Settings, with the names above.
+                outputs.Add(Save(Path.Combine(dir, "01r-quick-rename.png"), Scene(pk.QuickCard("board", "Chassis Fan 1", rename: true), 218, double.NaN, custom), 2));
+                var pkn = new PopupContent(state); pkn.AttachFans(fans); pkn.AttachAsus(acAll); pkn.AttachCooler(ry); pkn.Update(snapOff); pkn.ShowSettings(true);
+                outputs.Add(Save(Path.Combine(dir, "02k-settings-fan-names.png"), Scene(new BlueprintFrame(pkn, shadow: false, outline: false), 344, double.NaN, custom), 2));
                 state.Update(_ => all);
-                // Faixa do topo: modo game ligado pelo jogo (tudo 100%). Só estado da UI, nada é comandado.
+                // Top strip: game mode turned on by the game (all 100%). UI state only, nothing is commanded.
                 var pg = new PopupContent(state); pg.AttachFans(fans); pg.AttachAsus(acAll); pg.AttachCooler(ry); pg.Update(snapOff);
                 pg.PreviewGame("cs2.exe");
-                outputs.Add(Save(Path.Combine(dir, "01l-popup-faixa-game.png"), Scene(new BlueprintFrame(pg, shadow: false, outline: false), 344, double.NaN, all), 2));
-                // Faixa: proteção do OFF religou o CHA1 (CPU 86 °C) + modo game ligado na mão (GPU 85%).
+                outputs.Add(Save(Path.Combine(dir, "01l-popup-game-strip.png"), Scene(new BlueprintFrame(pg, shadow: false, outline: false), 344, double.NaN, all), 2));
+                // Strip: the OFF protection turned CHA1 back on (CPU 86 °C) + game mode turned on by hand (GPU 85%).
                 state.Update(_ => all with { GameGpuPercent = 85 });
                 var pr = new PopupContent(state); pr.AttachFans(fans); pr.AttachAsus(acAll); pr.AttachCooler(ry); pr.Update(snapOff);
                 pr.PreviewSafety(new MonitorTray.Core.Format.SafetyEvent(DateTimeOffset.Now.AddSeconds(-40), ["Chassis Fan 1"], 86, 62));
                 pr.PreviewGame(null);
-                outputs.Add(Save(Path.Combine(dir, "01m-popup-faixa-religado.png"), Scene(new BlueprintFrame(pr, shadow: false, outline: false), 344, double.NaN, all), 2));
-                state.Update(_ => all); acAll.LastSafety = null; // o aviso é da cena anterior
-                // Alertas pelos limites das proteções: CPU perto (82 de 85), GPU no limite (81 de 80), líquido perto (46,5 de 50);
-                // tooltip do card da GPU com mínimo/máximo da sessão.
+                outputs.Add(Save(Path.Combine(dir, "01m-popup-strip-back-on.png"), Scene(new BlueprintFrame(pr, shadow: false, outline: false), 344, double.NaN, all), 2));
+                state.Update(_ => all); acAll.LastSafety = null; // the notice belongs to the previous scene
+                // Alerts from the protection limits: CPU near (82 of 85), GPU at the limit (81 of 80), liquid near (46.5 of 50);
+                // GPU card tooltip with the session min/max.
                 var alert = new Dictionary<string, float>(snap.Temps) { ["cpu"] = 82, ["gpu"] = 81, ["chip"] = 60 };
                 var pa2 = new PopupContent(state); pa2.AttachFans(fans); pa2.AttachAsus(acAll); pa2.AttachCooler(ry);
                 pa2.Session.Push(new Dictionary<string, float> { ["gpu"] = 38, ["cpu"] = 41 }); pa2.Session.Push(new Dictionary<string, float> { ["gpu"] = 84, ["cpu"] = 88 });
@@ -191,7 +196,7 @@ public static class Preview
                 ((TextBlock)tipBox.Child).SetResourceReference(TextBlock.ForegroundProperty, Theming.Theme.Text);
                 var frameA = Scene(new BlueprintFrame(pa2, shadow: false, outline: false), 344, double.NaN, all);
                 var bgA = ((Border)frameA).Background; var inner = ((Border)frameA).Child; ((Border)frameA).Child = null;
-                outputs.Add(Save(Path.Combine(dir, "01n-popup-alertas-tooltip.png"), new Border { Background = bgA, Child = new StackPanel { Children = { inner, new TextBlock { Text = "tooltip do card GPU (passar o mouse):", Margin = new Thickness(24, 0, 0, 4), Foreground = Brushes.Gray, FontSize = 11 }, tipBox } } }, 2));
+                outputs.Add(Save(Path.Combine(dir, "01n-popup-alerts-tooltip.png"), new Border { Background = bgA, Child = new StackPanel { Children = { inner, new TextBlock { Text = "GPU card tooltip (mouse hover):", Margin = new Thickness(24, 0, 0, 4), Foreground = Brushes.Gray, FontSize = 11 }, tipBox } } }, 2));
                 App.InitResources(app, dark);
             }
             ThermalScenes(dir, outputs, state, app, ry, kv, service, fans, snap, tmp);
@@ -199,18 +204,18 @@ public static class Preview
             ry.Dispose();
         }
 
-        // Ícone da tray em 3 estados, ampliado 8×.
+        // Tray icon in 3 states, enlarged 8×.
         var icons = new[] { (0.0, 0.0), (0.5, 0.17), (1.0, 1.0) };
         for (int i = 0; i < icons.Length; i++)
             foreach (var px in new[] { 16, 24, 32 })
             {
-                var p = Theming.Theme.Palette("eletrico");
+                var p = Theming.Theme.Palette("electric");
                 using var bmp = Tray.TrayIconRenderer.Draw(px, icons[i].Item1, icons[i].Item2, p.A, p.B);
                 var f = Path.Combine(dir, $"tray-{i}-{px}.png");
                 bmp.Save(f, System.Drawing.Imaging.ImageFormat.Png);
                 outputs.Add(f);
             }
-        outputs.Add(TraySheet(Path.Combine(dir, "tray-temperatura.png")));
+        outputs.Add(TraySheet(Path.Combine(dir, "tray-temperature.png")));
 
         fans.TryClose(TimeSpan.FromSeconds(3)); fans.Dispose();
         service.Dispose();
@@ -220,18 +225,18 @@ public static class Preview
     }
 
     /// <summary>
-    /// Controle térmico (mock 03e): RYUJIN II com o radiador editado, placa com o CHA_FAN1 desligado, placa em CURVAS (editável)
-    /// e GPU. Só estado da UI: o cooler é simulado (sem USB), a placa é o AsusFanModes.Fake (sem COM), a GPU é simulada e
-    /// Aplicar nunca é chamado. A config do cooler vai para o diretório temporário da prévia.
+    /// Thermal control (mock 03e): RYUJIN II with the radiator being edited, board with CHA_FAN1 off, board in CURVES (editable)
+    /// and GPU. UI state only: the cooler is simulated (no USB), the board is AsusFanModes.Fake (no COM), the GPU is simulated and
+    /// Apply is never called. The cooler config goes to the preview's temp directory.
     /// </summary>
     private static void ThermalScenes(string dir, List<string> outputs, AppState state, Application app, MonitorTray.Ryujin.RyujinService ry, KeyboardValues kv,
         MonitorTray.Sensors.SensorService service, GpuFanService fans, Snapshot snap, string tmp)
     {
         var dark = Settings.Default;
         state.Update(_ => dark); App.InitResources(app, dark);
-        // Curvas do Armoury Crate por modo (°C, PWM 0..255): valores do log do serviço (see asus-rog-protocol-notes).
+        // Armoury Crate curves per mode (°C, PWM 0..255): values from the service log (see asus-rog-protocol-notes).
         int[][] std = [[20, 51], [45, 102], [65, 179], [70, 255]], sil = [[21, 46], [46, 102], [66, 102], [71, 102]], tur = [[20, 102], [40, 153], [55, 204], [65, 255]];
-        IReadOnlyDictionary<string, int[][]> Modes(int[][] user) => new Dictionary<string, int[][]> { ["curvas"] = user, ["standard"] = std, ["silent"] = sil, ["turbo"] = tur };
+        IReadOnlyDictionary<string, int[][]> Modes(int[][] user) => new Dictionary<string, int[][]> { ["curves"] = user, ["standard"] = std, ["silent"] = sil, ["turbo"] = tur };
         int[][] pump = [[20, 204], [50, 217], [60, 230], [70, 255]];
         var curves = new Dictionary<string, IReadOnlyDictionary<string, int[][]>>
         {
@@ -244,7 +249,7 @@ public static class Preview
         var rpm = new Dictionary<int, float>(snap.MbFanRpm) { [0] = 594, [1] = 1268, [2] = 834, [3] = 837, [4] = 847 };
         var snapOn = snap with { MbFanControl = ctl, MbFanRpm = rpm };
         var snapOff = snap with { MbFanControl = new Dictionary<int, float>(ctl) { [0] = 0 }, MbFanRpm = new Dictionary<int, float>(rpm) { [0] = 0 } };
-        // Cooler: curvas próprias com a fonte no líquido (só arquivo no diretório temporário; o serviço não foi iniciado).
+        // Cooler: custom curves with the liquid as source (file in the temp directory only; the service was not started).
         static List<MonitorTray.Ryujin.CurveNode> N(params (double T, double P)[] p) => p.Select(x => new MonitorTray.Ryujin.CurveNode(x.T, x.P)).ToList();
         ry.SaveFans(ry.FanConfig with
         {
@@ -265,40 +270,43 @@ public static class Preview
         }
 
         var acOn = MonitorTray.App.AsusFanModes.Fake(tmp, boardFans, mode: null, curves);
-        outputs.Add(Save(Path.Combine(dir, "33-termico-ryujin-radiador.png"), Window(acOn, snapOn, t =>
+        outputs.Add(Save(Path.Combine(dir, "33-thermal-ryujin-radiator.png"), Window(acOn, snapOn, t =>
             t.PreviewEdit(MonitorTray.Core.Fans.ThermalMap.RadiatorId, [new(25, 25), new(30, 35), new(35, 55), new(40, 80), new(45, 100)], 2)), 1));
 
         var acOff = MonitorTray.App.AsusFanModes.Fake(tmp, boardFans, mode: null, curves);
-        acOff.Off.TurnOff("Chassis Fan 1", 50, 50); // só memória (Fake): nenhuma curva é gravada
-        outputs.Add(Save(Path.Combine(dir, "34-termico-placa-cha1-off.png"), Window(acOff, snapOff, t => t.SelectActuator(MonitorTray.Core.Fans.ThermalMap.BoardId("Chassis Fan 1"))), 1));
-        outputs.Add(Save(Path.Combine(dir, "35-termico-placa-cha2-curvas.png"), Window(acOff, snapOff, t => t.SelectActuator(MonitorTray.Core.Fans.ThermalMap.BoardId("Chassis Fan 2"))), 1));
+        acOff.Off.TurnOff("Chassis Fan 1", 50, 50); // memory only (Fake): no curve is written
+        outputs.Add(Save(Path.Combine(dir, "34-thermal-board-cha1-off.png"), Window(acOff, snapOff, t => t.SelectActuator(MonitorTray.Core.Fans.ThermalMap.BoardId("Chassis Fan 1"))), 1));
+        // CHA_FAN2 renamed by the user: the name is the title/strip label, the header goes to the tooltip and the subtitle.
+        state.Update(_ => dark with { AcFanNames = new Dictionary<string, string> { ["Chassis Fan 2"] = "Front intake" } });
+        outputs.Add(Save(Path.Combine(dir, "35-thermal-board-cha2-curves.png"), Window(acOff, snapOff, t => t.SelectActuator(MonitorTray.Core.Fans.ThermalMap.BoardId("Chassis Fan 2"))), 1));
+        state.Update(_ => dark);
         var acStd = MonitorTray.App.AsusFanModes.Fake(tmp, boardFans, mode: "standard", curves);
-        outputs.Add(Save(Path.Combine(dir, "36-termico-placa-std-leitura.png"), Window(acStd, snapOn, t => t.SelectActuator(MonitorTray.Core.Fans.ThermalMap.BoardId("Chassis Fan 4"))), 1));
+        outputs.Add(Save(Path.Combine(dir, "36-thermal-board-std-readonly.png"), Window(acStd, snapOn, t => t.SelectActuator(MonitorTray.Core.Fans.ThermalMap.BoardId("Chassis Fan 4"))), 1));
 
-        // GPU no automático do driver (API simulada).
+        // GPU on driver automatic (simulated API).
         fans.CommandAsync(null).Wait();
         Thread.Sleep(1100);
-        outputs.Add(Save(Path.Combine(dir, "37-termico-gpu-auto.png"), Window(acOn, snapOn, t => t.SelectActuator(MonitorTray.Core.Fans.ThermalMap.GpuId)), 1));
+        outputs.Add(Save(Path.Combine(dir, "37-thermal-gpu-auto.png"), Window(acOn, snapOn, t => t.SelectActuator(MonitorTray.Core.Fans.ThermalMap.GpuId)), 1));
     }
 
     /// <summary>
-    /// Ícone da bandeja com temperatura/alerta (Configurações › ÍCONE DA BANDEJA) em 16, 24 e 32 px, na barra escura e na clara:
-    /// tamanho real e ampliado sem suavização para conferir os pixels.
+    /// Tray icon with temperature/alert (Settings › TRAY ICON) at 16, 24 and 32 px, on the dark and the light taskbar:
+    /// real size and enlarged without smoothing to check the pixels.
     /// </summary>
     private static string TraySheet(string path)
     {
         static double F(string size) => Settings.TrayFontScale(size);
         var states = new (string Label, Func<int, bool, SD.Bitmap> Draw)[]
         {
-            ("62° P (padrão)", (px, l) => Tray.TrayIconRenderer.DrawTemp(px, 62, MonitorTray.Core.Normalize.TempLevel.Normal, l, F("p"))),
+            ("62° S (default)", (px, l) => Tray.TrayIconRenderer.DrawTemp(px, 62, MonitorTray.Core.Normalize.TempLevel.Normal, l, F("s"))),
             ("62° M", (px, l) => Tray.TrayIconRenderer.DrawTemp(px, 62, MonitorTray.Core.Normalize.TempLevel.Normal, l, F("m"))),
-            ("62° G", (px, l) => Tray.TrayIconRenderer.DrawTemp(px, 62, MonitorTray.Core.Normalize.TempLevel.Normal, l, F("g"))),
-            ("82° perto P", (px, l) => Tray.TrayIconRenderer.DrawTemp(px, 82, MonitorTray.Core.Normalize.TempLevel.Near, l, F("p"))),
-            ("88° limite P", (px, l) => Tray.TrayIconRenderer.DrawTemp(px, 88, MonitorTray.Core.Normalize.TempLevel.Over, l, F("p"))),
-            ("104° limite P", (px, l) => Tray.TrayIconRenderer.DrawTemp(px, 104, MonitorTray.Core.Normalize.TempLevel.Over, l, F("p"))),
-            ("104° limite G", (px, l) => Tray.TrayIconRenderer.DrawTemp(px, 104, MonitorTray.Core.Normalize.TempLevel.Over, l, F("g"))),
-            ("só cor: perto", (px, l) => Tray.TrayIconRenderer.Tint(Tray.TrayIcons.For(l, px), px, Tray.TrayIconRenderer.ColorFor(MonitorTray.Core.Normalize.TempLevel.Near, l))),
-            ("só cor: limite", (px, l) => Tray.TrayIconRenderer.Tint(Tray.TrayIcons.For(l, px), px, Tray.TrayIconRenderer.ColorFor(MonitorTray.Core.Normalize.TempLevel.Over, l))),
+            ("62° L", (px, l) => Tray.TrayIconRenderer.DrawTemp(px, 62, MonitorTray.Core.Normalize.TempLevel.Normal, l, F("l"))),
+            ("82° near S", (px, l) => Tray.TrayIconRenderer.DrawTemp(px, 82, MonitorTray.Core.Normalize.TempLevel.Near, l, F("s"))),
+            ("88° limit S", (px, l) => Tray.TrayIconRenderer.DrawTemp(px, 88, MonitorTray.Core.Normalize.TempLevel.Over, l, F("s"))),
+            ("104° limit S", (px, l) => Tray.TrayIconRenderer.DrawTemp(px, 104, MonitorTray.Core.Normalize.TempLevel.Over, l, F("s"))),
+            ("104° limit L", (px, l) => Tray.TrayIconRenderer.DrawTemp(px, 104, MonitorTray.Core.Normalize.TempLevel.Over, l, F("l"))),
+            ("color only: near", (px, l) => Tray.TrayIconRenderer.Tint(Tray.TrayIcons.For(l, px), px, Tray.TrayIconRenderer.ColorFor(MonitorTray.Core.Normalize.TempLevel.Near, l))),
+            ("color only: limit", (px, l) => Tray.TrayIconRenderer.Tint(Tray.TrayIcons.For(l, px), px, Tray.TrayIconRenderer.ColorFor(MonitorTray.Core.Normalize.TempLevel.Over, l))),
         };
         const int Row = 112, LabelW = 110, Half = 16 + 24 + 32 + 4 * 10 + 96 + 96 + 20;
         using var sheet = new SD.Bitmap(LabelW + 2 * Half, Row * states.Length);
@@ -340,7 +348,7 @@ public static class Preview
 
     private static FrameworkElement Scene(FrameworkElement frame, double w, double h, Settings s)
     {
-        // Fundo quadriculado (como nos screenshots do kit) para evidenciar a transparência.
+        // Checkered background (as in the kit screenshots) to make the transparency visible.
         var light = !Theming.Theme.IsDark(s);
         var bg = new DrawingBrush
         {
@@ -359,7 +367,7 @@ public static class Preview
         var size = e.DesiredSize;
         e.Arrange(new Rect(size));
         e.UpdateLayout();
-        // Segundo passe: alguns painéis só sabem a altura depois do primeiro arranjo.
+        // Second pass: some panels only know their height after the first arrange.
         e.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity)); size = e.DesiredSize; e.Arrange(new Rect(size)); e.UpdateLayout();
         var rtb = new RenderTargetBitmap((int)Math.Ceiling(size.Width * scale), (int)Math.Ceiling(size.Height * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
         rtb.Render(e);

@@ -8,35 +8,35 @@ using MonitorTray.Core.Fans;
 
 namespace MonitorTray.App.Views;
 
-/// <summary>Faixa de proteção hachurada: a partir de <see cref="TFrom"/> °C (altura toda) e/ou abaixo de <see cref="PTo"/> %.</summary>
+/// <summary>Hatched protection band: from <see cref="TFrom"/> °C on (full height) and/or below <see cref="PTo"/> %.</summary>
 public sealed record ChartGuard(double? TFrom, double? PTo, string Label);
 
-/// <summary>O que o gráfico mostra: eixo X = temperatura da fonte, Y = saída %, curva editada, anterior e o ponto de operação.</summary>
+/// <summary>What the chart shows: X axis = source temperature, Y = output %, edited curve, previous curve and the operating point.</summary>
 public sealed record CurveChartModel
 {
     public (double Min, double Max, double Step) Axis { get; init; } = (20, 100, 10);
     public string XLabel { get; init; } = "°C";
-    public string YLabel { get; init; } = "SAÍDA %";
-    /// <summary>Curva em edição (vazia = sem curva: GPU no automático do driver).</summary>
+    public string YLabel { get; init; } = "OUTPUT %";
+    /// <summary>Curve being edited (empty = no curve: GPU on driver automatic).</summary>
     public IReadOnlyList<CurvePoint> Points { get; init; } = [];
-    /// <summary>Curva salva antes da edição, tracejada (null = sem alteração).</summary>
+    /// <summary>Curve saved before the edit, dashed (null = no change).</summary>
     public IReadOnlyList<CurvePoint>? Ghost { get; init; }
     public bool Editable { get; init; }
-    /// <summary>Modo FIXO: linha reta; arrastar sobe/desce o valor (os dois pontos juntos).</summary>
+    /// <summary>FIXED mode: straight line; dragging moves the value up/down (both points together).</summary>
     public bool FixedLine { get; init; }
     public CurveLimits Limits { get; init; } = new(20, 100, 0, 2, 8);
-    /// <summary>Temperatura atual da fonte (linha vertical "AGORA").</summary>
+    /// <summary>Current source temperature (vertical "NOW" line).</summary>
     public double? Now { get; init; }
-    /// <summary>% aplicado agora quando não sai da curva (GPU: % lido das fans).</summary>
+    /// <summary>% applied now when it does not come from the curve (GPU: % read from the fans).</summary>
     public double? NowPercent { get; init; }
     public IReadOnlyList<ChartGuard> Guards { get; init; } = [];
-    /// <summary>Texto no meio do gráfico (ex.: curva do driver, não exposta).</summary>
+    /// <summary>Text in the middle of the chart (e.g. driver curve, not exposed).</summary>
     public string? Overlay { get; init; }
 }
 
 /// <summary>
-/// Gráfico grande do editor de curvas: arrastar move o ponto (entre os vizinhos), duplo clique adiciona, Del remove,
-/// setas ajustam o selecionado em 1 °C / 1 %. Toda a regra de edição está em <see cref="CurveEdit"/>; aqui só desenho e mouse.
+/// Large chart of the curve editor: dragging moves the point (between its neighbours), double-click adds, Del removes,
+/// arrows adjust the selected one by 1 °C / 1 %. All editing rules live in <see cref="CurveEdit"/>; here only drawing and mouse.
 /// </summary>
 public sealed class CurveEditorChart : FrameworkElement
 {
@@ -45,7 +45,7 @@ public sealed class CurveEditorChart : FrameworkElement
     private int drag = -1;
     private double? hoverT;
     public int Selected { get; private set; } = -1;
-    /// <summary>Curva mudou pelo mouse/teclado (pontos já validados) e o índice selecionado.</summary>
+    /// <summary>Curve changed by mouse/keyboard (points already validated) and the selected index.</summary>
     public event Action<IReadOnlyList<CurvePoint>, int>? Edited;
     public event Action<int>? SelectionChanged;
 
@@ -69,7 +69,7 @@ public sealed class CurveEditorChart : FrameworkElement
     private double IX(double x) { var p = Plot; return m.Axis.Min + (x - p.Left) / p.Width * (m.Axis.Max - m.Axis.Min); }
     private double IY(double y) { var p = Plot; return (1 - (y - p.Top) / p.Height) * 100; }
 
-    /// <summary>Pontos desenhados: no FIXO, uma linha de ponta a ponta do eixo.</summary>
+    /// <summary>Drawn points: in FIXED, a line from end to end of the axis.</summary>
     private IReadOnlyList<CurvePoint> Drawn => m.FixedLine && m.Points.Count > 0 ? [new(m.Axis.Min, m.Points[0].Percent), new(m.Axis.Max, m.Points[0].Percent)] : m.Points;
 
     private FormattedText Text(string s, double size, string brush, int weight = 400) =>
@@ -90,11 +90,11 @@ public sealed class CurveEditorChart : FrameworkElement
     {
         if (ActualWidth < 120 || ActualHeight < 80) return;
         var p = Plot;
-        dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, ActualWidth, ActualHeight)); // área de clique
+        dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, ActualWidth, ActualHeight)); // click area
         var line = Res.P(this, Theme.Line, 1);
         var faint = new Pen(Res.B(this, Theme.Track), 1);
 
-        // Proteções (hachurado), atrás da grade.
+        // Protections (hatched), behind the grid.
         var hatch = new LinearGradientBrush { MappingMode = BrushMappingMode.Absolute, SpreadMethod = GradientSpreadMethod.Repeat, StartPoint = new Point(0, 0), EndPoint = new Point(4, 4) };
         var mc = Res.B(this, Theme.Muted) is SolidColorBrush sb ? sb.Color : Colors.Gray;
         hatch.GradientStops.Add(new GradientStop(Color.FromArgb(70, mc.R, mc.G, mc.B), 0)); hatch.GradientStops.Add(new GradientStop(Color.FromArgb(70, mc.R, mc.G, mc.B), 0.22));
@@ -106,15 +106,15 @@ public sealed class CurveEditorChart : FrameworkElement
             double x0 = g.TFrom is double t0 ? X(t0) : p.Left, y0 = g.PTo is double pt ? Y(pt) : p.Top;
             dc.DrawRectangle(hatch, null, new Rect(x0, y0, p.Right - x0, p.Bottom - y0));
             if (g.TFrom != null) dc.DrawLine(new Pen(Res.B(this, Theme.Muted), 1) { DashStyle = new DashStyle([2, 3], 0) }, new Point(x0, y0), new Point(x0, p.Bottom));
-            var lt = Text(g.Label + " (proteção)", 10, Theme.Muted, 500);
+            var lt = Text(g.Label + " (protection)", 10, Theme.Muted, 500);
             double ly;
-            if (g.TFrom != null && g.PTo != null) ly = y0 + 3;          // faixa parcial: dentro dela, no topo
-            else if (g.PTo != null) ly = p.Bottom - lt.Height - 3;      // faixa de baixo (bomba): no pé
-            else { ly = guardY; guardY += lt.Height + 2; }              // altura toda: empilha no topo
+            if (g.TFrom != null && g.PTo != null) ly = y0 + 3;          // partial band: inside it, at the top
+            else if (g.PTo != null) ly = p.Bottom - lt.Height - 3;      // bottom band (pump): at the foot
+            else { ly = guardY; guardY += lt.Height + 2; }              // full height: stack at the top
             dc.DrawText(lt, new Point(Math.Min(x0 + 6, p.Right - lt.Width - 2), ly));
         }
 
-        // Grade: % a cada 10 (mais forte em 0/50/100, rótulo a cada 20) e °C a cada passo do eixo.
+        // Grid: % every 10 (stronger at 0/50/100, label every 20) and °C at every axis step.
         for (int pc = 0; pc <= 100; pc += 10)
         {
             var y = Math.Round(Y(pc)) + 0.5;
@@ -131,7 +131,7 @@ public sealed class CurveEditorChart : FrameworkElement
         dc.DrawText(Text(m.YLabel, 10.5, Theme.Text, 600), new Point(p.Left, 4));
         var xl = Text(m.XLabel, 10, Theme.Muted, 500); dc.DrawText(xl, new Point(p.Right - xl.Width, 4));
 
-        // Curva anterior (tracejada) e a editada (área + linha).
+        // Previous curve (dashed) and the edited one (area + line).
         if (m.Ghost is { Count: > 0 } ghost)
             dc.DrawGeometry(null, new Pen(Res.B(this, Theme.Muted), 1.5) { DashStyle = new DashStyle([3, 3], 0) }, Path(ghost, false));
         var pts = Drawn;
@@ -141,12 +141,12 @@ public sealed class CurveEditorChart : FrameworkElement
             dc.DrawGeometry(null, Res.P(this, Theme.DStroke, 2), Path(pts, false));
         }
 
-        // Agora: linha vertical, etiqueta no eixo e ponto de operação.
+        // Now: vertical line, label on the axis and operating point.
         if (m.Now is double now && now >= m.Axis.Min - 30)
         {
             double x = Math.Round(X(now)) + 0.5;
             dc.DrawLine(Res.P(this, Theme.Text, 1), new Point(x, p.Top), new Point(x, p.Bottom));
-            Label(dc, "AGORA " + now.ToString("0.0", CultureInfo.InvariantCulture) + "°", x, p.Bottom + 3, 10.5, Theme.Bg, Theme.Text, TextAlignment.Center);
+            Label(dc, "NOW " + now.ToString("0.0", CultureInfo.InvariantCulture) + "°", x, p.Bottom + 3, 10.5, Theme.Bg, Theme.Text, TextAlignment.Center);
             double? op = m.NowPercent ?? (pts.Count > 0 ? CurveEdit.Interpolate(pts, now) : null);
             if (m.Ghost is { Count: > 0 } g2) dc.DrawEllipse(Res.B(this, Theme.Bg), Res.P(this, Theme.Muted, 1.25), new Point(x, Y(CurveEdit.Interpolate(g2, now))), 3.5, 3.5);
             if (op is double o)
@@ -161,7 +161,7 @@ public sealed class CurveEditorChart : FrameworkElement
             }
         }
 
-        // Pontos editáveis; o selecionado cheio, com a etiqueta "P3 · 60 °C · 62%".
+        // Editable points; the selected one filled, with the label "P3 · 60 °C · 62%".
         if (m.Editable && pts.Count > 0)
         {
             var src = m.FixedLine ? [pts[^1]] : pts;
@@ -173,7 +173,7 @@ public sealed class CurveEditorChart : FrameworkElement
                 dc.DrawRectangle(Res.B(this, sel ? Theme.DStroke : Theme.Bg), Res.P(this, Theme.DStroke, 2), new Rect(c.X - s, c.Y - s, 2 * s, 2 * s));
                 if (sel)
                 {
-                    var tag = m.FixedLine ? $"FIXO · {src[i].Percent:0}%" : $"P{i + 1} · {src[i].TempC:0} °C · {src[i].Percent:0}%";
+                    var tag = m.FixedLine ? $"FIXED · {src[i].Percent:0}%" : $"P{i + 1} · {src[i].TempC:0} °C · {src[i].Percent:0}%";
                     double ty = c.Y - 32 < p.Top ? c.Y + 12 : c.Y - 32;
                     Label(dc, tag, c.X, ty, 11, Theme.Bg, Theme.DStroke, m.FixedLine ? TextAlignment.Right : TextAlignment.Center);
                 }
@@ -182,7 +182,7 @@ public sealed class CurveEditorChart : FrameworkElement
         else if (pts.Count > 0 && !m.FixedLine)
             foreach (var pt in pts) dc.DrawRectangle(Res.B(this, Theme.DStroke), null, new Rect(X(pt.TempC) - 2.5, Y(pt.Percent) - 2.5, 5, 5));
 
-        // Leitura sob o mouse (fora do arraste).
+        // Reading under the mouse (outside a drag).
         if (hoverT is double ht && drag < 0 && pts.Count > 0)
         {
             double x = Math.Round(X(ht)) + 0.5, pc = CurveEdit.Interpolate(pts, ht);
@@ -276,7 +276,7 @@ public sealed class CurveEditorChart : FrameworkElement
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e) { if (drag >= 0) { drag = -1; ReleaseMouseCapture(); InvalidateVisual(); } }
     protected override void OnMouseLeave(MouseEventArgs e) { if (hoverT != null) { hoverT = null; InvalidateVisual(); } }
 
-    /// <summary>Del remove o selecionado; setas movem 1 °C / 1 %.</summary>
+    /// <summary>Del removes the selected one; arrows move 1 °C / 1 %.</summary>
     protected override void OnKeyDown(KeyEventArgs e)
     {
         if (!m.Editable || m.FixedLine || Selected < 0) return;
@@ -289,7 +289,7 @@ public sealed class CurveEditorChart : FrameworkElement
         e.Handled = true;
     }
 
-    /// <summary>Remove o ponto selecionado (Del ou botão); não passa do mínimo de pontos.</summary>
+    /// <summary>Removes the selected point (Del or button); never goes below the minimum number of points.</summary>
     public bool RemoveSelected()
     {
         if (!m.Editable || m.FixedLine || Selected < 0 || CurveEdit.Remove(m.Points, Selected, m.Limits) is not { } r) return false;

@@ -110,12 +110,12 @@ public sealed class GpuPanelTests
         var a=new Api();var c=a.New();c.SetSpeed(50);a.Writes.Clear();a.FailAuto=true;
         Assert.Throws<AggregateException>(c.RestoreAutomatic);
         Assert.Equal(new[]{(0,(uint?)null),(1,(uint?)null),(0,(uint?)100),(1,(uint?)100)},a.Writes);
-        Assert.All(a.Fans,f=>Assert.Equal(100u,f.TargetPercent));Assert.Contains("confirmados",c.SafetyNotice!);
+        Assert.All(a.Fans,f=>Assert.Equal(100u,f.TargetPercent));Assert.Contains("confirmed",c.SafetyNotice!);
     }
     [Fact] public void FailedAutomaticAndFailHighNeverClaimsConfirmedProtection()
     {
         var a=new Api();var c=a.New();c.SetSpeed(50);a.FailAuto=a.FailHigh=true;
-        Assert.Throws<AggregateException>(c.RestoreAutomatic);Assert.Contains("nao confirmados",c.SafetyNotice!);
+        Assert.Throws<AggregateException>(c.RestoreAutomatic);Assert.Contains("not confirmed",c.SafetyNotice!);
         Assert.True(c.IsHoldingManual);Assert.Equal(100u,a.Fans[1].TargetPercent);
     }
     [Theory] [InlineData(null)] [InlineData(8UL)]
@@ -154,7 +154,7 @@ public sealed class GpuPanelTests
     }
     [Fact] public void MissingClockEventsAreNotReportedAsNoEvents()
     {
-        Assert.Contains("N/D",new GpuTelemetry().ClockEvents);Assert.Contains("Nenhum",new GpuTelemetry{ClockEventReasons=0}.ClockEvents);
-        Assert.Contains("termico",new GpuTelemetry{ClockEventReasons=32}.ClockEvents);
+        Assert.Contains("N/A",new GpuTelemetry().ClockEvents);Assert.Contains("No reason",new GpuTelemetry{ClockEventReasons=0}.ClockEvents);
+        Assert.Contains("thermal",new GpuTelemetry{ClockEventReasons=32}.ClockEvents);
     }
 }

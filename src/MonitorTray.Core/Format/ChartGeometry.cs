@@ -2,10 +2,10 @@ namespace MonitorTray.Core.Format;
 
 public readonly record struct Pt(double X, double Y);
 
-/// <summary>Geometria dos gráficos (docs/06 §2–3). Pura, sem WPF, para testar.</summary>
+/// <summary>Chart geometry (docs/06 §2–3). Pure, no WPF, so it can be tested.</summary>
 public static class ChartGeometry
 {
-    /// <summary>Metade do gráfico espelhado: pontos de (0,C) até (W,C). dir=+1 sobe (download), -1 desce (upload).</summary>
+    /// <summary>Half of the mirrored chart: points from (0,C) to (W,C). dir=+1 goes up (download), -1 goes down (upload).</summary>
     public static IReadOnlyList<Pt> Mirror(IReadOnlyList<double> values, int slots, double scale, double width, double center, double half, int dir)
     {
         var pts = new List<Pt>(values.Count + 2);
@@ -29,7 +29,7 @@ public static class ChartGeometry
         return (lo, hi);
     }
 
-    /// <summary>Faixa vertical (docs/06 §3): fixa, ou mín/máx com 15% de folga (base zero para taxas).</summary>
+    /// <summary>Vertical range (docs/06 §3): fixed, or min/max with 15% padding (zero base for rates).</summary>
     public static (double Lo, double Hi)? Range(IReadOnlyList<float?> values, (double Lo, double Hi)? fixedRange, bool zeroBase)
     {
         var (lo, hi) = MinMax(values);
@@ -44,7 +44,7 @@ public static class ChartGeometry
         return (lo, hi);
     }
 
-    /// <summary>Trechos contíguos de valores não nulos (≥ 2 pontos). Null quebra a linha; nunca interpola lacunas.</summary>
+    /// <summary>Contiguous runs of non-null values (≥ 2 points). Null breaks the line; gaps are never interpolated.</summary>
     public static IReadOnlyList<IReadOnlyList<Pt>> Runs(IReadOnlyList<float?> values, double step, double firstX, double height, double lo, double hi)
     {
         var result = new List<IReadOnlyList<Pt>>();
@@ -69,8 +69,8 @@ public static class ChartGeometry
     }
 
     /// <summary>
-    /// Curva monotônica (Fritsch–Carlson) por segmentos Bézier cúbicos. Passa por todos os pontos reais e
-    /// nunca ultrapassa o intervalo entre dois vizinhos: suaviza sem inventar picos nem vales.
+    /// Monotone curve (Fritsch–Carlson) as cubic Bézier segments. Passes through every real point and
+    /// never overshoots the interval between two neighbours: smooths without inventing peaks or valleys.
     /// </summary>
     public static IReadOnlyList<(Pt C1, Pt C2, Pt P)> Smooth(IReadOnlyList<Pt> p)
     {

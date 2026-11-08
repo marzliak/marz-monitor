@@ -4,7 +4,7 @@ namespace MonitorTray.Core;
 
 public static class AtomicFile
 {
-    /// <summary>Grava em arquivo temporário no mesmo diretório e troca (File.Replace / Move).</summary>
+    /// <summary>Writes to a temporary file in the same directory and swaps it in (File.Replace / Move).</summary>
     public static void WriteAllText(string path, string content)
     {
         var dir = Path.GetDirectoryName(Path.GetFullPath(path))!;

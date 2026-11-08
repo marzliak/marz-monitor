@@ -29,7 +29,7 @@ public sealed class Options
     {
         string? Arg(string name) { var i = Array.IndexOf(a, name); return i >= 0 && i + 1 < a.Length && !a[i + 1].StartsWith("--", StringComparison.Ordinal) ? a[i + 1] : null; }
         var sim = Arg("--simulate");
-        if (sim == null && a.Contains("--simulate")) sim = Path.Combine(AppContext.BaseDirectory, "sim", "sensores.json");
+        if (sim == null && a.Contains("--simulate")) sim = Path.Combine(AppContext.BaseDirectory, "sim", "sensors.json");
         return new Options { Simulate = sim, Tray = a.Contains("--tray"), Details = a.Contains("--details"), FakeNew = a.Contains("--fake-new"), Preview = Arg("--preview") };
     }
 }
@@ -76,7 +76,7 @@ public sealed class App : Application
         app.Resources[typeof(System.Windows.Controls.Primitives.ScrollBar)] = ScrollBarStyle;
     }
 
-    /// <summary>Barra de rolagem fina (6 px), sem setas, polegar na cor Muted — combina com a moldura blueprint.</summary>
+    /// <summary>Thin scroll bar (6 px), no arrows, thumb in the Muted color — matches the blueprint frame.</summary>
     private static readonly Style ScrollBarStyle = (Style)System.Windows.Markup.XamlReader.Parse(@"
 <Style xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml' TargetType='ScrollBar'>
   <Setter Property='Width' Value='6'/>
@@ -130,7 +130,7 @@ public sealed class App : Application
         return new SensorService(hw, opt.Simulate == null ? new SystemSummarySource() : null, known, Autostart.IsAdmin());
     }
 
-    /// <summary>Fonte já aberta (para injetar o dispositivo inventado antes da primeira leitura).</summary>
+    /// <summary>Source already open (to inject the fake device before the first reading).</summary>
     private sealed class PreOpened(SimulatedSource s) : IHardwareSource
     {
         public void Open() { }
@@ -170,7 +170,7 @@ public sealed class App : Application
             try
             {
                 asus = new AsusFanModes(Path.Combine(AppState.DataDir, "state")); popup.Content2.AttachAsus(asus);
-                asus.Changed += () => Dispatcher.BeginInvoke(UpdateKeepHardware); // fan desligado: temperaturas frescas mesmo com o popup fechado
+                asus.Changed += () => Dispatcher.BeginInvoke(UpdateKeepHardware); // fan off: fresh temperatures even with the popup closed
             }
             catch (Exception ex) { Crash(ex); }
         }
@@ -181,14 +181,14 @@ public sealed class App : Application
         if (opt.Simulate == null) StartKeyboard();
         if (opt.Simulate == null) StartRyujin();
         if (opt.Simulate == null) popup.Content2.RestoreGame();
-        if (opt.Simulate == null) popup.Content2.RestoreChoices(); else FanChoices.Enabled = false;
+        if (opt.Simulate == null) { popup.Content2.RestoreChoices(); popup.Content2.RestoringOffChanged += () => Dispatcher.BeginInvoke(UpdateKeepHardware); } else FanChoices.Enabled = false;
         if (opt.Simulate == null) StartGameWatch();
         UpdateKeepHardware();
         popup.IsVisibleChanged += (_, _) => UpdateCollection();
 
         tray = new TaskbarIcon { ToolTipText = "Marz Monitor", NoLeftClickDelay = true, MenuActivation = H.NotifyIcon.Core.PopupActivationMode.RightClick };
-        // Id fixo POR CAMINHO do exe: o Windows guarda "mostrar na barra" por (Guid, caminho). Com o Guid padrão
-        // (nome do assembly) o instalado e os builds de teste disputavam o mesmo Guid e a escolha do usuário se perdia.
+        // Fixed id PER exe PATH: Windows stores "show on taskbar" per (Guid, path). With the default Guid
+        // (assembly name) the installed app and the test builds fought over the same Guid and the user's choice was lost.
         tray.Id = H.NotifyIcon.Core.TrayIcon.CreateUniqueGuidFromString("MarzMonitor|" + (Environment.ProcessPath ?? "").ToLowerInvariant());
         tray.Icon = TrayIcons.Current();
         tray.TrayLeftMouseUp += (_, _) => TogglePopup();
@@ -204,26 +204,26 @@ public sealed class App : Application
             instance.Message += m => Dispatcher.BeginInvoke(() => { if (m == "details") ShowDetails(); else if (m == "game") popup?.Content2.ToggleGameExternal(); else ShowPopup(); });
             instance.Listen();
         }
-        // Autostart só muda quando o usuário mexe no toggle (OnSettingsChanged). Rodar o exe não altera o registro.
+        // Autostart only changes when the user flips the toggle (OnSettingsChanged). Running the exe does not touch the registry.
         service.Start();
         if (opt.Details) ShowDetails();
-        // --tray (tarefa do logon) respeita "Iniciar oculto"; abertura manual (atalho) sempre mostra o popup.
+        // --tray (logon task) honors "Start hidden"; a manual launch (shortcut) always shows the popup.
         else if (!opt.Tray || !state.Settings.StartHidden) ShowPopup();
-        UpdateCollection(); // inicia só na bandeja: agenda o trim de memória
+        UpdateCollection(); // started in the tray only: schedules the memory trim
     }
 
     private ContextMenu BuildMenu()
     {
         var m = new ContextMenu();
         MenuItem Item(string text, Action a) { var i = new MenuItem { Header = text }; i.Click += (_, _) => a(); return i; }
-        m.Items.Add(Item("Abrir", ShowPopup));
-        m.Items.Add(Item("Detalhes", ShowDetails));
-        m.Items.Add(Item("Configurações", () => ShowPopup(settings: true)));
-        m.Items.Add(Item("Telas do teclado", ShowKeyboard));
-        m.Items.Add(Item("Controle térmico", ShowLcd));
-        m.Items.Add(Item("Sobre", ShowAbout));
+        m.Items.Add(Item("Open", ShowPopup));
+        m.Items.Add(Item("Details", ShowDetails));
+        m.Items.Add(Item("Settings", () => ShowPopup(settings: true)));
+        m.Items.Add(Item("Keyboard screens", ShowKeyboard));
+        m.Items.Add(Item("Thermal control", ShowLcd));
+        m.Items.Add(Item("About", ShowAbout));
         m.Items.Add(new Separator());
-        m.Items.Add(Item("Sair", ExitApp));
+        m.Items.Add(Item("Quit", ExitApp));
         return m;
     }
 
@@ -231,7 +231,7 @@ public sealed class App : Application
     {
         if (popup == null) return;
         if (popup.IsVisible) { popup.HideNow(); return; }
-        // O clique na tray desativa o popup antes de chegar aqui; evitar reabrir logo em seguida.
+        // The tray click deactivates the popup before getting here; avoid reopening it right away.
         if ((DateTime.UtcNow - popup.HiddenByDeactivateAt).TotalMilliseconds < 350) return;
         ShowPopup();
     }
@@ -244,7 +244,7 @@ public sealed class App : Application
         popup!.ShowAt(p, settings);
     }
 
-    /// <summary>Clique num card de temperatura: abre o Detalhes no sensor (ou na categoria, sem sensor do LHM).</summary>
+    /// <summary>Click on a temperature card: opens Details on the sensor (or on the category, without an LHM sensor).</summary>
     private void ShowDetailsAt(string? sensorId, string category)
     {
         ShowDetails();
@@ -292,11 +292,11 @@ public sealed class App : Application
         about.Show(); about.Activate();
     }
 
-    private void KnownSave() { /* gravação feita pelo SensorService ao sair; aqui reservado para o fechamento do Detalhes */ service.SaveKnownDevices(); }
+    private void KnownSave() { /* saved by SensorService on exit; here reserved for closing Details */ service.SaveKnownDevices(); }
 
     /// <summary>
-    /// Teclado (OLED + rodinha), portado do GPU by MarzOps. Usa os mesmos sensores do app (LHM fica ativo enquanto o OLED estiver ligado).
-    /// A rodinha recebe WM_INPUT numa janela só de mensagens nesta thread de UI.
+    /// Keyboard (OLED + wheel), ported from GPU by MarzOps. Uses the app's own sensors (LHM stays active while the OLED is on).
+    /// The wheel receives WM_INPUT in a message-only window on this UI thread.
     /// </summary>
     private void StartKeyboard()
     {
@@ -304,7 +304,7 @@ public sealed class App : Application
         {
             kbValues = new KeyboardValues(service, () => fans?.State);
             keyboard = new KeyboardService(KeyboardPath, kbValues.Value, kbValues.Name);
-            if (!File.Exists(KeyboardPath)) keyboard.Save(keyboard.Config); // grava o perfil (padrão ou migrado do GPU by MarzOps)
+            if (!File.Exists(KeyboardPath)) keyboard.Save(keyboard.Config); // saves the profile (default or migrated from GPU by MarzOps)
             UpdateKeepHardware();
             keyboard.Changed += s => { UpdateKeepHardware(); Dispatcher.BeginInvoke(() => popup?.Content2.UpdateKeyboard(s)); };
             var prm = new System.Windows.Interop.HwndSourceParameters("MarzMonitor.Keyboard") { ParentWindow = new IntPtr(-3), Width = 0, Height = 0, WindowStyle = 0 };
@@ -318,8 +318,8 @@ public sealed class App : Application
     }
 
     /// <summary>
-    /// ROG RYUJIN II: leitura sempre (só leitura); LCD só se ligado em ryujin-lcd.json (padrão desligado).
-    /// Sem cooler conectado o serviço fica tentando abrir a cada 10 s, sem custo.
+    /// ROG RYUJIN II: always reads (read-only); LCD only if enabled in ryujin-lcd.json (off by default).
+    /// With no cooler connected the service keeps trying to open it every 10 s, at no cost.
     /// </summary>
     private void StartRyujin()
     {
@@ -337,12 +337,13 @@ public sealed class App : Application
         catch (Exception ex) { Crash(ex); }
     }
 
-    /// <summary>LHM fica ativo com a bandeja fechada se o OLED do teclado, o LCD do cooler ou a janela do cooler precisarem de sensores.</summary>
+    /// <summary>LHM stays active with the tray closed if the keyboard OLED, the cooler LCD or the cooler window need sensors.</summary>
     private void UpdateKeepHardware() =>
         service.KeepHardware = keyboard?.Config.Enabled == true || ryujin?.Config.Enabled == true || ryujin?.FanConfig.Enabled == true || lcdWindow != null || asus?.Off.Any == true
-            || state.Settings.TrayTemp || state.Settings.TrayAlert; // ícone da bandeja com temperatura/alerta precisa das leituras com o popup fechado
+            || popup?.Content2.RestoringOff == true // saved OFF fans wait for a CPU reading
+            || state.Settings.TrayTemp || state.Settings.TrayAlert; // tray icon with temperature/alert needs readings with the popup closed
 
-    // ---- Modo game automático: processos a cada 3 s (só com jogos na lista ou enquanto o automático for dono do modo game).
+    // ---- Automatic game mode: processes every 3 s (only with games in the list or while automatic owns game mode).
     private System.Windows.Threading.DispatcherTimer? gameTimer;
     private bool gamePolling;
 
@@ -365,7 +366,7 @@ public sealed class App : Application
         gameTimer.Start();
     }
 
-    /// <summary>Nomes dos processos (sem ".exe"); só a lista, sem abrir nenhum processo (não precisa de admin).</summary>
+    /// <summary>Process names (without ".exe"); just the list, without opening any process (no admin needed).</summary>
     private static IReadOnlyList<string> RunningProcessNames()
     {
         var ps = System.Diagnostics.Process.GetProcesses();
@@ -373,7 +374,7 @@ public sealed class App : Application
         finally { foreach (var p in ps) p.Dispose(); }
     }
 
-    // ---- Temperaturas da sessão e ícone da bandeja (maior temperatura e/ou cor de alerta).
+    // ---- Session temperatures and tray icon (highest temperature and/or alert color).
     private readonly TempSession temps = new();
     private string trayIconKey = "";
     private string? trayIconLabel;
@@ -389,23 +390,23 @@ public sealed class App : Application
         if (tray == null) return;
         var st = state.Settings;
         var hot = st.TrayTemp || st.TrayAlert ? TempCards.ForTray(st.TrayTemps, st.PopupTemps, values, Environment.TickCount64, st.TrayRotateSec) : null;
-        trayIconLabel = st.TrayTemp && hot != null && TempCards.Find(hot.Id) is { } hd ? $"Ícone: {hd.Label} {Math.Round(hot.Value):0}°" : null;
+        trayIconLabel = st.TrayTemp && hot != null && TempCards.Find(hot.Id) is { } hd ? $"Icon: {hd.Label} {Math.Round(hot.Value):0}°" : null;
         bool light = TrayIcons.TaskbarIsLight();
         int px = TrayIconRenderer.SystemSize();
         var level = st.TrayAlert && hot != null ? hot.Worst : TempLevel.Normal;
-        string key = hot == null || (!st.TrayTemp && level == TempLevel.Normal) ? $"fixo|{light}"
+        string key = hot == null || (!st.TrayTemp && level == TempLevel.Normal) ? $"fixed|{light}"
             : st.TrayTemp ? $"temp|{hot.Id}|{Math.Round(hot.Value, MidpointRounding.AwayFromZero)}|{level}|{light}|{px}|{st.TrayFontSize}"
-            : $"alerta|{level}|{light}|{px}";
+            : $"alert|{level}|{light}|{px}";
         if (key == trayIconKey) return;
         trayIconKey = key;
-        if (key.StartsWith("fixo", StringComparison.Ordinal)) { tray.UpdateIcon(TrayIcons.For(light)); return; }
+        if (key.StartsWith("fixed",StringComparison.Ordinal)) { tray.UpdateIcon(TrayIcons.For(light)); return; }
         using var bmp = st.TrayTemp ? TrayIconRenderer.DrawTemp(px, hot!.Value, level, light, Settings.TrayFontScale(st.TrayFontSize)) :TrayIconRenderer.Tint(TrayIcons.For(light, px), px, TrayIconRenderer.ColorFor(level, light));
         tray.UpdateIcon(iconRenderer.Make(bmp));
     }
 
     private void ShowLcd()
     {
-        if (ryujin == null || kbValues == null) { MessageBox.Show("Cooler indisponível nesta execução (modo simulado).", "Marz Monitor"); return; }
+        if (ryujin == null || kbValues == null) { MessageBox.Show("Cooler unavailable in this run (simulated mode).", "Marz Monitor"); return; }
         if (lcdWindow == null)
         {
             lcdWindow = new LcdWindow(state, ryujin, kbValues, service, asus, fans);
@@ -422,7 +423,7 @@ public sealed class App : Application
 
     private void ShowKeyboard()
     {
-        if (keyboard == null || kbValues == null) { MessageBox.Show("Teclado indisponível nesta execução (modo simulado ou SteelSeries GG ausente).", "Marz Monitor"); return; }
+        if (keyboard == null || kbValues == null) { MessageBox.Show("Keyboard unavailable in this run (simulated mode or SteelSeries GG missing).", "Marz Monitor"); return; }
         kbWindow ??= new KeyboardWindow(state, keyboard, kbValues, service);
         kbWindow.Closed += (_, _) => { kbWindow = null; UpdateCollection(); };
         service.KeepHardware = true;
@@ -433,8 +434,8 @@ public sealed class App : Application
     private System.Windows.Threading.DispatcherTimer? trimTimer;
 
     /// <summary>
-    /// Com popup, Detalhes e editor do teclado fechados: depois de 10 s compacta o heap e devolve as páginas ao Windows;
-    /// repete a cada 5 min enquanto ficar só na bandeja. Nada muda no comportamento; ao reabrir as páginas voltam sob demanda.
+    /// With the popup, Details and keyboard editor closed: after 10 s compacts the heap and returns the pages to Windows;
+    /// repeats every 5 min while it stays in the tray only. No behavior change; on reopening, pages come back on demand.
     /// </summary>
     private void ScheduleTrim(bool hidden)
     {
@@ -469,11 +470,13 @@ public sealed class App : Application
 
     private void OnSnapshot(Snapshot s)
     {
-        if (exiting) return; // snapshots ainda enfileirados durante a saída (ícone/janelas já descartados)
-        // Fans da placa desligados pelo popup: CPU > 85 °C, GPU > 80 °C ou sem leitura da CPU religa todos (popup aberto ou não).
+        if (exiting) return; // snapshots still queued during exit (icon/windows already disposed)
+        // Board fans turned off from the popup: CPU > 85 °C, GPU > 80 °C or no CPU reading turns all back on (popup open or not).
         asus?.SafetyCheck(s.Summary.CpuTemp, s.Summary.GpuTemp ?? (fans?.State.Reading?.TemperatureC is uint g ? (float?)g : null));
+        // CPU/GPU temps reach the popup logic even while it is hidden (restoring saved OFF fans waits for a CPU reading).
+        popup?.Content2.SetTemps(s.Summary.CpuTemp, s.Summary.GpuTemp ?? (fans?.State.Reading?.TemperatureC is uint g2 ? (float?)g2 : null));
         var t = MergedTemps(s);
-        temps.Push(t); // mínimo/máximo da sessão mesmo com o popup fechado
+        temps.Push(t); // session min/max even with the popup closed
         if (popup is { IsVisible: true }) { popup.Content2.Update(s); popup.Content2.UpdateFans(fans?.State); }
         details?.Update(s);
         UpdateTray(s);
@@ -481,8 +484,8 @@ public sealed class App : Application
     }
 
     /// <summary>
-    /// Primeira vez deste ícone: deixa visível na barra (HKCU\Control Panel\NotifyIconSettings\…\IsPromoted=1).
-    /// Só quando o valor ainda não existe — se o usuário esconder depois, a escolha dele vale.
+    /// First time for this icon: makes it visible on the taskbar (HKCU\Control Panel\NotifyIconSettings\…\IsPromoted=1).
+    /// Only when the value does not exist yet — if the user hides it later, their choice wins.
     /// </summary>
     private static void PromoteTrayIcon()
     {
@@ -512,8 +515,8 @@ public sealed class App : Application
     }
 
     /// <summary>
-    /// Tooltip da bandeja (limite do Windows: 127 caracteres). Funciona com o popup fechado:
-    /// CPU/memória/disco/rede vêm do PDH; GPU (uso e °C) vem da NVML do serviço de fans.
+    /// Tray tooltip (Windows limit: 127 characters). Works with the popup closed:
+    /// CPU/memory/disk/network come from PDH; GPU (load and °C) comes from the fan service's NVML.
     /// </summary>
     internal static string TrayTip(SummaryData s, FanState? f)
     {
@@ -526,8 +529,8 @@ public sealed class App : Application
         double? gt = s.GpuTemp ?? r?.TemperatureC;
         var gpu = "GPU " + P(gl) + (gt is double t ? $" {Math.Round(t):0}°C" : "")
                   + (f is { Mode: FanMode.Manual, RequestedPercent: uint rp } ? $" · fan {rp}%" : "");
-        var disk = $"Disco L {Formatter.DiskMBps(s.DiskReadBps)} · E {Formatter.DiskMBps(s.DiskWriteBps)} MB/s";
-        var net = $"Rede ↓ {Formatter.Net(s.NetDownBps)} ↑ {Formatter.Net(s.NetUpBps)}";
+        var disk = $"Disk R {Formatter.DiskMBps(s.DiskReadBps)} · W {Formatter.DiskMBps(s.DiskWriteBps)} MB/s";
+        var net = $"Net ↓ {Formatter.Net(s.NetDownBps)} ↑ {Formatter.Net(s.NetUpBps)}";
         var tip = string.Join("\n", cpu + "  " + mem, gpu, disk, net);
         return tip.Length <= 127 ? tip : tip[..127];
     }
@@ -540,8 +543,8 @@ public sealed class App : Application
         service.HistorySeconds = now.History;
         if (old.Autostart != now.Autostart) Task.Run(() => Autostart.Apply(now.Autostart));
         if (old.TrayTemp != now.TrayTemp || old.TrayAlert != now.TrayAlert) UpdateKeepHardware();
-        // Opção "DESLIGAR FAN DA PLACA" desligada: o card não religa mais pelo clique, então religa os desligados agora.
-        if (old.BoardFanOff && !now.BoardFanOff && asus is { Off.Any: true }) asus.TurnOn(asus.Off.Off, "opção desligada");
+        // "TURN OFF BOARD FAN" option disabled: the card no longer turns fans back on by click, so turn the stopped ones back on now.
+        if (old.BoardFanOff && !now.BoardFanOff && asus is { Off.Any: true }) asus.TurnOn(asus.Off.Off, "option disabled");
         if (service.Latest is { } s) OnSnapshot(s);
     }
 
@@ -550,7 +553,7 @@ public sealed class App : Application
         if (e.Category is UserPreferenceCategory.General or UserPreferenceCategory.VisualStyle or UserPreferenceCategory.Color)
             Dispatcher.BeginInvoke(() =>
             {
-                trayIconKey = ""; // barra clara/escura mudou: redesenha o ícone (fixo ou com temperatura)
+                trayIconKey = ""; // light/dark taskbar changed: redraw the icon (fixed or with temperature)
                 if (tray != null) { if (service.Latest is { } s) UpdateTrayIcon(MergedTemps(s)); else tray.UpdateIcon(TrayIcons.Current()); }
                 Theme.Apply(Resources, state.Settings); popup?.ApplyBlur(); details?.ApplyBlur();
             });
@@ -565,17 +568,17 @@ public sealed class App : Application
     {
         if (exiting) return;
         popup?.Content2.BeginShutdown();
-        // Fans primeiro: devolve ao automático e confirma por fan. Sem confirmação, o app NÃO fecha
-        // (um processo encerrado com fan manual deixaria a placa numa velocidade fixa).
+        // Fans first: hand them back to automatic and confirm per fan. Without confirmation the app does NOT close
+        // (a process that ended with a manual fan would leave the card at a fixed speed).
         if (fans != null && !fans.TryClose(TimeSpan.FromSeconds(5)))
         {
-            MessageBox.Show("Não foi possível confirmar a volta das fans ao automático:\n\n" + fans.State.Error +
-                "\n\nO Marz Monitor continua aberto. Tente \"AUTO\" no Detalhes e saia de novo.", "Marz Monitor", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("Could not confirm the fans returned to automatic:\n\n" + fans.State.Error +
+                "\n\nMarz Monitor stays open. Try \"AUTO\" in Details and quit again.", "Marz Monitor", MessageBoxButton.OK, MessageBoxImage.Warning);
             ShowDetails();
             return;
         }
         exiting = true;
-        try { asus?.RestoreAndWait(TimeSpan.FromSeconds(8)); asus?.Dispose(); } catch (Exception) { } // volta às curvas do usuário
+        try { asus?.RestoreAndWait(TimeSpan.FromSeconds(8)); asus?.Dispose(); } catch (Exception) { } // back to the user's curves
         service.Published -= OnPublished;
         try { state.Flush(); } catch (Exception) { }
         details?.Close();
@@ -596,7 +599,7 @@ public sealed class App : Application
 
     protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
     {
-        // Logoff/desligamento: melhor esforço, sem diálogo.
+        // Logoff/shutdown: best effort, no dialog.
         try { fans?.TryClose(TimeSpan.FromSeconds(4)); } catch (Exception) { }
         exiting = false; fans?.Dispose(); fans = null;
         ExitApp();

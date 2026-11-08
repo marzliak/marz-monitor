@@ -7,7 +7,7 @@ using MonitorTray.Core.Normalize;
 
 namespace MonitorTray.App.Tray;
 
-/// <summary>Ícone 16×16 desenhado a cada tick (docs/04 §A). Escala para 24/32 px em DPI alto. Sem vazar HICON.</summary>
+/// <summary>16×16 icon drawn on each tick (docs/04 §A). Scales to 24/32 px at high DPI. No HICON leaks.</summary>
 public sealed class TrayIconRenderer : IDisposable
 {
     private Icon? current;
@@ -15,7 +15,7 @@ public sealed class TrayIconRenderer : IDisposable
 
     public static int SizeFor(double scale) => scale >= 1.75 ? 32 : scale >= 1.25 ? 24 : 16;
 
-    /// <summary>Tamanho do ícone da bandeja para o DPI do monitor principal.</summary>
+    /// <summary>Tray icon size for the DPI of the main monitor.</summary>
     public static int SystemSize()
     {
         try { using var g = Graphics.FromHwnd(IntPtr.Zero); return SizeFor(g.DpiX / 96.0); } catch (Exception) { return 16; }
@@ -42,8 +42,8 @@ public sealed class TrayIconRenderer : IDisposable
     }
 
     /// <summary>
-    /// Cor do ícone: texto normal (branco na barra escura, quase preto na clara) ou de alerta — âmbar perto do limite
-    /// (≥ limite − 5 °C) e vermelho no limite. Tons mais escuros na barra clara para manter o contraste.
+    /// Icon color: normal text (white on a dark taskbar, near-black on a light one) or alert — amber near the limit
+    /// (≥ limit − 5 °C) and red at the limit. Darker shades on a light taskbar to keep the contrast.
     /// </summary>
     public static Color ColorFor(TempLevel level, bool lightTaskbar) => level switch
     {
@@ -53,7 +53,7 @@ public sealed class TrayIconRenderer : IDisposable
     };
 
     private static FontFamily? digits;
-    /// <summary>Fonte condensada (dígitos altos e estreitos cabem em 16 px); sem ela, Segoe UI.</summary>
+    /// <summary>Condensed font (tall, narrow digits fit in 16 px); without it, Segoe UI.</summary>
     private static FontFamily Digits()
     {
         if (digits != null) return digits;
@@ -63,13 +63,13 @@ public sealed class TrayIconRenderer : IDisposable
     }
 
     /// <summary>
-    /// Ícone com a temperatura em °C (sem o símbolo), centrado. <paramref name="scale"/> = altura máxima dos dígitos em fração do lado
-    /// (Settings.TrayFontScale: 1 ocupa o quadrado todo); 3 dígitos (≥ 100) ficam mais estreitos para caber na largura.
-    /// Os dígitos são desenhados como contorno preenchido e alinhados ao pixel, legíveis em 16, 24 e 32 px.
+    /// Icon with the temperature in °C (without the symbol), centered. <paramref name="scale"/> = max digit height as a fraction of the side
+    /// (Settings.TrayFontScale: 1 fills the whole square); 3 digits (≥ 100) get narrower to fit the width.
+    /// Digits are drawn as a filled outline and pixel-aligned, legible at 16, 24 and 32 px.
     /// </summary>
     public static Bitmap DrawTemp(int px, float celsius, TempLevel level, bool lightTaskbar, double scale = 1.0)
     {
-        double maxH = Math.Max(6, Math.Round(px * Math.Clamp(scale, 0.3, 1.0))); // altura inteira: borda de cima e de baixo no pixel
+        double maxH = Math.Max(6, Math.Round(px * Math.Clamp(scale, 0.3, 1.0))); // whole-number height: top and bottom edges on the pixel
         var text = Math.Clamp((int)Math.Round(celsius, MidpointRounding.AwayFromZero), 0, 199).ToString(System.Globalization.CultureInfo.InvariantCulture);
         var bmp = new Bitmap(px, px, PixelFormat.Format32bppArgb);
         using var g = Graphics.FromImage(bmp);
@@ -79,7 +79,7 @@ public sealed class TrayIconRenderer : IDisposable
         var fam = Digits();
         var style = fam.Name.Contains("Bahnschrift", StringComparison.Ordinal) ? FontStyle.Regular : FontStyle.Bold;
         using var fmt = (StringFormat)StringFormat.GenericTypographic.Clone();
-        // Maior corpo que cabe: largura total ≤ px e altura dos dígitos ≤ maxH (sem margem; o Windows já espaça os ícones).
+        // Largest size that fits: total width ≤ px and digit height ≤ maxH (no margin; Windows already spaces the icons).
         GraphicsPath? path = null;
         for (float em = px * 1.4f; em >= 4; em -= 0.25f)
         {
@@ -100,7 +100,7 @@ public sealed class TrayIconRenderer : IDisposable
         return bmp;
     }
 
-    /// <summary>Ícone fixo (pulso) recolorido na cor de alerta: mesmo desenho, só a cor muda.</summary>
+    /// <summary>Static (pulse) icon recolored in the alert color: same drawing, only the color changes.</summary>
     public static Bitmap Tint(Icon icon, int px, Color color)
     {
         var bmp = new Bitmap(px, px, PixelFormat.Format32bppArgb);
@@ -134,8 +134,8 @@ public sealed class TrayIconRenderer : IDisposable
     private IntPtr previousHandle;
 
     /// <summary>
-    /// HICON a partir do bitmap. Libera o de duas trocas atrás: o anterior ainda está na bandeja até o chamador
-    /// entregar o novo (UpdateIcon), então só morre na troca seguinte.
+    /// HICON from the bitmap. Frees the one from two swaps ago: the previous one is still in the tray until the caller
+    /// hands over the new one (UpdateIcon), so it only dies on the following swap.
     /// </summary>
     public Icon Make(Bitmap bmp)
     {

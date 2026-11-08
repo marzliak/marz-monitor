@@ -3,7 +3,7 @@ namespace MonitorTray.Ryujin;
 public readonly record struct CurveNode(double TempC, double Percent);
 public readonly record struct RpmPoint(int Percent, int Rpm);
 
-/// <summary>Curvas do Armoury Crate (default.json) e conversões %/rpm (rpmMappingTable do Auto Tuning).</summary>
+/// <summary>Armoury Crate curves (default.json) and %/rpm conversions (Auto Tuning rpmMappingTable).</summary>
 public static class RyujinCurves
 {
     public enum Preset { Silent, Standard, Turbo, FullSpeed }
@@ -25,7 +25,7 @@ public static class RyujinCurves
         _ => fan == Fan.Embedded ? EmbTurbo : PumpTurbo,
     };
 
-    /// <summary>% fixo do modo Fixed por preset.</summary>
+    /// <summary>Fixed-mode % per preset.</summary>
     public static int FixedPercent(Fan fan, Preset preset) => preset switch
     {
         Preset.Silent => fan == Fan.Embedded ? 30 : 40,
@@ -34,7 +34,7 @@ public static class RyujinCurves
         _ => 100,
     };
 
-    /// <summary>Interpolação linear entre nós; fora da faixa segura o valor da ponta (como o AC).</summary>
+    /// <summary>Linear interpolation between nodes; outside the range it holds the end value (like AC).</summary>
     public static double Interpolate(IReadOnlyList<CurveNode> nodes, double tempC)
     {
         if (nodes.Count == 0) return 0;
@@ -74,6 +74,6 @@ public static class RyujinCurves
         return table[^1].Rpm;
     }
 
-    /// <summary>Duty do radiador (0x21) = % * 255 / 100, truncado como o AC faz.</summary>
+    /// <summary>Radiator duty (0x21) = % * 255 / 100, truncated like AC does.</summary>
     public static byte RadiatorDuty(double percent) => (byte)Math.Clamp((int)(Math.Round(percent) * 255 / 100), 0, 255);
 }

@@ -1,9 +1,9 @@
 namespace MonitorTray.Core.History;
 
 /// <summary>
-/// Histórico de taxa (rede) por segundo, até 2 h. Cada segundo guarda o pico dos ticks daquele segundo.
-/// View agrupa em baldes alinhados ao relógio (o gráfico só rola quando fecha um balde) usando o pico de cada balde,
-/// para picos curtos não sumirem em janelas longas. ~115 KB por série.
+/// Per-second rate (network) history, up to 2 h. Each second keeps the peak of that second's ticks.
+/// View groups into clock-aligned buckets (the chart only scrolls when a bucket closes) using each bucket's peak,
+/// so short peaks do not vanish in long windows. ~115 KB per series.
 /// </summary>
 public sealed class RateHistory
 {
@@ -17,26 +17,26 @@ public sealed class RateHistory
     {
         if (!double.IsFinite(value) || value < 0) value = 0;
         if (cur < 0) { cur = second; curMax = value; return; }
-        if (second < cur) return; // fora de ordem: ignora (nunca apaga o histórico)
+        if (second < cur) return; // out of order: ignored (never erases history)
         if (second == cur) { curMax = Math.Max(curMax, value); return; }
         secs.Push(curMax);
-        for (long s = cur + 1; s < second && s - cur <= MaxSeconds; s++) secs.Push(0); // lacuna (suspensão): sem tráfego
+        for (long s = cur + 1; s < second && s - cur <= MaxSeconds; s++) secs.Push(0); // gap (sleep): no traffic
         cur = second; curMax = value;
     }
 
-    /// <summary>Segundos por ponto para a janela (1 s até 120 s; depois janela/120 arredondado para cima).</summary>
+    /// <summary>Seconds per point for the window (1 s up to 120 s; beyond that window/120 rounded up).</summary>
     public static int BucketSeconds(int window) => Math.Max(1, (int)Math.Ceiling(window / (double)MaxPoints));
     public static int Points(int window) => Math.Max(2, window / BucketSeconds(window));
 
     private bool TryGet(long s, out double v)
     {
         if (s == cur) { v = curMax; return true; }
-        long back = cur - s; // 1 = último segundo fechado
+        long back = cur - s; // 1 = last closed second
         if (back >= 1 && back <= secs.Count) { v = secs[secs.Count - (int)back]; return true; }
         v = 0; return false;
     }
 
-    /// <summary>Até Points+1 valores (o mais antigo fica fora da área, para a rolagem não abrir buraco); o último é o balde em andamento.</summary>
+    /// <summary>Up to Points+1 values (the oldest sits outside the area so scrolling does not open a hole); the last is the bucket in progress.</summary>
     public double[] View(int window)
     {
         if (cur < 0) return [];

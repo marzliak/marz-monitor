@@ -11,7 +11,7 @@ using MonitorTray.Sensors;
 
 namespace MonitorTray.App.Views;
 
-/// <summary>Janela Detalhes: própria, arrastável, redimensionável, maximizável com margem 12; lembra posição.</summary>
+/// <summary>Details window: standalone, draggable, resizable, maximizable with a 12 margin; remembers its position.</summary>
 public sealed class DetailsWindow : Window
 {
     private const double M = 6;
@@ -26,7 +26,7 @@ public sealed class DetailsWindow : Window
         this.app = app;
         WindowStyle = WindowStyle.None; AllowsTransparency = true; Background = Brushes.Transparent;
         ShowInTaskbar = true; Topmost = false; ResizeMode = ResizeMode.CanResize;
-        Title = "Detalhes do sistema"; UseLayoutRounding = true;
+        Title = "System details"; UseLayoutRounding = true;
         MinWidth = 720 + 2 * M; MinHeight = 440 + 2 * M;
         Width = 960 + 2 * M; Height = 640 + 2 * M;
         try { Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/MonitorTray;component/Assets/app.ico")); } catch (Exception) { }
@@ -42,7 +42,7 @@ public sealed class DetailsWindow : Window
             SaveBounds();
         };
         Body.MaxButton.Click += ToggleMax;
-        // X: com "Fechar esconde na bandeja" (padrão) só fecha a janela; o app segue na bandeja. Desligado: encerra o app.
+        // X: with "Close hides to tray" (default) it only closes the window; the app stays in the tray. Off: quits the app.
         Body.CloseButton.Click += () => { if (app.Settings.CloseToTray) Close(); else QuitRequested?.Invoke(); };
         PreviewKeyDown += (_, e) =>
         {
@@ -95,7 +95,7 @@ public sealed class DetailsWindow : Window
             maxed = false;
             Left = restore.Left; Top = restore.Top; Width = restore.Width; Height = restore.Height;
         }
-        Body.MaxButton.ToolTip = maxed ? "Restaurar" : "Maximizar";
+        Body.MaxButton.ToolTip = maxed ? "Restore" : "Maximize";
         if (Body.MaxButton.Child is System.Windows.Controls.Viewbox vb && vb.Child is System.Windows.Controls.Canvas c && c.Children[0] is System.Windows.Shapes.Path p)
             p.Data = Icons.Geo(maxed ? Icons.Minimize : Icons.Maximize);
         SaveBounds();
@@ -124,7 +124,7 @@ public sealed class DetailsWindow : Window
         }
         else
         {
-            // Centralizada no monitor da tray (monitor principal da taskbar).
+            // Centered on the tray monitor (main taskbar monitor).
             var t = Taskbar.Current();
             var s = t.Scale;
             Left = t.WorkPx.Left / s + (t.WorkPx.Width / s - Width) / 2;
@@ -137,7 +137,7 @@ public sealed class DetailsWindow : Window
     private static bool IsOnSomeScreen(double x, double y, double w, double h)
     {
         var vs = new Rect(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop, SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
-        var r = new Rect(x, y + 4, Math.Min(w, 200), 24); // a barra de título precisa estar visível
+        var r = new Rect(x, y + 4, Math.Min(w, 200), 24); // the title bar must be visible
         return vs.IntersectsWith(r) && vs.Contains(new Point(x + 40, y + 12));
     }
 

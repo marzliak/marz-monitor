@@ -4,7 +4,7 @@ using System.Security.Principal;
 
 namespace MonitorTray.App.Platform;
 
-/// <summary>Instância única por usuário: Mutex + pipe nomeado "show".</summary>
+/// <summary>Single instance per user: Mutex + named pipe "show".</summary>
 public sealed class SingleInstance : IDisposable
 {
     private readonly Mutex mutex;
@@ -20,7 +20,7 @@ public sealed class SingleInstance : IDisposable
         try { mutex = new Mutex(true, @"Local\MonitorTray." + sid, out created); }
         catch (UnauthorizedAccessException)
         {
-            // Já existe, criado pela instância elevada: não somos a primeira.
+            // Already exists, created by the elevated instance: we are not the first.
             mutex = new Mutex(false); created = false;
         }
         IsFirst = created;

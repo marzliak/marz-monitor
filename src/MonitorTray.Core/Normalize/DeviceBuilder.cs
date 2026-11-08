@@ -4,7 +4,7 @@ using MonitorTray.Core.Model;
 
 namespace MonitorTray.Core.Normalize;
 
-/// <summary>Transforma leituras cruas em dispositivos: categoria, nome, consolidação, papel, qualidade (docs/05 §2–7).</summary>
+/// <summary>Turns raw readings into devices: category, name, consolidation, role, quality (docs/05 §2–7).</summary>
 public static class NetTrafficIds
 {
     public const string Total = "/net-traffic/total", Local = "/net-traffic/local", Internet = "/net-traffic/internet";
@@ -13,7 +13,7 @@ public static class NetTrafficIds
 public static partial class DeviceBuilder
 {
     public static readonly IReadOnlyList<string> Consolidate = ["Memory", "Network"];
-    private static readonly string[] CategoryOrder = ["CPU", "GPU", "Memória", "Placa-mãe", "Armazenamento", "Rede", "Fonte"];
+    private static readonly string[] CategoryOrder = ["CPU", "GPU", "Memory", "Motherboard", "Storage", "Network", "PSU"];
 
     [GeneratedRegex(@"\(#(\d+)\)")] private static partial Regex SlotRe();
 
@@ -21,14 +21,14 @@ public static partial class DeviceBuilder
     {
         "Cpu" => "CPU",
         "GpuNvidia" or "GpuAmd" or "GpuIntel" => "GPU",
-        "Memory" => "Memória",
-        "Motherboard" or "SuperIO" or "EmbeddedController" => "Placa-mãe",
-        "Storage" => "Armazenamento",
-        "Network" => "Rede",
-        "Psu" => "Fonte",
-        "Cooler" or "Controller" => "Controladora",
-        "Battery" => "Bateria",
-        "PowerMonitor" => "Energia",
+        "Memory" => "Memory",
+        "Motherboard" or "SuperIO" or "EmbeddedController" => "Motherboard",
+        "Storage" => "Storage",
+        "Network" => "Network",
+        "Psu" => "PSU",
+        "Cooler" or "Controller" => "Controller",
+        "Battery" => "Battery",
+        "PowerMonitor" => "Power",
         _ => family,
     };
 
@@ -40,9 +40,9 @@ public static partial class DeviceBuilder
 
     private static string FallbackStem(string family, string category) => family switch
     {
-        "Network" => "Adaptador de rede",
-        "Storage" => "Disco",
-        "Memory" => "Memória",
+        "Network" => "Network adapter",
+        "Storage" => "Disk",
+        "Memory" => "Memory",
         _ => category,
     };
 
@@ -64,24 +64,24 @@ public static partial class DeviceBuilder
 
     public static IReadOnlyList<Device> Build(IReadOnlyList<RawSensor> raw, SensorTracker tracker, Func<string, bool> isNew)
     {
-        // Slots dos módulos de memória: hardwares com "(#N)"; numerados por N crescente.
+        // Memory module slots: hardware with "(#N)"; numbered by ascending N.
         var slotByDevice = new Dictionary<string, (int Index, int Slot)>(StringComparer.Ordinal);
         var modules = raw.Where(r => r.Family == "Memory").Select(r => (r.DeviceId, r.DeviceName)).Distinct()
             .Select(d => (d.DeviceId, M: SlotRe().Match(d.DeviceName))).Where(d => d.M.Success)
             .Select(d => (d.DeviceId, Slot: int.Parse(d.M.Groups[1].Value))).OrderBy(d => d.Slot).ThenBy(d => d.DeviceId, StringComparer.Ordinal).ToList();
         for (int i = 0; i < modules.Count; i++) slotByDevice[modules[i].DeviceId] = (i + 1, modules[i].Slot);
 
-        // Rede consolidada: cada placa/tipo de tráfego vira uma "fonte" (prefixo do sensor e seção no painel).
+        // Consolidated network: each adapter/traffic type becomes a "source" (sensor prefix and panel section).
         var netNames = new Dictionary<string, string>(StringComparer.Ordinal);
         int generic = 0;
         foreach (var nd in raw.Where(r => r.Family == "Network").Select(r => (r.DeviceId, r.DeviceName)).Distinct().OrderBy(x => x.DeviceId, StringComparer.Ordinal))
         {
             string n = nd.DeviceId switch
             {
-                NetTrafficIds.Total => "Total", NetTrafficIds.Local => "Rede local", NetTrafficIds.Internet => "Internet",
+                NetTrafficIds.Total => "Total", NetTrafficIds.Local => "Local network", NetTrafficIds.Internet => "Internet",
                 _ => nd.DeviceName.Replace(nd.DeviceId, "", StringComparison.Ordinal).Trim(),
             };
-            if (n.Length == 0 || n == "Network") n = "Adaptador de rede " + (++generic);
+            if (n.Length == 0 || n == "Network") n = "Network adapter " + (++generic);
             netNames[nd.DeviceId] = n;
         }
 
@@ -108,14 +108,14 @@ public static partial class DeviceBuilder
         foreach (var acc in map.Values.Where(a => a.Merged && a.Family == "Memory"))
             acc.Modules = acc.Sources.Where(slotByDevice.ContainsKey).Select(s => new MemoryModule(slotByDevice[s].Index, slotByDevice[s].Slot)).OrderBy(m => m.Index).ToList();
 
-        // Nomes: remove o ID embutido; vazio/igual à família → "Disco N" etc., numerado na ordem de ID.
+        // Names: strip the embedded ID; empty/same as the family → "Disk N" etc., numbered in ID order (consolidated ones keep the category name).
         var all = map.Values.OrderBy(a => a.Id, StringComparer.Ordinal).ToList();
         var famIdx = new Dictionary<string, int>();
         foreach (var a in all)
         {
             a.Cat = Category(FamilyGroup(a.Family));
             var n = a.RawName.Replace(a.Id, "", StringComparison.Ordinal).Trim();
-            if (n.Length == 0 || n == a.Family || n == FamilyGroup(a.Family))
+            if (!a.Merged && (n.Length == 0 || n == a.Family || n == FamilyGroup(a.Family)))
             {
                 famIdx[a.Family] = famIdx.GetValueOrDefault(a.Family) + 1;
                 n = FallbackStem(a.Family, a.Cat) + " " + famIdx[a.Family];
@@ -132,8 +132,8 @@ public static partial class DeviceBuilder
 
     private static string SourceName(string deviceId, string deviceName, Dictionary<string, (int Index, int Slot)> slots)
     {
-        if (slots.TryGetValue(deviceId, out var s)) return "Módulo " + s.Index;
+        if (slots.TryGetValue(deviceId, out var s)) return "Module " + s.Index;
         var n = Regex.Replace(deviceName, @"\s*memory\s*", "", RegexOptions.IgnoreCase).Trim();
-        return n switch { "Total" => "Física", "Virtual" => "Virtual", "" => deviceName, _ => n };
+        return n switch { "Total" => "Physical", "Virtual" => "Virtual", "" => deviceName, _ => n };
     }
 }

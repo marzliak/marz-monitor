@@ -4,7 +4,7 @@ using MonitorTray.Core.Normalize;
 
 namespace MonitorTray.Sensors;
 
-/// <summary>LibreHardwareMonitorLib: varredura recursiva, IDs estáveis, hot-plug.</summary>
+/// <summary>LibreHardwareMonitorLib: recursive scan, stable IDs, hot-plug.</summary>
 public sealed class LhmSource : IHardwareSource
 {
     private Computer? computer;
@@ -13,7 +13,7 @@ public sealed class LhmSource : IHardwareSource
     private HashSet<string> realNics = new(StringComparer.Ordinal);
     private DateTime nicsAt = DateTime.MinValue;
 
-    /// <summary>A varredura completa periódica (Reset do LHM, ~1 s) só roda com o Detalhes aberto.</summary>
+    /// <summary>The periodic full scan (LHM Reset, ~1 s) only runs while Details is open.</summary>
     public bool RescanAllowed { get; set; }
     public bool IsSimulated => false;
     public string? Notice { get; private set; }
@@ -32,7 +32,7 @@ public sealed class LhmSource : IHardwareSource
             computer.HardwareAdded += _ => HardwareChanged?.Invoke();
             computer.HardwareRemoved += _ => HardwareChanged?.Invoke();
             try { computer.Open(); }
-            catch (Exception ex) { Notice = "Falha ao abrir sensores: " + ex.Message; }
+            catch (Exception ex) { Notice = "Failed to open sensors: " + ex.Message; }
             traffic.Start();
         }
     }
@@ -42,15 +42,15 @@ public sealed class LhmSource : IHardwareSource
         lock (gate)
         {
             if (computer == null) return [];
-            // Varredura completa periódica cobre dispositivos USB que o LHM não notifica.
+            // The periodic full scan catches USB devices that LHM does not report.
             if (RescanAllowed && DateTime.UtcNow - lastRescan > TimeSpan.FromSeconds(30))
             {
                 lastRescan = DateTime.UtcNow;
                 try
                 {
                     computer.Reset();
-                    // Logo após o Reset os sensores voltam sem valor por uma leitura; descarta essa leitura
-                    // para não publicar um tick de "—"/zeros que faria as caixinhas caírem e voltarem.
+                    // Right after Reset the sensors come back without a value for one read; discard that read
+                    // so we don't publish a tick of "—"/zeros that would make the tiles drop and come back.
                     var warm = new List<RawSensor>(400);
                     foreach (var h in computer.Hardware) Walk(h, warm);
                 }
@@ -62,7 +62,7 @@ public sealed class LhmSource : IHardwareSource
             {
                 foreach (var h in computer.Hardware)
                 {
-                    // Interfaces de filtro/WAN Miniport viram "dispositivos" no LHM; só os adaptadores reais entram.
+                    // Filter/WAN Miniport interfaces show up as "devices" in LHM; only real adapters get in.
                     if (h.HardwareType == HardwareType.Network && !realNics.Contains(h.Name)) continue;
                     Walk(h, list);
                 }

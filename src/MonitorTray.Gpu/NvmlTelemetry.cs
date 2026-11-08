@@ -1,4 +1,4 @@
-// Portado de CmpInf (homelab/hosts/nanim/apps/cmpinf/src, homolog 260a683f). Lógica de segurança mantida sem alterações.
+// Ported from CmpInf (homelab/hosts/nanim/apps/cmpinf/src, homolog 260a683f). Safety logic kept unchanged.
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -48,7 +48,7 @@ internal sealed partial class NvmlGpuApi
             // Optional telemetry may be absent/restricted. Device loss is not
             // optional: invalidate the sample instead of a false healthy frame.
             if (IsOptionalMetricError(value.Code)) return null;
-            Check(value.Code, "Telemetria NVML"); return null;
+            Check(value.Code, "NVML telemetry"); return null;
         }
         catch (EntryPointNotFoundException) { return null; }
     }

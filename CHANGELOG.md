@@ -1,197 +1,215 @@
 # Changelog
 
-Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). Versionamento: série **0.1.x** (cada pacote entregue sobe o último número).
+Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: **0.1.x** series (each delivered package bumps the last number).
+
+## [0.1.36] - 2026-11-08
+### Fixed
+- Sensor loop running non-stop (~1.6 cores of CPU, values and charts jumping): every keyboard-screen send and cooler status update re-set `KeepHardware`, which woke the sensor loop at once; the new reading triggered the next send, and so on. The loop is now woken only when `KeepHardware` turns on.
+
+## [0.1.35] - 2026-11-08
+### Fixed
+- Saved board fans in OFF were not turned off again when the app started hidden in the tray: the CPU temperature only reached the popup logic while the popup was open. It is now fed on every reading, and sensors stay on until the saved OFF fans are restored.
+
+## [0.1.34] - 2026-11-08
+### Changed
+- **English only.** The whole app (popup, Settings, Details, Thermal control, cooler LCD, keyboard screens, About, tray menu/tooltip, quick card, installer), logs, code, tests and all documentation (README, CHANGELOG, docs, kit) are now in English. Numbers and dates use en-US. The package has `INSTALL.cmd` and `README.md`.
+- Saved settings keep working: old Portuguese ids are still read and written back in English (theme escuro→dark, palette eletrico→electric, scale independente→independent, board mode curvas→curves, LCD slot names Agua→Water, etc.).
+- Board fans show their original header names by default (CPU_FAN, CHA_FAN1…CHA_FAN4, W_PUMP+, AIO_PUMP), derived from the Armoury Crate connector, never from the board model. The old built-in nicknames (Exaustor/Front top/Front down/Rear) were removed; saved values identical to those defaults are dropped.
+### Added
+- Rename any board fan or RYUJIN part: Settings › FAN NAMES (empty = original name) or **Rename** in the quick card (Enter saves, Esc cancels). A custom name is the main label; the original header stays in the tooltip. Long names are trimmed with an ellipsis.
+### Fixed
+- `AcFanNames` was missing from Settings equality, so a rename-only change could fail to save.
 
 ## [0.1.33] - 2026-11-07
-### Corrigido
-- As escolhas de fan agora ficam salvas e voltam ao abrir o app: modo da placa (CURVAS/SILENT/STD/TURBO/FULL), fans da placa em OFF ou MANUAL e o preset da GPU (A/30/50/75/100). Antes o app sempre abria com a placa em CURVAS, os fans ligados e a GPU no automático.
-- Sair do modo game volta às suas escolhas (antes: placa em CURVAS e GPU no automático).
-### Notas
-- Ao sair do app tudo continua voltando ao seguro (GPU automática, placa nas curvas User); só a escolha fica guardada (`state\fan-choices.json`). OFF só é reaplicado com a opção "DESLIGAR FAN DA PLACA" ligada e depois da primeira leitura da CPU. Proteções e modo game não alteram a escolha guardada.
+### Fixed
+- Fan choices are now saved and restored when the app opens: motherboard mode (CURVES/SILENT/STD/TURBO/FULL), motherboard fans in OFF or MANUAL, and the GPU preset (A/30/50/75/100). Before, the app always opened with the motherboard in CURVES, the fans on and the GPU on automatic.
+- Leaving game mode returns to your choices (before: motherboard in CURVES and GPU on automatic).
+### Notes
+- On quitting the app everything still goes back to safe (GPU automatic, motherboard on the User curves); only the choice is kept (`state\fan-choices.json`). OFF is only reapplied with the "TURN OFF MOTHERBOARD FAN" option on and after the first CPU reading. Protections and game mode do not change the saved choice.
 
 ## [0.1.32] - 2026-11-07
-### Corrigido
-- Fan embutido do RYUJIN preso em 100%: o modo game o punha no preset FULL e, quando o game desligava sozinho (GPU/placa mudadas por fora), o cooler não voltava ao que era antes. Agora qualquer saída do modo game devolve cada parte do cooler que ainda está como o game deixou.
-- Ao abrir, um fan embutido em FULL fora do modo game volta ao STD (uma curva própria do usuário é mantida).
-### Alterado
-- CURVAS / SILENT / STD / TURBO / FULL do WC RYUJIN II valem também para o fan embutido (antes só bomba e radiador); CURVAS devolve a config própria do embutido, se houver.
+### Fixed
+- RYUJIN built-in fan stuck at 100%: game mode put it on the FULL preset and, when game mode turned itself off (GPU/motherboard changed externally), the cooler did not go back to what it was before. Now any exit from game mode returns each part of the cooler that is still as game mode left it.
+- On opening, a built-in fan in FULL outside game mode goes back to STD (a user's own curve is kept).
+### Changed
+- CURVES / SILENT / STD / TURBO / FULL of the WC RYUJIN II now also apply to the built-in fan (before only pump and radiator); CURVES restores the built-in fan's own config, if there is one.
 
-## [0.1.31] - 2026-11-07 (teste, branch popup-v2)
-### Adicionado
-- **Quick card** (botão direito num card de fan do popup): CURVA / MANUAL / OFF, slider de % (grava ao soltar) e atalhos 30/50/75/100, link "Editar curva…" que abre o Controle térmico no fan.
-- **MANUAL por fan da placa**: curva plana no % pedido até 80 °C e 100% a partir de 85 °C, gravada no chip pelo mesmo caminho do OFF/FULL (curva User guardada; volta ao sair do Marz). Mínimo 20%. Card com contorno destacado. FULL e modo game tiram do MANUAL.
-- **MANUAL no RYUJIN** pelo quick card: bomba (mín. 30%), radiador (3 fans juntos) e fan embutido em % fixo.
+## [0.1.31] - 2026-11-07 (test, branch popup-v2)
+### Added
+- **Quick card** (right-click on a fan card in the popup): CURVE / MANUAL / OFF, % slider (writes on release) and 30/50/75/100 shortcuts, "Edit curve…" link that opens Thermal control on that fan.
+- **MANUAL per motherboard fan**: flat curve at the requested % up to 80 °C and 100% from 85 °C, written to the chip through the same path as OFF/FULL (User curve saved; restored when Marz quits). Minimum 20%. Card with a highlighted outline. FULL and game mode take it out of MANUAL.
+- **MANUAL on the RYUJIN** via the quick card: pump (min. 30%), radiator (3 fans together) and built-in fan at a fixed %.
 
-## [0.1.30] - 2026-11-07 (teste, branch popup-v2)
-### Adicionado
-- Ícone da bandeja: escolha de quais temperaturas mostrar (TEMPERATURA NO ÍCONE; nenhuma = a mais quente). Com mais de uma, alternam a cada 2/3/5/10 s (TROCAR A CADA). O tooltip do ícone diz qual está aparecendo. A cor de alerta continua considerando todos os cards.
+## [0.1.30] - 2026-11-07 (test, branch popup-v2)
+### Added
+- Tray icon: choose which temperatures to show (ICON TEMPERATURE; none = the hottest). With more than one, they alternate every 2/3/5/10 s (SWITCH EVERY). The icon tooltip says which one is showing. The alert color still considers all cards.
 
-## [0.1.29] - 2026-11-07 (teste, branch popup-v2)
-### Alterado
-- Ícone da bandeja: novo tamanho PP (58% da altura), padrão.
-- Controle térmico: "tela n/m no LCD" só aparece na aba do LCD.
-### Adicionado
-- Controle térmico (RYUJIN): botão RESTAURAR volta a curva do atuador à padrão (pontos do STD); só grava ao Aplicar.
+## [0.1.29] - 2026-11-07 (test, branch popup-v2)
+### Changed
+- Tray icon: new XS size (58% of the height), default.
+- Thermal control: "screen n/m on the LCD" only shows on the LCD tab.
+### Added
+- Thermal control (RYUJIN): RESTORE button resets the actuator curve to the default (STD points); only written on Apply.
 
-## [0.1.28] - 2026-11-07 (teste, branch popup-v2)
-### Corrigido
-- Contorno claro em volta do popup: a janela tinha 6 px transparentes fora da moldura, onde o acrílico aparecia como borda. Margem zerada.
-### Alterado
-- Curva do RYUJIN segue a **média de ~5 s** da temperatura da fonte (antes: leitura instantânea a cada 1 s; a CPU Package oscila 10–20 °C em picos). A linha AGORA e o "% agora" do Controle térmico usam a mesma média.
-- Controle térmico: proteções recolhidas (título com ícone de informação; clique abre a lista, tooltip mostra as regras); sem "dono:"/"driver".
-- Auto Tuning do radiador: faixa sobre o gráfico com etapa (1/11), barra de progresso, tempo restante e CANCELAR; popup mostra "auto tuning n/11".
+## [0.1.28] - 2026-11-07 (test, branch popup-v2)
+### Fixed
+- Light outline around the popup: the window had 6 transparent px outside the frame, where the acrylic showed as a border. Margin set to zero.
+### Changed
+- The RYUJIN curve follows the **~5 s average** of the source temperature (before: instantaneous reading every 1 s; CPU Package swings 10–20 °C in spikes). The NOW line and the "% now" in Thermal control use the same average.
+- Thermal control: protections collapsed (title with an info icon; click opens the list, tooltip shows the rules); no "owner:"/"driver".
+- Radiator Auto Tuning: strip over the chart with step (1/11), progress bar, remaining time and CANCEL; popup shows "auto tuning n/11".
 
-## [0.1.27] - 2026-11-07 (teste, branch popup-v2)
-### Adicionado
-- Nova janela **Controle térmico**: faixa com todos os fans, abas GPU/PLACA-MÃE/RYUJIN II, gráfico da curva com fonte explícita, linha AGORA, curva anterior, edição de pontos no RYUJIN (até 8) e na placa em CURVAS (4 pontos do chip), Aplicar/Descartar; LCD do cooler em aba própria.
-### Corrigido
-- Contorno claro em volta do popup no app real: a moldura sem contorno ainda desenhava uma borda de 1 px da cor do fundo, e em DPI fracionário a emenda saía com alpha menor (linha clara sobre o blur). Agora só o fundo; a região da janela segue o retângulo real da moldura e a borda do DWM (Windows 11) fica sem cor.
-- CURVAS do WC no popup abria o controle térmico: agora aplica a config própria do cooler de antes do preset (guardada em `ryujin-curves.json`, sobrevive ao reinício) ou, sem uma, as curvas padrão (pontos do STD como curva própria).
-- Card de fan da placa com "DESLIGAR FAN DA PLACA" desligado: só leitura (sem mãozinha nem dica). Ligado, um clique bloqueado pela proteção mostra "não desligou" com o motivo; desligar a opção religa os fans desligados.
-### Alterado
-- Sem as tags driver / AC / Marz nos títulos.
-- Placa-mãe: todos os modos visíveis por padrão (escolha segue nas Configurações).
-- GPU: rpm ao lado do % de cada fan quando > 0.
-- Ícone da bandeja com temperatura: número menor por padrão e opção TAMANHO DA FONTE (P/M/G).
+## [0.1.27] - 2026-11-07 (test, branch popup-v2)
+### Added
+- New **Thermal control** window: strip with all fans, GPU/MOTHERBOARD/RYUJIN II tabs, curve chart with explicit source, NOW line, previous curve, point editing on the RYUJIN (up to 8) and on the motherboard in CURVES (the chip's 4 points), Apply/Discard; cooler LCD in its own tab.
+### Fixed
+- Light outline around the popup in the real app: the borderless frame still drew a 1 px border in the background color, and at fractional DPI the seam came out with lower alpha (light line over the blur). Now only the background; the window region follows the frame's real rectangle and the DWM border (Windows 11) has no color.
+- WC CURVES in the popup opened Thermal control: it now applies the cooler's own config from before the preset (saved in `ryujin-curves.json`, survives restarts) or, without one, the default curves (STD points as its own curve).
+- Motherboard fan card with "TURN OFF MOTHERBOARD FAN" off: read-only (no hand cursor or hint). With it on, a click blocked by the protection shows "did not turn off" with the reason; turning the option off turns the stopped fans back on.
+### Changed
+- No driver / AC / Marz tags in the titles.
+- Motherboard: all modes visible by default (the choice remains in Settings).
+- GPU: rpm next to each fan's % when > 0.
+- Tray icon with temperature: smaller number by default and a FONT SIZE option (S/M/L).
 
-## [0.1.26] - 2026-11-07 (teste, branch popup-v2)
-### Alterado
-- **Popup redesenhado** no mesmo tamanho: sem contorno claro; faixa de cards de temperatura (escolha e ordem nas Configurações; cor de alerta pelos limites das proteções); GPU com FAN SPEED compacto e fan/A/% à direita; placa e WC com CURVAS/SILENT/STD/TURBO/FULL e cards de fan de tamanho único (escolha nas Configurações); rpm só quando medido; rede com ↓/↑ numa linha própria.
-### Adicionado
-- Faixa de avisos no topo (modo game, fan religado por proteção, proteções da GPU/cooler).
-- Ícone da bandeja com a maior temperatura e/ou cor de alerta (opcional).
-- Modo game automático por lista de executáveis.
-- Clique num card de temperatura abre o Detalhes no sensor; tooltip com mín./máx. da sessão.
-- Tag de quem controla cada seção (driver / AC / Marz).
-- Desligar fan da placa pelo card (atrás da opção "DESLIGAR FAN DA PLACA", desligada por padrão; curva de proteção 0% < 80 °C / 100% ≥ 85 °C; religa por temperatura, FULL e modo game; não persiste).
+## [0.1.26] - 2026-11-07 (test, branch popup-v2)
+### Changed
+- **Popup redesigned** at the same size: no light outline; strip of temperature cards (choice and order in Settings; alert color from the protection limits); GPU with a compact FAN SPEED and fan/A/% on the right; motherboard and WC with CURVES/SILENT/STD/TURBO/FULL and single-size fan cards (choice in Settings); rpm only when measured; network with ↓/↑ on its own line.
+### Added
+- Alert strip at the top (game mode, fan turned back on by protection, GPU/cooler protections).
+- Tray icon with the highest temperature and/or alert color (optional).
+- Automatic game mode from a list of executables.
+- Clicking a temperature card opens Details on that sensor; tooltip with the session min./max.
+- Tag showing who controls each section (driver / AC / Marz).
+- Turn off a motherboard fan from its card (behind the "TURN OFF MOTHERBOARD FAN" option, off by default; protection curve 0% < 80 °C / 100% ≥ 85 °C; turns back on by temperature, FULL and game mode; not persisted).
 
 ## [0.1.25] - 2026-11-02
-### Adicionado
-- **Water cooler ROG RYUJIN II** (USB HID, sem o Armoury Crate): leitura de água, bomba, fan embutido e 3 fans do radiador; controle de bomba/radiador/fan embutido com presets SILENT/STD/TURBO/FULL, curva ou % fixo, fonte da curva configurável e Auto Tuning do radiador. Proteções: bomba ≥ 30 %, água ≥ 50 °C põe tudo em 100 %, sem leitura da fonte usa 70 %, ao fechar deixa ≥ 60 %, para e avisa se outro programa escrever no cooler.
-- **Tela do LCD do cooler**: telas de 1 a 4 informações com qualquer sensor, rótulo e unidade, alternando por tempo (desligado por padrão).
-- Janela **Controle térmico** (botão termômetro no cabeçalho e item na bandeja): cards de temperaturas e rotações (cooler, placa, GPU), modos da placa, curvas % × rpm.
-- Popup: linha **WC RYUJIN II** (presets + água + rpm de bomba/radiador/fan embutido).
-- **Modo game configurável** nas Configurações (GPU, placa com todas as fans, bomba, radiador, fan embutido; % da GPU e do cooler); padrão tudo a 100 %. Persiste entre reinícios. `MonitorTray.exe --game` alterna.
-### Alterado
-- Popup: GPU, MOTHERBOARD e WC no mesmo padrão; modos da placa e do WC na linha do título; rede sem a linha de números (valor atual em destaque no gráfico).
+### Added
+- **ROG RYUJIN II water cooler** (USB HID, without Armoury Crate): reading of water, pump, built-in fan and the 3 radiator fans; control of pump/radiator/built-in fan with SILENT/STD/TURBO/FULL presets, curve or fixed %, configurable curve source and radiator Auto Tuning. Protections: pump ≥ 30 %, water ≥ 50 °C puts everything at 100 %, no source reading uses 70 %, on close leaves ≥ 60 %, stops and warns if another program writes to the cooler.
+- **Cooler LCD screen**: screens with 1 to 4 readings of any sensor, label and unit, rotating on a timer (off by default).
+- **Thermal control** window (thermometer button in the header and tray item): temperature and speed cards (cooler, motherboard, GPU), motherboard modes, % × rpm curves.
+- Popup: **WC RYUJIN II** row (presets + water + pump/radiator/built-in fan rpm).
+- **Configurable game mode** in Settings (GPU, motherboard with all fans, pump, radiator, built-in fan; GPU and cooler %); default everything at 100 %. Persists across restarts. `MonitorTray.exe --game` toggles it.
+### Changed
+- Popup: GPU, MOTHERBOARD and WC in the same pattern; motherboard and WC modes on the title row; network without the numbers row (current value highlighted in the chart).
 
 ## [0.1.24] - 2026-11-02
-### Corrigido
-- Ícone da bandeja não ficava visível mesmo marcado: o Guid do ícone era o mesmo do app instalado e dos builds de teste, e o Windows perdia a escolha. Agora o Guid é por caminho do exe e, na primeira vez, o ícone já entra visível na barra.
+### Fixed
+- Tray icon did not stay visible even when checked: the icon Guid was the same as the installed app's and the test builds', and Windows lost the choice. Now the Guid is per exe path and, the first time, the icon already shows up visible on the taskbar.
 
 ## [0.1.23] - 2026-11-02
-### Alterado
-- STORAGE: leitura e escrita por unidade identificadas como `R` e `W` (continuam em branco quando paradas).
+### Changed
+- STORAGE: per-drive read and write labeled `R` and `W` (still blank when idle).
 
 ## [0.1.22] - 2026-11-02
-### Alterado
-- Instalador, README e INSTALL atualizados: fans da placa via Armoury Crate, modo game, onde fica o backup das curvas.
+### Changed
+- Installer, README and INSTALL updated: motherboard fans via Armoury Crate, game mode, where the curve backup is kept.
 
 ## [0.1.21] - 2026-11-02
-### Adicionado
-- Botão **modo game** (controle) no cabeçalho, ao lado do 1s: todas as ventoinhas a 100% (GPU + placa via Armoury Crate FULL); clique de novo volta ao automático/curvas.
-- MOTHERBOARD: temperaturas da placa (mobo, chipset, VRM) na linha dos modos; chipset ≥ 85 °C em destaque.
+### Added
+- **Game mode** button (controller) in the header, next to the 1s: all fans at 100% (GPU + motherboard via Armoury Crate FULL); click again to go back to automatic/curves.
+- MOTHERBOARD: motherboard temperatures (mobo, chipset, VRM) on the modes row; chipset ≥ 85 °C highlighted.
 
 ## [0.1.20] - 2026-11-02
-### Alterado
-- STORAGE: L/E na mesma linha do % (em branco quando parado) e micro gráfico de leitura/escrita em cada unidade.
-- Rede: rótulos do gráfico mostram "atual | escala" em cima (download) e embaixo (upload).
+### Changed
+- STORAGE: R/W on the same line as the % (blank when idle) and a micro read/write chart on each drive.
+- Network: chart labels show "current | scale" at the top (download) and bottom (upload).
 
 ## [0.1.19] - 2026-11-02
-### Alterado
-- STORAGE: rótulo pequeno na mesma linha das unidades; cada unidade mostra %, leitura e escrita (L/E por unidade, contador LogicalDisk). Linha do L/E total removida (total no tooltip do STORAGE).
+### Changed
+- STORAGE: small label on the same line as the drives; each drive shows %, read and write (R/W per drive, LogicalDisk counter). Total R/W line removed (total in the STORAGE tooltip).
 
 ## [0.1.18] - 2026-11-02
-### Alterado
-- MOTHERBOARD: RPM em células com o nome de cada ventoinha (Exaustor, Front top, Front down, Rear), legíveis; nomes em `settings.json` (`acFanNames`).
+### Changed
+- MOTHERBOARD: RPM in cells with each fan's name (Exhaust, Front top, Front down, Rear), readable; names in `settings.json` (`acFanNames`).
 
 ## [0.1.17] - 2026-11-02
-### Alterado
-- Linha PLACA renomeada para MOTHERBOARD; RPM das ventoinhas dos modos ao lado dos botões (compacto; nomes no tooltip).
+### Changed
+- BOARD row renamed to MOTHERBOARD; RPM of the mode fans next to the buttons (compact; names in the tooltip).
 
 ## [0.1.16] - 2026-11-02
-### Corrigido
-- Linha PLACA: o botão clicado acende na hora (com "aplicando…" enquanto o Armoury Crate trabalha); se falhar, volta ao modo anterior. FULL aplica todas as ventoinhas juntas (~1 s em vez de ~6 s).
+### Fixed
+- BOARD row: the clicked button lights up immediately (with "applying…" while Armoury Crate works); if it fails, it goes back to the previous mode. FULL applies all fans together (~1 s instead of ~6 s).
 
 ## [0.1.15] - 2026-11-02
-### Adicionado
-- **Modos das ventoinhas da placa pelo Armoury Crate** (COM do AsusFanControlService; o Marz não escreve no chip): linha **PLACA** no popup com CURVAS (seu perfil User), SILENT, STD, TURBO e FULL (100%).
-- Configurações › **MODOS DA PLACA** (quais botões aparecem) e **VENTOINHAS NOS MODOS** (quais saídas entram; padrão Chassis 1–4).
-- Segurança: antes do FULL as curvas User são guardadas em `state\ac-user-curves.json` e devolvidas (com conferência) ao voltar para CURVAS, ao sair e ao abrir o app se ficou pendente. O perfil de inicialização do Armoury Crate não é alterado.
-- `--ac-test <log> "<ventoinha>"`: teste de bancada (admin).
+### Added
+- **Motherboard fan modes via Armoury Crate** (AsusFanControlService COM; Marz does not write to the chip): **BOARD** row in the popup with CURVES (your User profile), SILENT, STD, TURBO and FULL (100%).
+- Settings › **MOTHERBOARD MODES** (which buttons appear) and **FANS IN MODES** (which outputs are included; default Chassis 1–4).
+- Safety: before FULL the User curves are saved in `state\ac-user-curves.json` and restored (with verification) when going back to CURVES, on quit, and on app start if it was left pending. The Armoury Crate startup profile is not changed.
+- `--ac-test <log> "<fan>"`: bench test (admin).
 
 ## [0.1.14] - 2026-11-01
-### Alterado
-- Memória: GC de estação sem coleta concorrente, `ConserveMemory=7`, `RetainVM=false`, sem TieredPGO.
-- Só na bandeja (popup, Detalhes e editor do teclado fechados): após 10 s compacta o heap e devolve as páginas ao Windows; repete a cada 5 min.
+### Changed
+- Memory: workstation GC without concurrent collection, `ConserveMemory=7`, `RetainVM=false`, no TieredPGO.
+- Tray only (popup, Details and keyboard editor closed): after 10 s compacts the heap and returns the pages to Windows; repeats every 5 min.
 
 ## [0.1.13] - 2026-11-01
-### Alterado
-- Configurações › **HISTÓRICO** do gráfico de rede: 1m, 5m, 10m, 30m, 1h, 2h (máx. 2 h). Guarda 1 valor por segundo (pico dos ticks); janelas longas mostram até 120 pontos com o **pico** de cada intervalo (2 h = 1 ponto por minuto), então picos curtos não somem. Valores antigos (30/120 s) voltam para 1m. Tooltip do gráfico mostra a janela.
+### Changed
+- Settings › network chart **HISTORY**: 1m, 5m, 10m, 30m, 1h, 2h (max. 2 h). Stores 1 value per second (peak of the ticks); long windows show up to 120 points with the **peak** of each interval (2 h = 1 point per minute), so short spikes do not disappear. Old values (30/120 s) go back to 1m. The chart tooltip shows the window.
 
 ## [0.1.12] - 2026-11-01
-### Adicionado
-- Configurações › **UNIDADE REDE**: MB/s (bytes, base 1024) ou **Mbps** (bits, base 1000, como speedtest/operadora). Vale para popup, escala do gráfico (teto redondo em bits), tooltip da bandeja, Detalhes e os valores calculados de rede do teclado. Salvo em `settings.json` (`netUnit`).
-### Corrigido
-- Teste de mutex das fans derrubava o executor de testes quando o app instalado estava aberto (contagem de testes variava).
+### Added
+- Settings › **NETWORK UNIT**: MB/s (bytes, base 1024) or **Mbps** (bits, base 1000, like speedtest/ISP). Applies to the popup, chart scale (round ceiling in bits), tray tooltip, Details and the keyboard's computed network values. Saved in `settings.json` (`netUnit`).
+### Fixed
+- The fans mutex test crashed the test runner when the installed app was open (test count varied).
 
 ## [0.1.11] - 2026-11-01
-Primeira versão que substitui por completo o GPU by MarzOps.
-### Adicionado
-- Instalador: opção **Substituir o GPU by MarzOps** (aparece só quando ele está instalado/aberto): fecha pelo sinal de saída dele e desativa a tarefa de logon (reversível). Silencioso: padrão ligado, `-KeepGpuApp` para manter.
-- Instalador/LEIA-ME: descrição com teclado e rede; tabela com `keyboard.json` e `keyboard-status.json`.
+First version that fully replaces GPU by MarzOps.
+### Added
+- Installer: **Replace GPU by MarzOps** option (only appears when it is installed/running): closes it through its exit signal and disables its logon task (reversible). Silent: on by default, `-KeepGpuApp` to keep it.
+- Installer/README: description with keyboard and network; table with `keyboard.json` and `keyboard-status.json`.
 
 ## [0.1.10] - 2026-11-01
-### Alterado
-- Detalhes: **Rede numa aba só**. Dentro dela, cartões e seções por tipo de tráfego (Total, Rede local, Internet) e depois uma seção por placa. Cada cartão escolhe Download/Upload (▾, salvo).
+### Changed
+- Details: **Network in a single tab**. Inside it, cards and sections by traffic type (Total, Local network, Internet) and then one section per adapter. Each card chooses Download/Upload (▾, saved).
 
 ## [0.1.9] - 2026-11-01
-### Corrigido
-- Saída do app não registra mais `ObjectDisposedException` (snapshots enfileirados tentavam atualizar o ícone já descartado).
+### Fixed
+- App exit no longer logs `ObjectDisposedException` (queued snapshots tried to update the already disposed icon).
 
 ## [0.1.8] - 2026-11-01
-### Adicionado
-- Detalhes › Rede: dispositivo **Tráfego de rede** com download/upload **total**, **rede local** e **internet** (classificação por endereço: privados, link-local, CGNAT/Tailscale, multicast e IPv6 ULA contam como local). Fonte: ETW do kernel (TCP/UDP, somente leitura, requer admin). No cartão Taxa, o seletor ▾ escolhe qual mostrar; a escolha fica salva.
+### Added
+- Details › Network: **Network traffic** device with **total**, **local network** and **internet** download/upload (classification by address: private, link-local, CGNAT/Tailscale, multicast and IPv6 ULA count as local). Source: kernel ETW (TCP/UDP, read-only, requires admin). On the Rate card, the ▾ selector chooses which one to show; the choice is saved.
 
 ## [0.1.7] - 2026-11-01
-### Adicionado
-- **Teclado (OLED do SteelSeries Apex)** portado do GPU by MarzOps: até 20 telas de 2 linhas × 20 colunas enviadas pelo SteelSeries GG (GameSense), rotação por tempo, rodinha (1 clique = próxima tela, 2 cliques = fixar/soltar; Raw Input só no Consumer Control do Apex), compensação de mudo do clique da rodinha.
-- Janela **Telas do teclado**: criar, duplicar, remover e reordenar telas; tempo na tela; ícone GG; por linha: sensor (calculados genéricos ou qualquer sensor do LHM), prefixo, sufixo, casas decimais; prévia ao vivo do que está no teclado. Salva em `%APPDATA%\MonitorTray\keyboard.json`.
-- Linha TECLADO no popup (tela atual, fixar, próxima, editar) e item no menu da bandeja.
-- Na primeira execução, as telas são importadas do perfil do GPU by MarzOps (`profile-rodinha.json`).
-- Ao sair, o OLED é liberado (o GG volta à tela dele) e a rodinha é solta.
+### Added
+- **Keyboard (SteelSeries Apex OLED)** ported from GPU by MarzOps: up to 20 screens of 2 lines × 20 columns sent through SteelSeries GG (GameSense), timed rotation, scroll wheel (1 click = next screen, 2 clicks = pin/unpin; Raw Input only on the Apex Consumer Control), compensation for the mute toggled by the wheel click.
+- **Keyboard screens** window: create, duplicate, remove and reorder screens; time on screen; GG icon; per line: sensor (generic computed values or any LHM sensor), prefix, suffix, decimal places; live preview of what is on the keyboard. Saved in `%APPDATA%\MonitorTray\keyboard.json`.
+- KEYBOARD row in the popup (current screen, pin, next, edit) and an item in the tray menu.
+- On first run, the screens are imported from the GPU by MarzOps profile (`profile-rodinha.json`).
+- On quit, the OLED is released (GG goes back to its own screen) and the wheel is released.
 
 ## [0.1.6] - 2026-11-01
-### Alterado
-- Novo nome: **Marz Monitor** (popup, Sobre, tooltip, atalhos, Aplicativos instalados, pacote `MarzMonitor-<versão>-win-x64.zip`). Identificadores internos (MonitorTray.exe, pasta, tarefas, sinais, %APPDATA%\MonitorTray) mantidos para atualizar por cima sem perder nada; atalhos antigos são removidos.
+### Changed
+- New name: **Marz Monitor** (popup, About, tooltip, shortcuts, Installed apps, package `MarzMonitor-<version>-win-x64.zip`). Internal identifiers (MonitorTray.exe, folder, tasks, signals, %APPDATA%\MonitorTray) kept so it updates in place without losing anything; old shortcuts are removed.
 
 ## [0.1.5] - 2026-11-01
-### Adicionado
-- Tooltip da bandeja com CPU (% e °C), memória, GPU (% e °C, preset de fan quando manual), disco (L/E MB/s) e rede. Funciona com o popup fechado (GPU via NVML).
+### Added
+- Tray tooltip with CPU (% and °C), memory, GPU (% and °C, fan preset when manual), disk (R/W MB/s) and network. Works with the popup closed (GPU via NVML).
 
 ## [0.1.4] - 2026-11-01
-### Alterado
-- Ícone da bandeja: linha de pulso fixa (branca na barra escura, escura na clara, troca com o tema do Windows). A velocidade da rede continua no tooltip.
+### Changed
+- Tray icon: fixed pulse line (white on a dark taskbar, dark on a light one, switches with the Windows theme). Network speed remains in the tooltip.
 
 ## [0.1.3] - 2026-11-01
-### Corrigido
-- Instalador: a ACL era aplicada arquivo a arquivo e deixava o exe ilegível (falha "null-valued expression" na verificação de versão). Agora só a pasta recebe a ACL e os arquivos herdam. Erros da etapa elevada informam a linha.
+### Fixed
+- Installer: the ACL was applied file by file and left the exe unreadable ("null-valued expression" failure in the version check). Now only the folder gets the ACL and the files inherit it. Errors in the elevated step report the line.
 
 ## [0.1.2] - 2026-11-01
-### Adicionado
-- Instalação silenciosa: `Installer.ps1 -Silent [-NoDesktop] [-NoStartup] [-NoOpen]` (sem janelas; mesmo fluxo seguro e UAC).
+### Added
+- Silent install: `Installer.ps1 -Silent [-NoDesktop] [-NoStartup] [-NoOpen]` (no windows; same safe flow and UAC).
 
 ## [0.1.1] - 2026-11-01
-### Adicionado
-- Cartões do Detalhes com seletor (▾): Média, Máximo ou qualquer sensor do tipo — ex.: Clock da CPU por núcleo P/E ou média de todos. A lista vem do hardware; a escolha fica salva em `settings.json` (`cardPicks`).
+### Added
+- Details cards with a selector (▾): Average, Maximum or any sensor of the type — e.g. CPU Clock per P/E core or the average of all. The list comes from the hardware; the choice is saved in `settings.json` (`cardPicks`).
 
 ## [0.1.0] - 2026-11-01
-### Adicionado
-- Popup na bandeja: CPU/GPU/MEM, STORAGE (L/E + uso por unidade com hardware no tooltip), rede com gráfico espelhado, linha da GPU (nome curto, temperaturas core/hot/vram, ícone da fan com modo) e FAN SPEED (A/30/50/75/100).
-- Janela Detalhes com descoberta dinâmica de sensores (LibreHardwareMonitor), cartões, grade por núcleo, tiles, busca e filtros.
-- Controle de fans portado do GPU by MarzOps com todas as proteções; presets também no Detalhes.
-- Gráficos com rolagem contínua e curva monotônica; números trocam direto; nada cai a zero entre leituras.
-- Configurações: tema, 6 paletas, atualização (clique no rótulo do cabeçalho), histórico, opacidade, iniciar com o Windows, iniciar oculto, fechar esconde na bandeja, pin.
-- Popup e Detalhes arrastáveis.
-- Janela Sobre (versão, build, sistema, créditos, copiar informações).
-- Instalador gráfico: verifica SHA256, fecha a instância aberta pelo sinal de saída (fans ao automático), UAC, backup/rollback, tarefas elevadas da conta, atalhos, entrada em Aplicativos instalados e desinstalador.
+### Added
+- Tray popup: CPU/GPU/MEM, STORAGE (R/W + per-drive usage with hardware in the tooltip), network with a mirrored chart, GPU row (short name, core/hot/vram temperatures, fan icon with mode) and FAN SPEED (A/30/50/75/100).
+- Details window with dynamic sensor discovery (LibreHardwareMonitor), cards, per-core grid, tiles, search and filters.
+- Fan control ported from GPU by MarzOps with all protections; presets also in Details.
+- Charts with continuous scrolling and a monotonic curve; numbers change directly; nothing drops to zero between readings.
+- Settings: theme, 6 palettes, refresh rate (click the label in the header), history, opacity, start with Windows, start hidden, close hides to tray, pin.
+- Draggable popup and Details.
+- About window (version, build, system, credits, copy info).
+- Graphical installer: verifies SHA256, closes the running instance through the exit signal (fans to automatic), UAC, backup/rollback, elevated tasks for the account, shortcuts, Installed apps entry and uninstaller.

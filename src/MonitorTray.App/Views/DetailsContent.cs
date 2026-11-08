@@ -12,7 +12,7 @@ using MonitorTray.Sensors;
 
 namespace MonitorTray.App.Views;
 
-/// <summary>Conteúdo da janela Detalhes (docs/04 §C). Reconstrói só o necessário a cada tick.</summary>
+/// <summary>Content of the Details window (docs/04 §C). Rebuilds only what is needed on each tick.</summary>
 public sealed class DetailsContent : DockPanel
 {
     private readonly AppState app;
@@ -43,27 +43,27 @@ public sealed class DetailsContent : DockPanel
         this.app = app; this.service = service; this.fans = fans;
         if (fans != null) fans.Changed += s => Dispatcher.BeginInvoke(() => fanPanel?.Update(s));
         LastChildFill = true;
-        // ---- C1 barra de título
+        // ---- C1 title bar
         var bar = new DockPanel { LastChildFill = true };
         TitleBar = Ui.Box(new Thickness(0, 0, 0, 1), new Thickness(12, 6, 6, 6), bar);
         TitleBar.Background = Brushes.Transparent;
         DockPanel.SetDock(TitleBar, Dock.Top);
         var leftTitle = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         leftTitle.Children.Add(Ui.Glyph(7).With(g => { g.Margin = new Thickness(0, 0, 8, 0); g.VerticalAlignment = VerticalAlignment.Center; }));
-        leftTitle.Children.Add(Ui.T("DETALHES DO SISTEMA", 13, weight: 600).With(t => { t.Margin = new Thickness(0, 0, 8, 0); t.VerticalAlignment = VerticalAlignment.Center; }));
+        leftTitle.Children.Add(Ui.T("SYSTEM DETAILS", 13, weight: 600).With(t => { t.Margin = new Thickness(0, 0, 8, 0); t.VerticalAlignment = VerticalAlignment.Center; }));
         DockPanel.SetDock(leftTitle, Dock.Left);
         bar.Children.Add(leftTitle);
 
         var right = new StackPanel { Orientation = Orientation.Horizontal };
         DockPanel.SetDock(right, Dock.Right);
-        // busca
+        // search
         var (sIcon, _) = Icons.Make(Icons.Search, 12, Theme.Muted);
         sIcon.Margin = new Thickness(0, 0, 6, 0);
         search = new TextBox { BorderThickness = new Thickness(0), Background = Brushes.Transparent, FontFamily = AppFonts.Body, FontSize = 12, VerticalContentAlignment = VerticalAlignment.Center, Padding = new Thickness(0), FocusVisualStyle = null };
         search.SetResourceReference(TextBox.ForegroundProperty, Theme.Text);
         search.SetResourceReference(TextBox.CaretBrushProperty, Theme.Text);
         search.SetResourceReference(TextBox.SelectionBrushProperty, Theme.Fill);
-        placeholder = Ui.T("Filtrar sensores", 12, Theme.Muted, head: false).With(t => { t.IsHitTestVisible = false; t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(2, 0, 0, 0); });
+        placeholder = Ui.T("Filter sensors", 12, Theme.Muted, head: false).With(t => { t.IsHitTestVisible = false; t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(2, 0, 0, 0); });
         search.TextChanged += (_, _) => { placeholder.Visibility = search.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed; filters = filters with { Query = search.Text }; Rebuild(true); };
         var sg = new Grid { Children = { placeholder, search } };
         var sd = new DockPanel { LastChildFill = true, Children = { sIcon, sg } };
@@ -71,19 +71,19 @@ public sealed class DetailsContent : DockPanel
         var searchBox = Ui.Box(new Thickness(1), new Thickness(7, 0, 7, 0), sd).With(b => { b.Width = 220; b.Height = 24; b.Margin = new Thickness(0, 0, 8, 0); b.Cursor = Cursors.IBeam; });
         searchBox.MouseLeftButtonDown += (_, _) => search.Focus();
         right.Children.Add(searchBox);
-        chipZero = Chip("ZERADOS", "Mostrar sensores sempre em zero", () => filters = filters with { ShowZero = !filters.ShowZero });
-        chipLimits = Chip("LIMITES", "Mostrar limites e metadados SPD", () => filters = filters with { ShowLimits = !filters.ShowLimits });
+        chipZero = Chip("ZEROS", "Show sensors that are always zero", () => filters = filters with { ShowZero = !filters.ShowZero });
+        chipLimits = Chip("LIMITS", "Show limits and SPD metadata", () => filters = filters with { ShowLimits = !filters.ShowLimits });
         chipLimits.Margin = new Thickness(8, 0, 8, 0);
         right.Children.Add(chipZero); right.Children.Add(chipLimits);
-        MaxButton = FlatButton.Icon(Icons.Maximize, 24, 13, "Maximizar");
-        CloseButton = FlatButton.Icon(Icons.X, 24, 12, "Fechar");
+        MaxButton = FlatButton.Icon(Icons.Maximize, 24, 13, "Maximize");
+        CloseButton = FlatButton.Icon(Icons.X, 24, 12, "Close");
         right.Children.Add(MaxButton); right.Children.Add(CloseButton);
         bar.Children.Add(right);
-        sub = Ui.T("Carregando sensores…", 11, Theme.Muted).With(t => t.VerticalAlignment = VerticalAlignment.Center);
+        sub = Ui.T("Loading sensors…", 11, Theme.Muted).With(t => t.VerticalAlignment = VerticalAlignment.Center);
         bar.Children.Add(sub);
         Children.Add(TitleBar);
 
-        // ---- C3 rodapé
+        // ---- C3 footer
         var fd = new DockPanel();
         footerLeft = Ui.T("", 10, Theme.Muted, tabular: true);
         footerRight = Ui.T("", 10, Theme.Muted, tabular: true);
@@ -93,7 +93,7 @@ public sealed class DetailsContent : DockPanel
         DockPanel.SetDock(footer, Dock.Bottom);
         Children.Add(footer);
 
-        // ---- C2 corpo
+        // ---- C2 body
         var body = new Grid();
         body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(232) });
         body.ColumnDefinitions.Add(new ColumnDefinition());
@@ -108,11 +108,11 @@ public sealed class DetailsContent : DockPanel
         Children.Add(body);
 
         Focusable = true;
-        app.Changed += (_, s) => footerRight.Text = "atualiza a cada " + Formatter.RefreshLabel(s.RefreshMs);
-        footerRight.Text = "atualiza a cada " + Formatter.RefreshLabel(app.Settings.RefreshMs);
+        app.Changed += (_, s) => footerRight.Text = "refreshes every " + Formatter.RefreshLabel(s.RefreshMs);
+        footerRight.Text = "refreshes every " + Formatter.RefreshLabel(app.Settings.RefreshMs);
     }
 
-    /// <summary>Usado pelo --preview: seleção e filtros sem interação.</summary>
+    /// <summary>Used by --preview: selection and filters without interaction.</summary>
     internal void PreviewSet(string? id, Filters f)
     {
         selectedId = id; filters = f; search.Text = f.Query;
@@ -124,8 +124,8 @@ public sealed class DetailsContent : DockPanel
     public void FocusSearch() { search.Focus(); search.SelectAll(); }
 
     /// <summary>
-    /// Abre no sensor (clique num card de temperatura do popup): seleciona o dispositivo dele e filtra pelo nome.
-    /// Sem o sensor (GPU pela NVML, LHM ainda sem leitura) seleciona o primeiro dispositivo da categoria.
+    /// Opens on the sensor (click on a popup temperature card): selects its device and filters by name.
+    /// Without the sensor (GPU via NVML, LHM with no reading yet) it selects the first device of the category.
     /// </summary>
     public void FocusSensor(string? sensorId, string category)
     {
@@ -137,7 +137,7 @@ public sealed class DetailsContent : DockPanel
         if (dev == null) return;
         ResetFilters();
         selectedId = dev.Id; panelKey = "";
-        if (hit.Sensor != null) search.Text = hit.Sensor.Name; // TextChanged aplica o filtro e reconstrói
+        if (hit.Sensor != null) search.Text = hit.Sensor.Name; // TextChanged applies the filter and rebuilds
         Rebuild(true);
         panelScroll.ScrollToTop();
     }
@@ -177,14 +177,14 @@ public sealed class DetailsContent : DockPanel
         if (s == null) return;
         if (s.Devices.Count == 0)
         {
-            sub.Text = s.Status.HardwareReady ? "0 dispositivos · 0 entradas" : "Carregando sensores…";
+            sub.Text = s.Status.HardwareReady ? "0 devices · 0 entries" : "Loading sensors…";
             return;
         }
-        sub.Text = $"{s.Devices.Count} dispositivos · {s.EntryCount} entradas";
+        sub.Text = $"{s.Devices.Count} devices · {s.EntryCount} entries";
         var v = service.WithTracker(t => DetailModel.Build(s.Devices, t, filters, selectedId, app.Settings.CardPicks));
         footerLeft.Text = DetailModel.Footer(v);
 
-        // Lista de dispositivos
+        // Device list
         var ids = v.Devices.Select(d => d.Device.Id).ToList();
         if (structural || !ids.SequenceEqual(list.Children.OfType<DeviceRow>().Select(r => r.Id)))
         {
@@ -200,20 +200,20 @@ public sealed class DetailsContent : DockPanel
                 list.Children.Add(row);
             }
             if (v.Devices.Count == 0)
-                list.Children.Add(Ui.T("Nenhum sensor corresponde ao filtro.", 12, Theme.Muted, head: false).With(t => { t.Margin = new Thickness(12, 16, 12, 16); t.TextWrapping = TextWrapping.Wrap; }));
+                list.Children.Add(Ui.T("No sensor matches the filter.", 12, Theme.Muted, head: false).With(t => { t.Margin = new Thickness(12, 16, 12, 16); t.TextWrapping = TextWrapping.Wrap; }));
         }
         var selId = v.Panel?.Device.Id;
         foreach (var d in v.Devices) rows[d.Device.Id].Set(d, d.Device.Id == selId);
 
-        // Painel
+        // Panel
         if (v.Panel == null)
         {
             panel.Children.Clear(); view = null; panelKey = "";
             if (v.Devices.Count > 0) panel.Children.Add(EmptyFilter());
             return;
         }
-        // Chave só de ESTRUTURA (quais seções/sensores/cartões existem). Valores, sensor principal do cartão e
-        // tipo de visual mudam a cada tick e são atualizados nos elementos existentes, sem recriar o painel.
+        // STRUCTURE-only key (which sections/sensors/cards exist). Values, the card's main sensor and
+        // visual type change every tick and are updated on the existing elements, without recreating the panel.
         var key = selId + "|" + string.Join(",", v.Panel.Sections.Select(x => x.KindRaw + ":" + x.IsGrid + ":" + (x.IsGrid ? x.Cells.Count : x.Tiles.Count) + ":" + string.Join(";", x.Tiles.Select(t => t.Sensor.Id))))
                   + "|" + string.Join(",", v.Panel.Cards.Select(c => c.Label)) + (s.Status.IsAdmin || s.Status.Simulated ? "" : "|admin");
         if (key != panelKey || view == null)
@@ -236,7 +236,7 @@ public sealed class DetailsContent : DockPanel
         Changed?.Invoke();
     }
 
-    /// <summary>Escolha do cartão (Média/Máximo/núcleo): salva em settings.json e redesenha na hora.</summary>
+    /// <summary>Card choice (Average/Max/core): saved to settings.json and redrawn immediately.</summary>
     private void PickCard(string key, string value)
     {
         var d = new Dictionary<string, string>(app.Settings.CardPicks) { [key] = value };
@@ -244,13 +244,13 @@ public sealed class DetailsContent : DockPanel
         Rebuild(false);
     }
 
-    private static TextBlock EmptyFilter() => Ui.T("Sem leituras visíveis com os filtros atuais.", 12, Theme.Muted, head: false).With(t => t.Margin = new Thickness(0, 24, 0, 24));
+    private static TextBlock EmptyFilter() => Ui.T("No visible readings with the current filters.", 12, Theme.Muted, head: false).With(t => t.Margin = new Thickness(0, 24, 0, 24));
 
     private static Border AdminBanner()
     {
-        var text = Ui.T("Algumas leituras (temperatura e potência da CPU, placa-mãe, SPD da RAM) exigem executar como administrador.", 12, head: false);
+        var text = Ui.T("Some readings (CPU temperature and power, motherboard, RAM SPD) require running as administrator.", 12, head: false);
         text.TextWrapping = TextWrapping.Wrap; text.TextTrimming = TextTrimming.None; text.VerticalAlignment = VerticalAlignment.Center;
-        var btnText = Ui.T("Reiniciar como admin", 12, head: false);
+        var btnText = Ui.T("Restart as admin", 12, head: false);
         var btn = new FlatButton(Theme.Text) { Padding = new Thickness(8, 3, 8, 3), BorderThickness = new Thickness(1), Margin = new Thickness(10, 0, 0, 0) }.Content(btnText);
         btn.SetResourceReference(Border.BorderBrushProperty, Theme.Line);
         btn.Click += () => { if (Platform.Autostart.RestartAsAdmin("--details --restarted")) Application.Current.Shutdown(); };
@@ -260,7 +260,7 @@ public sealed class DetailsContent : DockPanel
         return Ui.Box(new Thickness(1), new Thickness(10, 6, 10, 6), d).With(b => b.Margin = new Thickness(0, 0, 0, 12));
     }
 
-    /// <summary>Item da lista de dispositivos.</summary>
+    /// <summary>Device list item.</summary>
     private sealed class DeviceRow : Border
     {
         public string Id { get; }
@@ -275,7 +275,7 @@ public sealed class DetailsContent : DockPanel
             var top = new DockPanel();
             cat = Ui.T("", 10, Theme.Muted);
             headline = Ui.T("", 13, weight: 600, tabular: true);
-            isNew = new Border { Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(6, 0, 6, 0), Child = Ui.T("NOVO", 10).With(t => t.Foreground = new SolidColorBrush(Color.FromRgb(0x11, 0x11, 0x11))), VerticalAlignment = VerticalAlignment.Center };
+            isNew = new Border { Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(6, 0, 6, 0), Child = Ui.T("NEW", 10).With(t => t.Foreground = new SolidColorBrush(Color.FromRgb(0x11, 0x11, 0x11))), VerticalAlignment = VerticalAlignment.Center };
             isNew.SetResourceReference(BackgroundProperty, Theme.PB);
             DockPanel.SetDock(headline, Dock.Right); DockPanel.SetDock(isNew, Dock.Right);
             top.Children.Add(headline); top.Children.Add(isNew); top.Children.Add(cat);
@@ -305,7 +305,7 @@ public sealed class DetailsContent : DockPanel
         }
     }
 
-    /// <summary>Cabeçalho + cartões + seções de um dispositivo. Elementos reaproveitados entre ticks.</summary>
+    /// <summary>Header + cards + sections of a device. Elements are reused across ticks.</summary>
     private sealed class PanelView : StackPanel
     {
         private readonly TextBlock cat, name, meta;
@@ -327,7 +327,7 @@ public sealed class DetailsContent : DockPanel
             }
             foreach (var s in p.Sections) { var sv = new SectionView(s); sections.Add(sv); Children.Add(sv); }
         }
-        /// <summary>Fans logo abaixo do cabeçalho do dispositivo, antes dos cartões.</summary>
+        /// <summary>Fans right below the device header, before the cards.</summary>
         public void InsertFans(UIElement fans) => Children.Insert(1, fans);
 
         public void Update(DevicePanel p)
@@ -353,7 +353,7 @@ public sealed class DetailsContent : DockPanel
             label = Ui.T("", 11, Theme.Muted).With(t => t.Margin = new Thickness(0, 0, 6, 0));
             sensor = Ui.T("", 11, Theme.Muted).With(t => t.TextAlignment = TextAlignment.Right);
             DockPanel.SetDock(label, Dock.Left);
-            // O nome do sensor é um seletor quando há opções (ex.: Clock: Média, Máximo, P-Core #1...).
+            // The sensor name is a selector when there are options (e.g. Clock: Average, Max, P-Core #1...).
             chevron = Ui.T("▾", 10, Theme.Muted).With(t => { t.Margin = new Thickness(3, 0, 0, 0); t.VerticalAlignment = VerticalAlignment.Center; });
             var sel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Children = { sensor, chevron } };
             selector = new FlatButton { Padding = new Thickness(4, 0, 2, 0), Margin = new Thickness(0, -2, -4, -2), HorizontalAlignment = HorizontalAlignment.Right }.Content(sel);
@@ -401,7 +401,7 @@ public sealed class DetailsContent : DockPanel
             label.Text = c.Label.ToUpperInvariant(); sensor.Text = c.SensorName;
             bool choosable = c.Options.Count > 1;
             selector.IsHitTestVisible = choosable; chevron.Visibility = choosable ? Visibility.Visible : Visibility.Collapsed;
-            selector.ToolTip = choosable ? "Escolher o que este cartão mostra (fica salvo)" : c.SensorName;
+            selector.ToolTip = choosable ? "Choose what this card shows (saved)" : c.SensorName;
             anim ??= new AnimatedValue(value, unit);
             anim.Set(c.Raw, c.Unit);
             gauge.Visibility = c.IsGauge ? Visibility.Visible : Visibility.Collapsed;
@@ -411,7 +411,7 @@ public sealed class DetailsContent : DockPanel
         }
     }
 
-    /// <summary>Espalha os atrasos em até ~300 ms, com um pouco de variação para não parecer uma régua.</summary>
+    /// <summary>Spreads the delays over up to ~300 ms, with a little jitter so it does not look like a ruler.</summary>
     internal static int Stagger(int i, int n) => n <= 1 ? 0 : (int)(i * 300.0 / n + (i * 37 % 11) * 4);
 
     private sealed class SectionView : StackPanel
@@ -430,7 +430,7 @@ public sealed class DetailsContent : DockPanel
             if (s.IsGrid)
             {
                 var g = new FillGrid { MinItemWidth = 36, Gap = 3, Margin = new Thickness(0, 8, 0, 0) };
-                // Atraso por célula: cada núcleo anda no seu tempo (onda da esquerda para a direita).
+                // Per-cell delay: each core moves on its own time (a wave from left to right).
                 for (int i = 0; i < s.Cells.Count; i++) { var c = new Cell { StaggerMs = Stagger(i, s.Cells.Count) }; cells.Add(c); g.Children.Add(c); }
                 Children.Add(g);
             }
@@ -487,7 +487,7 @@ public sealed class DetailsContent : DockPanel
             SetVisual(visual);
         }
 
-        /// <summary>Troca o visual dentro do mesmo tile (ex.: sensor que passou a variar) sem recriar o tile.</summary>
+        /// <summary>Swaps the visual inside the same tile (e.g. a sensor that started to vary) without recreating the tile.</summary>
         private void SetVisual(TileVisual v)
         {
             if (visual == v) return;

@@ -18,7 +18,7 @@ public class TempSmootherTests
         var s = new TempSmoother(5);
         s.Next(50, 1);
         var v = s.Next(80, 1)!.Value;
-        Assert.InRange(v, 54, 56); // 1 s de um pico de +30 °C move ~5 °C
+        Assert.InRange(v, 54, 56); // 1 s of a +30 °C spike moves ~5 °C
     }
 
     [Fact]

@@ -1,28 +1,28 @@
-# Desenvolvimento
+# Development
 
-## Requisitos
-SDK .NET **10.0.400** (fixado em `global.json`, sem roll-forward), Python 3 para o empacotamento.
+## Requirements
+.NET SDK **10.0.400** (pinned in `global.json`, no roll-forward), Python 3 for packaging.
 
-## Comandos
+## Commands
 ```powershell
 dotnet build src/MonitorTray.App -c Release -warnaserror
 dotnet test tests/MonitorTray.Core.Tests -c Release
-# telas fora da tela em PNG (dados simulados, sem bandeja/hardware)
-MonitorTray.exe --preview <pasta> [--fake-new]
-# uma coleta real somente leitura (LHM + PDH + fans), sem UI
-MonitorTray.exe --read-test <novo.json>
-# UI sem hardware nem admin
-MonitorTray.exe --simulate [sensores.json]
+# offscreen screens to PNG (simulated data, no tray/hardware)
+MonitorTray.exe --preview <folder> [--fake-new]
+# one real read-only capture (LHM + PDH + fans), no UI
+MonitorTray.exe --read-test <new.json>
+# UI without hardware or admin
+MonitorTray.exe --simulate [sensors.json]
 ```
 
-## Versão e release
-1. Suba `<Version>` em `Directory.Build.props` (0.1.x) e registre no `CHANGELOG.md`.
-2. `python tools/build-package.py` → `Downloads\MarzMonitor-<versão>-win-x64.zip` (recusa sobrescrever).
-3. Commit + tag `v<versão>`.
+## Version and release
+1. Bump `<Version>` in `Directory.Build.props` (0.1.x) and record it in `CHANGELOG.md`.
+2. `python tools/build-package.py` → `Downloads\MarzMonitor-<version>-win-x64.zip` (refuses to overwrite).
+3. Commit + tag `v<version>`.
 
-## Regras do projeto
-- Nada de nome de modelo de hardware no código (teste `NoHardcodedModelNamesInSrc`).
-- Nunca interpolar lacunas; null quebra o gráfico e mantém a barra anterior.
-- Nunca exibir "OK/saudável/falha".
-- Testes e agentes nunca escrevem nas fans; só o usuário clica.
-- Arquivos `.cs` em CRLF.
+## Project rules
+- No hardware model names in the code (test `NoHardcodedModelNamesInSrc`).
+- Never interpolate gaps; null breaks the chart and keeps the previous bar.
+- Never display "OK/healthy/failure".
+- Tests and agents never write to the fans; only the user clicks.
+- `.cs` files in CRLF.

@@ -8,7 +8,7 @@ public class WheelStateTests
 {
     private static WheelState Make() { var s = new WheelState(); s.Configure([5000, 5000, 5000, 5000], 0); return s; }
 
-    // Mesmos casos do self-test do GPU by MarzOps (R33Core.SelfTests).
+    // Same cases as the GPU by MarzOps self-test (R33Core.SelfTests).
     [Fact]
     public void SingleWaitsDoublePinsAndAutoRotates()
     {
@@ -40,7 +40,7 @@ public class WheelStateTests
     [InlineData(@"\\?\HID#VID_1038&PID_1640&MI_03&Col01#abc", true)]
     [InlineData(@"\\?\HID#VID_1038&PID_1640&MI_03&Col02#abc", false)]
     [InlineData(@"\\?\HID#VID_1038&PID_16400&MI_03&COL01#abc", false)]
-    [InlineData("sem VID/PID", false)]
+    [InlineData("no VID/PID", false)]
     public void WheelEndpointFilter(string path, bool ok) => Assert.Equal(ok, DeviceFilter.Matches(path));
 
     [Fact]
@@ -49,7 +49,7 @@ public class WheelStateTests
         var m = new MuteCorrelation(); m.Reset(false); m.Click(100);
         var x = m.Notification(115, true, false);
         Assert.NotNull(x); Assert.True(x!.Expected); Assert.False(x.Desired);
-        m.Reset(false); Assert.Null(m.Notification(100, true, false)); // sem clique, não mexe
+        m.Reset(false); Assert.Null(m.Notification(100, true, false)); // no click, no change
     }
 }
 
@@ -58,11 +58,11 @@ public class OledComposerTests
     [Fact]
     public void AlignsPrefixesAndValuesAndCutsAt20()
     {
-        var page = new OledPage { Lines = [KeyboardConfig.L("a", "CPU uso ", "%", 0), KeyboardConfig.L("b", "CPU temp ", " C", 0)] };
+        var page = new OledPage { Lines = [KeyboardConfig.L("a", "CPU ", "%", 0), KeyboardConfig.L("b", "CPU temp ", " C", 0)] };
         var lines = OledComposer.Compose(page, id => id == "a" ? 7.4 : 61.2, _ => "?");
-        Assert.Equal("CPU uso   7%", lines[0]);
+        Assert.Equal("CPU       7%", lines[0]);
         Assert.Equal("CPU temp 61 C", lines[1]);
-        var longp = new OledPage { Lines = [KeyboardConfig.L("a", "um prefixo bem comprido ", " unidade", 2), new()] };
+        var longp = new OledPage { Lines = [KeyboardConfig.L("a", "a very long prefix here ", " unit", 2), new()] };
         var l2 = OledComposer.Compose(longp, _ => 1, _ => "");
         Assert.Equal(20, l2[0].Length); Assert.Equal(" ", l2[1]);
     }
@@ -83,7 +83,7 @@ public class KeyboardConfigTests
     [Fact]
     public void CorruptGivesDefaultAndRangesAreClamped()
     {
-        Assert.Equal(KeyboardConfig.DefaultPages.Count, KeyboardConfig.Parse("{lixo").Pages.Count);
+        Assert.Equal(KeyboardConfig.DefaultPages.Count, KeyboardConfig.Parse("{junk").Pages.Count);
         var c = new KeyboardConfig { Pages = [new OledPage { DurationMs = 10, IconId = 999, Lines = [KeyboardConfig.L("a", new string('x', 40), "", 9)] }] };
         var n = KeyboardConfig.Parse(c.ToJson());
         Assert.Equal(1000, n.Pages[0].DurationMs); Assert.Equal(255, n.Pages[0].IconId);
@@ -98,6 +98,24 @@ public class KeyboardConfigTests
         var r = KeyboardConfig.Parse(c.ToJson());
         Assert.False(r.WheelEnabled); Assert.False(r.MuteCompensation);
         Assert.Equal(20, r.Pages.Count); Assert.Equal(3005, r.Pages[5].DurationMs);
+    }
+
+    [Fact]
+    public void LegacyDefaultPrefixesAreMigratedAndCustomOnesKept()
+    {
+        // legacy (0.1.33) values: old default prefixes written by the Portuguese version
+        var json = """
+            {"version":1,"pages":[
+              {"durationMs":5000,"lines":[{"sensorId":"calc:cpu-load","prefix":"CPU uso  ","suffix":"%","decimals":0},{"sensorId":"calc:gpu-load","prefix":"GPU uso  ","suffix":"%","decimals":0}]},
+              {"durationMs":5000,"lines":[{"sensorId":"calc:cpu-power","prefix":"CPU pacote ","suffix":" W","decimals":0},{"sensorId":"calc:cpu-temp","prefix":"CPU temp ","suffix":" C","decimals":0}]},
+              {"durationMs":5000,"lines":[{"sensorId":"calc:mem-load","prefix":"My RAM ","suffix":"%","decimals":0},{"sensorId":"","prefix":"","suffix":"","decimals":0}]}
+            ]}
+            """;
+        var c = KeyboardConfig.Parse(json);
+        Assert.Equal(["CPU load ", "GPU load "], c.Pages[0].Lines.Select(l => l.Prefix));
+        Assert.Equal(["CPU pkg ", "CPU temp "], c.Pages[1].Lines.Select(l => l.Prefix));
+        Assert.Equal("My RAM ", c.Pages[2].Lines[0].Prefix); // custom prefix kept as typed
+        Assert.DoesNotContain("uso", KeyboardConfig.Parse(c.ToJson()).ToJson()); // legacy (0.1.33) value
     }
 
     [Theory]

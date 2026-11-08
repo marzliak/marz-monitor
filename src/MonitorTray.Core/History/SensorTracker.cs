@@ -2,7 +2,7 @@ using MonitorTray.Core.Model;
 
 namespace MonitorTray.Core.History;
 
-/// <summary>Estado por sensor ao longo da sessão: histórico, janela de qualidade, allZero, mín/máx observados.</summary>
+/// <summary>Per-sensor state over the session: history, quality window, allZero, observed min/max.</summary>
 public sealed class SensorTracker
 {
     public const int HistoryLength = 120;
@@ -42,7 +42,7 @@ public sealed class SensorTracker
         {
             e = new Entry();
             entries[id] = e;
-            // Sensor que apareceu depois: pré-preenche com lacunas para não inventar histórico.
+            // Sensor that appeared later: pre-fill with gaps so no history is invented.
             for (long i = Math.Max(0, tick - HistoryLength); i < tick - 1; i++) e.History.Push(null);
         }
         if (value is float f && (float.IsNaN(f) || float.IsInfinity(f))) value = null;
@@ -61,7 +61,7 @@ public sealed class SensorTracker
 
     public Entry? Get(string id) => entries.TryGetValue(id, out var e) ? e : null;
 
-    /// <summary>Remove sensores que não aparecem há mais de N ticks (hardware removido).</summary>
+    /// <summary>Removes sensors not seen for more than N ticks (hardware removed).</summary>
     public void Prune(int staleTicks = 5)
     {
         foreach (var k in entries.Where(kv => tick - kv.Value.LastTick > staleTicks).Select(kv => kv.Key).ToList()) entries.Remove(k);

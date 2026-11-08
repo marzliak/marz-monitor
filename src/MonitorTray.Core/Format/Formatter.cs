@@ -7,19 +7,19 @@ public readonly record struct Formatted(string Value, string Unit)
     public override string ToString() => Unit.Length == 0 ? Value : Value + " " + Unit;
 }
 
-/// <summary>Formatação de unidades (docs/05 §9). Separador decimal sempre ponto.</summary>
+/// <summary>Unit formatting (docs/05 §9). Decimal separator is always a point.</summary>
 public static class Formatter
 {
     public const string Dash = "\u2014";
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
-    /// <summary>Janela de histórico: 60 → "1 min", 3600 → "1 h".</summary>
+    /// <summary>History window: 60 → "1 min", 3600 → "1 h".</summary>
     public static string Window(int seconds) => seconds >= 3600 && seconds % 3600 == 0 ? seconds / 3600 + " h" : seconds >= 60 ? seconds / 60 + " min" : seconds + " s";
 
-    /// <summary>Preferência global: taxas de rede/B/s em bits por segundo (Kbps/Mbps/Gbps, base 1000).</summary>
+    /// <summary>Global preference: network/B/s rates in bits per second (Kbps/Mbps/Gbps, base 1000).</summary>
     public static bool NetBits { get; set; }
 
-    /// <summary>bytes/s → Kbps (inteiro) / Mbps (1 casa) / Gbps (2 casas), base 1000 como operadoras e speedtests.</summary>
+    /// <summary>bytes/s → Kbps (integer) / Mbps (1 decimal) / Gbps (2 decimals), base 1000 like ISPs and speed tests.</summary>
     public static Formatted Bits(double bytesPerSecond)
     {
         var b = Math.Max(0, bytesPerSecond) * 8;
@@ -55,7 +55,7 @@ public static class Formatter
         return s == "-0" ? "0" : s;
     }
 
-    /// <summary>Valor curto das células da grade (docs/06 §6).</summary>
+    /// <summary>Short value for grid cells (docs/06 §6).</summary>
     public static string Short(double? value, string unit)
     {
         if (value is not double v || double.IsNaN(v)) return Dash;
@@ -67,7 +67,7 @@ public static class Formatter
         };
     }
 
-    /// <summary>Taxa de rede do Resumo: KB/s inteiro abaixo de 1024 KB/s, senão MB/s com 1 casa (base 1024).</summary>
+    /// <summary>Summary network rate: integer KB/s below 1024 KB/s, otherwise MB/s with 1 decimal (base 1024).</summary>
     public static Formatted Net(double bytesPerSecond)
     {
         if (NetBits) return Bits(bytesPerSecond);
@@ -75,10 +75,10 @@ public static class Formatter
         return kb >= 1024 ? new(D(kb / 1024, 1), "MB/s") : new(D(Math.Round(kb, MidpointRounding.AwayFromZero), 0), "KB/s");
     }
 
-    /// <summary>Disco no Resumo: sempre MB/s com 1 casa (base 1024).</summary>
+    /// <summary>Summary disk: always MB/s with 1 decimal (base 1024).</summary>
     public static string DiskMBps(double bytesPerSecond) => D(Math.Max(0, bytesPerSecond) / 1048576, 1);
 
-    /// <summary>"418/931 GB" ou "1.20/1.82 TB" (base 1024, como o Explorer). A unidade segue o total.</summary>
+    /// <summary>"418/931 GB" or "1.20/1.82 TB" (base 1024, like Explorer). The unit follows the total.</summary>
     public static string UsedTotal(ulong used, ulong total)
     {
         const double GiB = 1024d * 1024 * 1024, TiB = GiB * 1024;
@@ -87,7 +87,7 @@ public static class Formatter
             : $"{D(used / GiB, 0)}/{D(total / GiB, 0)} GB";
     }
 
-    /// <summary>Tira fabricante/marca do nome do driver: "NVIDIA GeForce RTX 5090" → "RTX 5090". Sem modelos fixos.</summary>
+    /// <summary>Strips vendor/brand from the driver name: "NVIDIA GeForce RTX 5090" → "RTX 5090". No hardcoded models.</summary>
     public static string ShortGpuName(string name)
     {
         var n = System.Text.RegularExpressions.Regex.Replace(name.Trim(), @"^(NVIDIA|AMD|Intel\(R\)|Intel)\s+", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
@@ -97,7 +97,7 @@ public static class Formatter
 
     public static string RefreshLabel(int ms) => (ms / 1000.0).ToString("0.#", Inv) + "s";
 
-    /// <summary>Fans da GPU no popup: "52% 1240" por fan (rpm só quando &gt; 0), fans separadas por dois espaços; sem % = "—".</summary>
+    /// <summary>GPU fans in the popup: "52% 1240" per fan (rpm only when &gt; 0), fans separated by two spaces; no % = "—".</summary>
     public static string GpuFans(IEnumerable<(uint? Percent, uint? Rpm)> fans) =>
         string.Join("  ", fans.Select(f => (f.Percent is uint p ? p.ToString(Inv) + "%" : Dash) + (f.Rpm is uint r and > 0 ? " " + r.ToString(Inv) : "")));
 }

@@ -82,7 +82,7 @@ public class FormatTests
     {
         float?[] v = [1, 2, null, 3, 4, null, 5];
         var runs = ChartGeometry.Runs(v, 60, 20, null, false);
-        Assert.Equal(2, runs.Count); // o "5" isolado não forma trecho
+        Assert.Equal(2, runs.Count); // the isolated "5" does not form a run
         Assert.Equal(0, runs[0][0].X); Assert.Equal(10, runs[0][1].X);
         Assert.Equal(30, runs[1][0].X);
     }
@@ -125,7 +125,7 @@ public class FormatTests
     public void GpuFansShowRpmOnlyWhenSpinning()
     {
         Assert.Equal("52% 1240  50% 1180", Formatter.GpuFans([(52u, 1240u), (50u, 1180u)]));
-        Assert.Equal("0%  30%", Formatter.GpuFans([(0u, 0u), (30u, null)])); // rpm 0 ou sem leitura: só o %
+        Assert.Equal("0%  30%", Formatter.GpuFans([(0u, 0u), (30u, null)])); // rpm 0 or no reading: only the %
         Assert.Equal("— 900", Formatter.GpuFans([(null, 900u)]));
         Assert.Equal("", Formatter.GpuFans([]));
     }
@@ -145,7 +145,7 @@ public class NetBitsTests
             Assert.Equal(new Formatted("2.50", "Gbps"), Formatter.Net(312.5e6));
             Assert.Equal(new Formatted("80", "Kbps"), Formatter.Net(10_000));
             Assert.Equal(new Formatted("8.0", "Mbps"), Formatter.Format(1e6, "B/s"));
-            var (sd, _) = NiceScale.NetScales([12e6], [1], false); // 96 Mbps → teto 100 Mbps
+            var (sd, _) = NiceScale.NetScales([12e6], [1], false); // 96 Mbps → ceiling 100 Mbps
             Assert.Equal(new Formatted("100.0", "Mbps"), Formatter.Net(sd));
             Formatter.NetBits = false;
             Assert.Equal("MB/s", Formatter.Net(116.5e6).Unit);

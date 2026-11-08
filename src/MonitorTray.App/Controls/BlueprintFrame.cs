@@ -7,15 +7,15 @@ using MonitorTray.App.Theming;
 
 namespace MonitorTray.App.Controls;
 
-/// <summary>Moldura: borda 1 px raio 0, fundo Bg com alpha. Sem marcas "+" nos vértices (pedido do usuário; desvio do kit).</summary>
+/// <summary>Frame: 1 px border, radius 0, Bg background with alpha. No "+" marks on the corners (user request; deviates from the kit).</summary>
 public sealed class BlueprintFrame : Grid
 {
     public Border Body { get; }
 
     /// <param name="outline">
-    /// false = sem contorno (popup): sem borda nenhuma, só o fundo, com 1 px de padding para o tamanho não mudar.
-    /// Uma borda da mesma cor do fundo não serve: em DPI fracionário (125%, 150%) a emenda borda/fundo sai com alpha menor
-    /// e o blur aparece como uma linha clara em volta.
+    /// false = no outline (popup): no border at all, only the background, with 1 px of padding so the size does not change.
+    /// A border in the background color does not work: at fractional DPI (125%, 150%) the border/background seam gets a lower alpha
+    /// and the blur shows up as a light line around it.
     /// </param>
     public BlueprintFrame(UIElement content, bool shadow = true, bool outline = true)
     {
@@ -28,8 +28,8 @@ public sealed class BlueprintFrame : Grid
             sh.Effect = new DropShadowEffect { BlurRadius = 32, ShadowDepth = 12, Direction = 270, Opacity = 0.22, Color = Colors.Black, RenderingBias = RenderingBias.Performance };
             sh.Margin = new Thickness(1);
             Children.Add(sh);
-            // A sombra é desenhada pelo retângulo opaco atrás; o corpo semitransparente fica por cima.
-            // Para não "vazar" o fundo opaco através da opacidade, recortamos a sombra ao exterior.
+            // The shadow is drawn by the opaque rectangle behind; the semi-transparent body sits on top.
+            // So the opaque background does not "leak" through the opacity, we clip the shadow to the outside.
             sh.Loaded += (_, _) => ClipShadow(sh);
             sh.SizeChanged += (_, _) => ClipShadow(sh);
         }
@@ -41,7 +41,7 @@ public sealed class BlueprintFrame : Grid
 
     private static void ClipShadow(FrameworkElement sh)
     {
-        // Região externa: retângulo grande menos o interior do corpo.
+        // Outer region: a large rectangle minus the inside of the body.
         var w = sh.ActualWidth; var h = sh.ActualHeight; if (w <= 0) return;
         var outer = new RectangleGeometry(new Rect(-60, -60, w + 120, h + 120));
         var inner = new RectangleGeometry(new Rect(0, 0, w, h));

@@ -7,7 +7,7 @@ namespace MonitorTray.App.Theming;
 
 public sealed record PaletteInfo(string Id, string Name, Color A, Color B, Color[] Dark, Color[] Light);
 
-/// <summary>Tema, paleta e opacidade como recursos dinâmicos (docs/03, spec/tokens.json).</summary>
+/// <summary>Theme, palette and opacity as dynamic resources (docs/03, spec/tokens.json).</summary>
 public static class Theme
 {
     public const string Bg = "Bg", BgAlpha = "BgAlpha", Text = "Text", Muted = "Muted", Line = "Line", Track = "Track",
@@ -21,25 +21,25 @@ public static class Theme
         return hex.Length == 8 ? Color.FromArgb(P(6), P(0), P(2), P(4)) : Color.FromRgb(P(0), P(2), P(4));
     }
 
-    // fill, dstroke, ustroke, dfill, ufill, hover, sel — valores pré-calculados de spec/tokens.json
+    // fill, dstroke, ustroke, dfill, ufill, hover, sel — values precomputed from spec/tokens.json
     public static readonly IReadOnlyList<PaletteInfo> Palettes =
     [
-        new("eletrico", "Elétrico", C("#2E7DFF"), C("#00E5C3"),
+        new("electric", "Electric", C("#2E7DFF"), C("#00E5C3"),
             [C("#2E7DFF"), C("#2E7DFF"), C("#00E5C3"), C("#2E7DFF4D"), C("#00E5C342"), C("#2E7DFF24"), C("#2E7DFF3D")],
             [C("#2568D7"), C("#2568D7"), C("#008E78"), C("#2E7DFF3D"), C("#00E5C34D"), C("#2E7DFF1A"), C("#2E7DFF2E")]),
         new("neon", "Neon", C("#00C8FF"), C("#FF4FD8"),
             [C("#00C8FF"), C("#00C8FF"), C("#FF4FD8"), C("#00C8FF4D"), C("#FF4FD842"), C("#00C8FF24"), C("#00C8FF3D")],
             [C("#00A8D7"), C("#00A8D7"), C("#9E2E85"), C("#00C8FF3D"), C("#FF4FD84D"), C("#00C8FF1A"), C("#00C8FF2E")]),
-        new("lima", "Lima", C("#2FE07A"), C("#E8FF3A"),
+        new("lime", "Lime", C("#2FE07A"), C("#E8FF3A"),
             [C("#2FE07A"), C("#2FE07A"), C("#E8FF3A"), C("#2FE07A4D"), C("#E8FF3A42"), C("#2FE07A24"), C("#2FE07A3D")],
             [C("#26BD66"), C("#26BD66"), C("#909E20"), C("#2FE07A3D"), C("#E8FF3A4D"), C("#2FE07A1A"), C("#2FE07A2E")]),
-        new("brasa", "Brasa", C("#FF5A1F"), C("#FFC531"),
+        new("ember", "Ember", C("#FF5A1F"), C("#FFC531"),
             [C("#FF5A1F"), C("#FF5A1F"), C("#FFC531"), C("#FF5A1F4D"), C("#FFC53142"), C("#FF5A1F24"), C("#FF5A1F3D")],
             [C("#D74B18"), C("#D74B18"), C("#9E791A"), C("#FF5A1F3D"), C("#FFC5314D"), C("#FF5A1F1A"), C("#FF5A1F2E")]),
-        new("violeta", "Violeta", C("#8B5CFF"), C("#FF5C93"),
+        new("violet", "Violet", C("#8B5CFF"), C("#FF5C93"),
             [C("#8B5CFF"), C("#8B5CFF"), C("#FF5C93"), C("#8B5CFF4D"), C("#FF5C9342"), C("#8B5CFF24"), C("#8B5CFF3D")],
             [C("#744CD7"), C("#744CD7"), C("#9E3659"), C("#8B5CFF3D"), C("#FF5C934D"), C("#8B5CFF1A"), C("#8B5CFF2E")]),
-        new("aco", "Aço", C("#5980A6"), C("#94BCE3"),
+        new("steel", "Steel", C("#5980A6"), C("#94BCE3"),
             [C("#5980A6"), C("#5980A6"), C("#94BCE3"), C("#5980A64D"), C("#94BCE342"), C("#5980A624"), C("#5980A63D")],
             [C("#4A6B8B"), C("#4A6B8B"), C("#5A738C"), C("#5980A63D"), C("#94BCE34D"), C("#5980A61A"), C("#5980A62E")]),
     ];
@@ -56,7 +56,7 @@ public static class Theme
         catch (Exception) { return false; }
     }
 
-    public static bool IsDark(Settings s) => s.Theme == "escuro" || (s.Theme == "sistema" && !SystemIsLight());
+    public static bool IsDark(Settings s) => s.Theme == "dark" || (s.Theme == "system" && !SystemIsLight());
 
     public static Color Bgc(bool dark) => dark ? C("#18191B") : C("#F2F2F3");
 
@@ -100,8 +100,8 @@ public static class Theme
 }
 
 /// <summary>
-/// Barlow embutida. O WPF só encontra pesos extras pelo nome Win32 de cada arquivo
-/// ("Barlow Condensed SemiBold"), então a família é escolhida pelo peso.
+/// Embedded Barlow. WPF only finds extra weights by the Win32 name of each file
+/// ("Barlow Condensed SemiBold"), so the family is chosen by weight.
 /// </summary>
 public static class AppFonts
 {

@@ -29,8 +29,6 @@ Marz Monitor puts all of it in **one tray icon**:
 - 🎮 **Game mode.** One click and everything goes to 100 %, then back to your curves. It can also turn on by itself when a game starts.
 - 🛡 **Safe by design.** Every fan feature has hard safety floors and gives control back to the hardware when the app exits.
 
-> The interface is in **Portuguese (pt-BR)**. Numbers, units and charts are universal; an English UI is on the wishlist.
-
 ## Screenshots
 
 <table>
@@ -70,8 +68,8 @@ Marz Monitor puts all of it in **one tray icon**:
 <tr>
 <td width="25%"><img src="screenshots/details-search.png"><br><sub>Search across all sensors</sub></td>
 <td width="25%"><img src="screenshots/details-light.png"><br><sub>Light theme</sub></td>
-<td width="25%"><img src="screenshots/quick-card-board.png"><br><sub>Right-click any fan: curve / manual / off</sub></td>
-<td width="25%"><img src="screenshots/settings.png"><br><sub>Settings: choose which cards and fans show</sub></td>
+<td width="25%"><img src="screenshots/quick-card-rename.png"><br><sub>Right-click any fan: curve / manual / off / rename</sub></td>
+<td width="25%"><img src="screenshots/settings-fan-names.png"><br><sub>Settings: name every fan header your way</sub></td>
 </tr>
 </table>
 
@@ -108,7 +106,7 @@ Marz Monitor puts all of it in **one tray icon**:
 | Device | What you can do |
 |---|---|
 | **NVIDIA GPU** | Auto or fixed presets (30 / 50 / 75 / 100 %). Driver range, temperature and thermal-throttle guards, per-fan verification. Back to automatic when the app exits; the app refuses to close if it cannot confirm that |
-| **ASUS motherboard** | Silent / Standard / Turbo / Full / your own curves, per header. Each header can be put on a fixed % or turned off (experimental, behind a setting). Curves are stored in the board's fan chip, so they keep working even if the app is closed |
+| **ASUS motherboard** | Silent / Standard / Turbo / Full / your own curves, per header. Each header can be put on a fixed % or turned off (experimental, behind a setting), and renamed (original header name stays in the tooltip). Your choices are saved and re-applied at start. Curves are stored in the board's fan chip, so they keep working even if the app is closed |
 | **ROG Ryujin II** | Pump, radiator fans and pump-head fan: Silent / Standard / Turbo / Full, custom curves up to 8 points, fixed %, and a choice of curve source (CPU, GPU, liquid…). **Auto Tuning** measures your radiator fans' rpm table |
 | **Game mode** | Everything to 100 % (or 70 / 85 %, configurable), per device. Can turn on automatically from a list of `.exe` names, and survives restarts |
 
@@ -140,7 +138,7 @@ Other devices are welcome: open an issue with your hardware, and a sensor dump f
 ## Install
 
 1. Download `MarzMonitor-<version>-win-x64.zip` from [Releases](https://github.com/marzliak/marz-monitor/releases/latest).
-2. Extract it and run **`INSTALAR.cmd`**. Don't use "Run as administrator"; the installer asks once through UAC.
+2. Extract it and run **`INSTALL.cmd`**. Don't use "Run as administrator"; the installer asks once through UAC.
 3. Click the icon next to the clock. Drag the popup by its header; double-click the header to snap it back.
 
 What the installer does:
@@ -158,7 +156,7 @@ Requires the .NET SDK 10.0.400 (pinned in `global.json`) and Python 3 for packag
 
 ```powershell
 dotnet build src/MonitorTray.App -c Release -warnaserror
-dotnet test tests/MonitorTray.Core.Tests -c Release        # 366 tests
+dotnet test tests/MonitorTray.Core.Tests -c Release        # 398 tests
 MonitorTray.exe --preview out\       # render every screen to PNG from simulated data
 MonitorTray.exe --simulate           # run the UI without hardware or admin
 MonitorTray.exe --read-test x.json   # one read-only sensor dump, no UI

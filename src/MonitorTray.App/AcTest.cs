@@ -3,8 +3,8 @@ using System.IO;
 namespace MonitorTray.App;
 
 /// <summary>
-/// Teste de bancada (admin): MonitorTray.exe --ac-test &lt;log&gt; &lt;ventoinha AC&gt;. Aplica FULL, TURBO e CURVAS
-/// pela classe real AsusFanModes, mede RPM (LHM, leitura) e confere que nenhuma curva User mudou.
+/// Bench test (admin): MonitorTray.exe --ac-test &lt;log&gt; &lt;AC fan&gt;. Applies FULL, TURBO and CURVES
+/// through the real AsusFanModes class, measures RPM (LHM, read only) and checks that no User curve changed.
 /// </summary>
 internal static class AcTest
 {
@@ -30,16 +30,16 @@ internal static class AcTest
         AsusFanModes.Log = s => { lock (log) log.WriteLine("   · " + s); };
         using var m = new AsusFanModes(dir);
         for (int i = 0; i < 50 && !m.Available && m.Error == null; i++) Thread.Sleep(100);
-        log.WriteLine($"disponível={m.Available} erro={m.Error} fans={string.Join(",", m.Fans)}");
-        log.WriteLine($"inicio rpm={Rpm():0}");
-        foreach (var mode in new[] { "full", "turbo", "curvas", "full" })
+        log.WriteLine($"available={m.Available} error={m.Error} fans={string.Join(",", m.Fans)}");
+        log.WriteLine($"start rpm={Rpm():0}");
+        foreach (var mode in new[] { "full", "turbo", "curves", "full" })
         {
             m.Apply(mode, [fan]); Thread.Sleep(9000);
-            log.WriteLine($"{mode,-7} rpm={Rpm():0} modo={m.Mode ?? "curvas"} erro={m.Error} snapshot-pendente={File.Exists(Path.Combine(dir, "ac-user-curves.json"))}");
+            log.WriteLine($"{mode,-7} rpm={Rpm():0} mode={m.Mode ?? "curves"} error={m.Error} snapshot-pending={File.Exists(Path.Combine(dir, "ac-user-curves.json"))}");
         }
         m.RestoreAndWait(TimeSpan.FromSeconds(10)); Thread.Sleep(6000);
-        log.WriteLine($"saída (RestoreAndWait) rpm={Rpm():0} snapshot-pendente={File.Exists(Path.Combine(dir, "ac-user-curves.json"))}");
-        log.WriteLine("curvas iguais ao início: " + (before == Snap()));
+        log.WriteLine($"exit (RestoreAndWait) rpm={Rpm():0} snapshot-pending={File.Exists(Path.Combine(dir, "ac-user-curves.json"))}");
+        log.WriteLine("curves same as at start: " + (before == Snap()));
         var tr = Path.Combine(dir, "ac-modes.log"); if (File.Exists(tr)) log.Write(File.ReadAllText(tr));
         lhm.Close();
         return 0;

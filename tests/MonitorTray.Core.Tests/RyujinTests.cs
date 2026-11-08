@@ -13,7 +13,7 @@ public class RyujinTests
         return b;
     }
 
-    // Quadros capturados ao vivo do cooler (leituras, 2026-11-02).
+    // Frames captured live from the cooler (reads, 2026-11-02).
     static readonly byte[] Fw = Frame("ec 02 00 41 55 52 4a 31 2d 53 37 35 30 2d 30 31 30 34");
     static readonly byte[] Pump = Frame("ec 19 00 27 01 50 0a 9e 07");
     static readonly byte[] Rpm = Frame("ec 20 00 00 00 ec 04 ec 04 ec 04");
@@ -54,7 +54,7 @@ public class RyujinTests
     [InlineData(0x70)] [InlineData(0x72)] [InlineData(0x73)] [InlineData(0x11)]
     public void WriteCommandsAreRejected(byte cmd) => Assert.Throws<ArgumentException>(() => RyujinProtocol.BuildRequest(cmd));
 
-    // Valores escritos pelo Armoury Crate com CPU ~48 C (captura): Silent 48 %/0x7A, Standard 51 %/0x82, Turbo 60 %/0x99.
+    // Values written by Armoury Crate with CPU ~48 C (capture): Silent 48 %/0x7A, Standard 51 %/0x82, Turbo 60 %/0x99.
     [Theory]
     [InlineData(RyujinCurves.Preset.Silent, 48, 0x7A)]
     [InlineData(RyujinCurves.Preset.Standard, 51, 0x82)]
@@ -76,7 +76,7 @@ public class RyujinTests
     static readonly RpmPoint[] PumpTable = [new(0,840),new(10,870),new(20,900),new(30,1140),new(40,1470),new(50,1650),new(60,1890),new(70,2130),new(80,2310),new(90,2520),new(100,2800)];
     static readonly RpmPoint[] RadTable = [new(0,0),new(10,300),new(20,420),new(30,630),new(40,810),new(50,1020),new(60,1140),new(70,1320),new(80,1500),new(90,1680),new(100,1890)];
 
-    // Fixed RPM capturado: bomba 1506 -> 42 %, 2106 -> 69 %; radiador 609 -> 29 % (0x21=73), 1212 -> 64 % (0x21=163).
+    // Captured fixed RPM: pump 1506 -> 42 %, 2106 -> 69 %; radiator 609 -> 29 % (0x21=73), 1212 -> 64 % (0x21=163).
     [Theory]
     [InlineData(1506, 42)] [InlineData(2106, 69)]
     public void PumpFixedRpmToPercent(int rpm, int pct) => Assert.Equal(pct, (int)Math.Round(RyujinCurves.RpmToPercent(PumpTable, rpm)));
@@ -97,7 +97,7 @@ public class RyujinLcdTests
 {
     static string Hex(byte[] b) => Convert.ToHexString(b).ToLowerInvariant();
 
-    // Quadros reais do Armoury Crate (captured from the vendor software, 2026-11-02): o Marz deve gerar exatamente os mesmos bytes.
+    // Real Armoury Crate frames (captured from the vendor software, 2026-11-02): Marz must generate exactly the same bytes.
     [Fact]
     public void TextFrameMatchesArmouryCrate()
     {
@@ -126,8 +126,8 @@ public class RyujinLcdTests
     [Fact]
     public void NameIsAsciiAndCut()
     {
-        var f = RyujinProtocol.BuildText(0, "Água da bomba longa", "1");
-        Assert.Equal("Agua da bom", System.Text.Encoding.ASCII.GetString(f, 3, 11));
+        var f = RyujinProtocol.BuildText(0, "Wäter pumps long name", "1"); // diacritics are dropped
+        Assert.Equal("Water pumps", System.Text.Encoding.ASCII.GetString(f, 3, 11));
         Assert.Equal(0, f[14]);
     }
 
@@ -158,15 +158,30 @@ public class RyujinLcdTests
     [Fact]
     public void ConfigDefaultsOffAndClamps()
     {
-        var c = LcdConfig.Parse("{\"version\":1,\"enabled\":true,\"pages\":[{\"durationMs\":100,\"slots\":[{\"sensorId\":\"x\",\"name\":\"Temperatura da água\",\"group\":\"waterFlow\"},{},{},{},{}]}]}");
+        var c = LcdConfig.Parse("{\"version\":1,\"enabled\":true,\"pages\":[{\"durationMs\":100,\"slots\":[{\"sensorId\":\"x\",\"name\":\"Temperature (water)\",\"group\":\"waterFlow\"},{},{},{},{}]}]}");
         Assert.True(c.Enabled);
         Assert.Equal(2000, c.Pages[0].DurationMs);
         Assert.Equal(4, c.Pages[0].Slots.Count);
-        Assert.Equal("Temperatura", c.Pages[0].Slots[0].Name);
+        Assert.Equal("Temperature", c.Pages[0].Slots[0].Name);
         Assert.Equal(LcdGroup.WaterFlow, c.Pages[0].Slots[0].Group);
-        Assert.False(LcdConfig.Parse("lixo").Enabled);
+        Assert.False(LcdConfig.Parse("junk").Enabled);
         var round = LcdConfig.Parse(c.ToJson());
         Assert.Equal(c.Pages[0].Slots[0], round.Pages[0].Slots[0]);
+    }
+
+    [Fact]
+    public void LegacyDefaultSlotNamesAreMigratedAndCustomOnesKept()
+    {
+        // legacy (0.1.33) values: old default slot names written by the Portuguese version
+        var json = """
+            {"version":1,"enabled":true,"pages":[
+              {"durationMs":10000,"slots":[{"sensorId":"a","name":"Agua"},{"sensorId":"b","name":"Bomba"},{"sensorId":"c","name":"Radiador"},{"sensorId":"d","name":"Clock medio"}]},
+              {"durationMs":10000,"slots":[{"sensorId":"e","name":"Fan AIO"},{"sensorId":"f","name":"My CPU"}]}
+            ]}
+            """;
+        var c = LcdConfig.Parse(json);
+        Assert.Equal(["Water", "Pump", "Radiator", "Clock avg"], c.Pages[0].Slots.Select(s => s.Name));
+        Assert.Equal(["Fan AIO", "My CPU"], c.Pages[1].Slots.Select(s => s.Name)); // custom names kept as typed
     }
 
     [Fact] public void PumpConfigParse() => Assert.Equal((51, 60), RyujinProtocol.ParsePumpConfig(Convert.FromHexString("ec1a0000333c" + new string('0', 118))));

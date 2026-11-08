@@ -3,7 +3,7 @@ using MonitorTray.Core.Model;
 
 namespace MonitorTray.Sensors;
 
-/// <summary>--simulate: catálogo do kit com passeio aleatório ±15% do span por tick (docs/06 §8).</summary>
+/// <summary>--simulate: kit catalog with a random walk of ±15% of the span per tick (docs/06 §8).</summary>
 public sealed class SimulatedSource : IHardwareSource
 {
     private sealed record Entry(RawSensor Template, double? Min, double? Mean, double? Max, bool AllZero, bool Unavailable);
@@ -29,21 +29,21 @@ public sealed class SimulatedSource : IHardwareSource
             if (family == "CpuGpu") family = hwId.Contains("gpu-nvidia") ? "GpuNvidia" : hwId.Contains("gpu-amd") ? "GpuAmd" : hwId.Contains("gpu-intel") ? "GpuIntel" : "Cpu";
             if (family == "Motherboard" && !hwId.EndsWith("hw-0", StringComparison.Ordinal))
                 family = S("hardware").Contains("Embedded", StringComparison.OrdinalIgnoreCase) ? "EmbeddedController" : "SuperIO";
-            var unav = S("state") == "indisponível";
+            var unav = S("state") is "unavailable"; // kit catalog value (data file)
             var t = new RawSensor(S("id"), hwId, S("hardware"), family, S("name"), S("type"), S("unit"), null);
             list.Add(new Entry(t, N("min"), N("mean"), N("max"), e.TryGetProperty("allZero", out var az) && az.ValueKind == JsonValueKind.True, unav));
         }
-        // Tráfego por tipo (como o ETW real produz), para a aba Rede no modo simulado.
-        foreach (var (dev, name, d, u) in new[] { (Core.Normalize.NetTrafficIds.Total, "Tráfego total", 6.0e6, 3.0e5), (Core.Normalize.NetTrafficIds.Local, "Tráfego rede local", 2.0e6, 1.0e5), (Core.Normalize.NetTrafficIds.Internet, "Tráfego internet", 4.0e6, 2.0e5) })
+        // Traffic by type (as the real ETW produces it), for the Network tab in simulated mode.
+        foreach (var (dev, name, d, u) in new[] { (Core.Normalize.NetTrafficIds.Total, "Total traffic", 6.0e6, 3.0e5), (Core.Normalize.NetTrafficIds.Local, "Local network traffic", 2.0e6, 1.0e5), (Core.Normalize.NetTrafficIds.Internet, "Internet traffic", 4.0e6, 2.0e5) })
         {
             list.Add(new Entry(new RawSensor(dev + "/throughput/0", dev, name, "Network", "Download", "Throughput", "B/s", null), 0, d / 2, d, false, false));
             list.Add(new Entry(new RawSensor(dev + "/throughput/1", dev, name, "Network", "Upload", "Throughput", "B/s", null), 0, u / 2, u, false, false));
         }
         entries = list;
-        Notice = "Modo simulado: " + Path.GetFileName(path);
+        Notice = "Simulated mode: " + Path.GetFileName(path);
     }
 
-    /// <summary>Adiciona um dispositivo inventado (teste de tipos desconhecidos e da tag NOVO).</summary>
+    /// <summary>Adds a made-up device (tests unknown types and the NEW tag).</summary>
     public void AddFakeDevice()
     {
         (string Type, string Name, string Unit, double Min, double Max)[] fake =
@@ -51,7 +51,7 @@ public sealed class SimulatedSource : IHardwareSource
         for (int i = 0; i < fake.Length; i++)
         {
             var f = fake[i];
-            entries.Add(new Entry(new RawSensor("/psu/sim/0/" + i, "/psu/sim/0", "Fonte simulada", "Psu", f.Name, f.Type, f.Unit, null), f.Min, (f.Min + f.Max) / 2, f.Max, f.Max == 0, false));
+            entries.Add(new Entry(new RawSensor("/psu/sim/0/" + i, "/psu/sim/0", "Simulated PSU", "Psu", f.Name, f.Type, f.Unit, null), f.Min, (f.Min + f.Max) / 2, f.Max, f.Max == 0, false));
         }
     }
 
@@ -79,7 +79,7 @@ public sealed class SimulatedSource : IHardwareSource
     public void Dispose() { }
 }
 
-/// <summary>Resumo simulado (sem LHM): passeio com saltos de 6% (docs/06 §8).</summary>
+/// <summary>Simulated summary (no LHM): random walk with 6% jumps (docs/06 §8).</summary>
 public sealed class SimulatedSummary
 {
     private readonly Random rng;

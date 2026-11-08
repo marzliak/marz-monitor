@@ -19,7 +19,7 @@ using CoolerFanMode = MonitorTray.Ryujin.FanMode;
 
 namespace MonitorTray.App.Views;
 
-/// <summary>Conteúdo do popup (344 px): cabeçalho + Resumo ou Configurações (docs/04 §B).</summary>
+/// <summary>Popup content (344 px): header + Summary or Settings (docs/04 §B).</summary>
 public sealed class PopupContent : StackPanel
 {
     private readonly AppState app;
@@ -56,26 +56,26 @@ public sealed class PopupContent : StackPanel
     private DateTime gameAt;
     private readonly AutoGame autoGame = new();
     private IReadOnlyList<string> lastRunning = [];
-    /// <summary>Mínimo/máximo da sessão por papel (o App passa o mesmo que alimenta a bandeja).</summary>
+    /// <summary>Session min/max per role (App passes the same one that feeds the tray).</summary>
     public TempSession Session { get; set; } = new();
     private IReadOnlyDictionary<string, string> tempSources = new Dictionary<string, string>();
-    /// <summary>Clique num card de temperatura: id do sensor do LHM (null sem LHM) e a categoria do Detalhes para cair na falta dele.</summary>
+    /// <summary>Click on a temperature card: LHM sensor id (null without LHM) and the Details category to fall back to without it.</summary>
     public event Action<string?, string>? SensorRequested;
     private readonly Border strip;
     private readonly TextBlock stripText;
 
-    /// <summary>Ventoinhas da placa que entram no modo game (Configurações; padrão = todas).</summary>
+    /// <summary>Board fans included in game mode (Settings; default = all).</summary>
     private List<string> GameBoardFans() => ac == null ? [] : (app.Settings.GameBoardFans ?? ac.Fans).Where(ac.Fans.Contains).ToList();
 
     /// <summary>
-    /// Modo game (configurável): GPU no % escolhido, placa em FULL, bomba/radiador/fan embutido do cooler em % fixo.
-    /// Desligar devolve cada um ao que estava (GPU auto, placa CURVAS, cooler na config anterior).
+    /// Game mode (configurable): GPU at the chosen %, board at FULL, cooler pump/radiator/embedded fan at a fixed %.
+    /// Turning it off returns each one to what it was (GPU auto, board CURVES, cooler on the previous config).
     /// </summary>
-    /// <summary>Liga/desliga o modo game de fora (mensagem "game" da instância única: `MonitorTray.exe --game`).</summary>
+    /// <summary>Toggles game mode from outside (single-instance "game" message: `MonitorTray.exe --game`).</summary>
     public void ToggleGameExternal() => ToggleGame();
     public bool GameOn => gameOn;
 
-    /// <summary>Estado do modo game em disco (sobrevive a reinício/atualização do app): ligado + config do cooler de antes.</summary>
+    /// <summary>Game mode state on disk (survives app restart/update): on + the cooler config from before.</summary>
     public static string GameStatePath => System.IO.Path.Combine(AppState.DataDir, "state", "game-mode.json");
 
     private void SaveGameState()
@@ -93,8 +93,8 @@ public sealed class PopupContent : StackPanel
     }
 
     /// <summary>
-    /// Ao abrir: se o modo game estava ligado, volta ligado. Reaplica GPU e placa (a GPU volta ao automático quando o app fecha)
-    /// e recupera a config do cooler de antes, para o segundo clique devolver tudo ao normal.
+    /// On startup: if game mode was on, it comes back on. Reapplies GPU and board (the GPU returns to automatic when the app closes)
+    /// and recovers the cooler config from before, so the second click returns everything to normal.
     /// </summary>
     public void RestoreGame()
     {
@@ -104,13 +104,13 @@ public sealed class PopupContent : StackPanel
             var o = System.Text.Json.Nodes.JsonNode.Parse(System.IO.File.ReadAllText(GameStatePath)) as System.Text.Json.Nodes.JsonObject;
             if (o?["on"]?.GetValue<bool>() != true) return;
             if (o["coolerBefore"]?.GetValue<string>() is string cb) coolerBeforeGame = CoolerConfig.Parse(cb);
-            autoGame.Restore(o["auto"]?.GetValue<bool>() == true, o["by"]?.GetValue<string>()); // ligado pelo jogo: desliga quando ele fechar
+            autoGame.Restore(o["auto"]?.GetValue<bool>() == true, o["by"]?.GetValue<string>()); // turned on by the game: turns off when it closes
             gameOn = true; gameAt = DateTime.UtcNow;
             var s = app.Settings; var t = s.GameTargets;
-            // O Armoury Crate (COM) demora a subir junto com o app: a placa vai a FULL quando ele ficar disponível.
+            // Armoury Crate (COM) takes a while to come up with the app: the board goes to FULL when it becomes available.
             if (t.Contains("board")) { pendingBoardRestore = true; TryRestoreBoard(); }
             if (t.Contains("gpu") && fanService != null) _ = Task.Run(async () => { try { await Task.Delay(3000); await fanService.CommandAsync((uint)s.GameGpuPercent); } catch (Exception) { } });
-            // O cooler já está salvo em FULL/% fixo no ryujin-fans.json: o serviço reaplica sozinho.
+            // The cooler is already saved at FULL/fixed % in ryujin-fans.json: the service reapplies it on its own.
             RenderCooler(); RenderGameIcon();
         }
         catch (Exception) { }
@@ -118,18 +118,18 @@ public sealed class PopupContent : StackPanel
 
     private bool pendingBoardRestore;
 
-    // ---- Escolhas de fan guardadas (FanChoices): reaplicadas ao abrir e ao sair do modo game.
+    // ---- Saved fan choices (FanChoices): reapplied on startup and when leaving game mode.
     private FanChoices.Data? pendingChoices;
     private bool restoreStartup;
     private IReadOnlyCollection<string>? pendingChoicesFans;
     private List<string> pendingOff = [];
     private DateTime pendingOffUntil;
 
-    /// <summary>Ao abrir o app (fora do modo game): placa, OFF/MANUAL e GPU como você deixou.</summary>
+    /// <summary>On app startup (outside game mode): board, OFF/MANUAL and GPU as you left them.</summary>
     public void RestoreChoices() { if (!gameOn) BeginRestoreChoices(gpuDelayMs: 3000, boardFans: null, gpu: true, startup: true); }
 
-    /// <param name="boardFans">Fans que voltam ao modo guardado (null = os das Configurações).</param>
-    /// <param name="startup">Ao abrir: nada escolhido = não mexe (o app já sobe no automático/curvas).</param>
+    /// <param name="boardFans">Fans that go back to the saved mode (null = the ones from Settings).</param>
+    /// <param name="startup">On startup: nothing chosen = leave as is (the app already starts on automatic/curves).</param>
     private void BeginRestoreChoices(int gpuDelayMs, IReadOnlyCollection<string>? boardFans, bool gpu, bool startup = false)
     {
         var d = FanChoices.Load();
@@ -143,28 +143,40 @@ public sealed class PopupContent : StackPanel
         }
     }
 
-    /// <summary>Placa: espera o Armoury Crate (COM) ficar disponível. OFF espera a primeira leitura da CPU (regra de segurança).</summary>
+    /// <summary>Board: waits for Armoury Crate (COM) to become available. OFF waits for the first CPU reading (safety rule).</summary>
     private void TryRestoreChoices()
     {
         if (pendingChoices is not { } d || ac is not { Available: true }) return;
         pendingChoices = null;
         var fans = pendingChoicesFans ?? app.Settings.AcFans.Where(ac.Fans.Contains).ToList();
-        if (fans.Count > 0 && !(restoreStartup && d.BoardMode is null or "curvas")) ac.Apply(d.BoardMode ?? "curvas", fans, remember: false);
+        if (fans.Count > 0 && !(restoreStartup && d.BoardMode is null or "curves")) ac.Apply(d.BoardMode ?? "curves", fans, remember: false);
         foreach (var (f, pct) in d.Manual) if (ac.Fans.Contains(f)) ac.SetManual(f, pct);
         pendingOff = d.Off.Where(f => ac.Fans.Contains(f) && !d.Manual.ContainsKey(f)).ToList();
         pendingOffUntil = DateTime.UtcNow.AddMinutes(2);
+        RestoringOffChanged?.Invoke();
         TryRestoreOff();
     }
 
+    /// <summary>Latest CPU/GPU temperature, also while the popup is hidden (called on every snapshot).</summary>
+    public void SetTemps(float? cpu, float? gpu)
+    {
+        cpuTemp = cpu; gpuTemp = gpu;
+        TryRestoreOff();
+    }
+
+    /// <summary>Saved OFF fans still waiting to be turned off (the app keeps reading sensors meanwhile).</summary>
+    public bool RestoringOff => pendingOff.Count > 0;
+    public event Action? RestoringOffChanged;
+
     private void TryRestoreOff()
     {
-        if (pendingOff.Count == 0 || ac is not { Available: true } || !app.Settings.BoardFanOff) { if (!app.Settings.BoardFanOff) pendingOff.Clear(); return; }
-        if (cpuTemp == null && DateTime.UtcNow < pendingOffUntil) return; // sem leitura da CPU o OFF é recusado: espera
+        if (pendingOff.Count == 0 || ac is not { Available: true } || !app.Settings.BoardFanOff) { if (!app.Settings.BoardFanOff) { pendingOff.Clear(); RestoringOffChanged?.Invoke(); } return; }
+        if (cpuTemp == null && DateTime.UtcNow < pendingOffUntil) return; // without a CPU reading OFF is refused: wait
         foreach (var f in pendingOff) ac.TurnOff(f, cpuTemp, gpuTemp);
-        pendingOff.Clear();
+        { pendingOff.Clear(); RestoringOffChanged?.Invoke(); }
     }
     private bool shuttingDown;
-    /// <summary>Saída do app: a GPU volta ao automático e o ícone apagaria sozinho; o estado salvo do modo game não pode ser apagado.</summary>
+    /// <summary>App exit: the GPU returns to automatic and the icon would go dark on its own; the saved game mode state must not be deleted.</summary>
     public void BeginShutdown() => shuttingDown = true;
 
     private void TryRestoreBoard()
@@ -172,10 +184,10 @@ public sealed class PopupContent : StackPanel
         if (!pendingBoardRestore || ac is not { Available: true }) return;
         var fans = GameBoardFans();
         if (fans.Count > 0) ac.Apply("full", fans, remember: false);
-        pendingBoardRestore = false; gameAt = DateTime.UtcNow; // nova carência para o FULL confirmar
+        pendingBoardRestore = false; gameAt = DateTime.UtcNow; // new grace period for FULL to confirm
     }
 
-    /// <summary>Clique no botão (ou `--game`): o estado passa a ser do usuário; o automático não desliga o que ele ligou.</summary>
+    /// <summary>Button click (or `--game`): the state now belongs to the user; automatic does not turn off what the user turned on.</summary>
     private void ToggleGame()
     {
         bool on = !gameOn;
@@ -183,7 +195,7 @@ public sealed class PopupContent : StackPanel
         SetGame(on);
     }
 
-    /// <summary>Modo game automático: o App passa os processos rodando a cada ~3 s (só com jogos na lista).</summary>
+    /// <summary>Automatic game mode: App passes the running processes every ~3 s (only with games in the list).</summary>
     public void AutoGameStep(IReadOnlyList<string> running)
     {
         lastRunning = running;
@@ -193,7 +205,7 @@ public sealed class PopupContent : StackPanel
         RenderStrip();
     }
 
-    /// <summary>O automático ligou o modo game e ainda vai desligar (o App segue consultando mesmo com a lista vazia).</summary>
+    /// <summary>Automatic turned game mode on and will still turn it off (App keeps polling even with an empty list).</summary>
     public bool AutoGameOwned => autoGame.Owned;
 
     private void SetGame(bool on)
@@ -204,11 +216,11 @@ public sealed class PopupContent : StackPanel
         if (t.Contains("board") && ac is { Available: true })
         {
             var fans = GameBoardFans();
-            if (fans.Count > 0 && gameOn) ac.Apply("full", fans, remember: false); // FULL também religa os fans desligados
+            if (fans.Count > 0 && gameOn) ac.Apply("full", fans, remember: false); // FULL also turns the stopped fans back on
         }
-        if (gameOn && ac is { Available: true } && ac.Off.Any) ac.TurnOn(ac.Off.Off, "modo game", remember: false); // game religa todos, mesmo sem a placa no game
+        if (gameOn && ac is { Available: true } && ac.Off.Any) ac.TurnOn(ac.Off.Off, "game mode", remember: false); // game turns all back on, even without the board in game mode
         if (t.Contains("gpu") && fanService != null && gameOn) _ = Task.Run(async () => { try { await fanService.CommandAsync((uint)s.GameGpuPercent); } catch (Exception) { } });
-        if (!gameOn) BeginRestoreChoices(gpuDelayMs: 0, boardFans: t.Contains("board") ? GameBoardFans() : null, gpu: t.Contains("gpu")); // volta ao que você tinha escolhido
+        if (!gameOn) BeginRestoreChoices(gpuDelayMs: 0, boardFans: t.Contains("board") ? GameBoardFans() : null, gpu: t.Contains("gpu")); // back to what you had chosen
         bool anyCooler = t.Contains("pump") || t.Contains("radiator") || t.Contains("embedded");
         if (anyCooler && cooler is { DeviceFound: true })
         {
@@ -216,7 +228,7 @@ public sealed class PopupContent : StackPanel
             if (gameOn)
             {
                 coolerBeforeGame = c;
-                // 100% = preset FULL (a linha WC RYUJIN II acende FULL); 70/85% = % fixo.
+                // 100% = FULL preset (the WC RYUJIN II row lights FULL); 70/85% = fixed %.
                 MonitorTray.Ryujin.CoolerFanSetting G(MonitorTray.Ryujin.CoolerFanSetting x) => s.GameCoolerPercent >= 100
                     ? x with { Mode = MonitorTray.Ryujin.FanMode.Smart, Preset = RyujinCurves.Preset.FullSpeed, Custom = [] }
                     : x with { Mode = MonitorTray.Ryujin.FanMode.Fixed, FixedPercent = s.GameCoolerPercent };
@@ -238,8 +250,8 @@ public sealed class PopupContent : StackPanel
     }
 
     /// <summary>
-    /// Faixa fina do topo: proteções que agiram (fans religados, GPU/cooler em 100%) e o modo game ativo.
-    /// Some quando não há nada. Clique dispensa o aviso de fans religados.
+    /// Thin top strip: protections that kicked in (fans turned back on, GPU/cooler at 100%) and active game mode.
+    /// Hidden when there is nothing. A click dismisses the fans-turned-back-on notice.
     /// </summary>
     private void RenderStrip()
     {
@@ -251,10 +263,10 @@ public sealed class PopupContent : StackPanel
             GameOn = gameOn, GameBy = autoGame.Owned ? autoGame.Game : null,
             GameTargets = s.GameTargets, GameGpuPercent = s.GameGpuPercent, GameCoolerPercent = s.GameCoolerPercent,
             BoardSafety = ac?.LastSafety,
-            GpuProtection = fs?.SafetyNotice is string n && n.StartsWith("PROTECAO", StringComparison.Ordinal) ? n : null,
-            CoolerPanicC = cs is { Controlling: true, Notice: string cn } && cn.StartsWith("água", StringComparison.Ordinal) ? cooler?.Latest?.Pump?.WaterTempC : null,
+            GpuProtection = fs?.SafetyNotice is string n && n.StartsWith("PROTECTION", StringComparison.Ordinal) ? n : null,
+            CoolerPanicC = cs is { Controlling: true, Notice: string cn } && cn.StartsWith("water", StringComparison.Ordinal) ? cooler?.Latest?.Pump?.WaterTempC : null,
         };
-        var items = StatusStrip.Items(state, DateTimeOffset.Now, FanShort);
+        var items = StatusStrip.Items(state, DateTimeOffset.Now, s.BoardFanName);
         var text = string.Join("   |   ", items.Select(i => i.Text));
         if (stripText.Text != text) stripText.Text = text;
         strip.ToolTip = items.Count == 0 ? null : string.Join("\n", items.Select(i => i.Tip));
@@ -263,7 +275,7 @@ public sealed class PopupContent : StackPanel
         if (strip.Visibility != vis) { strip.Visibility = vis; LayoutChanged?.Invoke(); }
     }
 
-    // ---- Water cooler (ROG RYUJIN II): presets de bomba + radiador e rotações, na linha abaixo da MOTHERBOARD.
+    // ---- Water cooler (ROG RYUJIN II): pump + radiator presets and speeds, in the row below the MOTHERBOARD.
     private RyujinService? cooler;
     private CoolerConfig? coolerBeforeGame;
     private Border coolerRow = null!;
@@ -277,15 +289,15 @@ public sealed class PopupContent : StackPanel
     public void AttachCooler(RyujinService r)
     {
         cooler = r;
-        // Fan embutido preso em FULL fora do modo game (game antigo que não devolveu o cooler): volta ao STD uma vez.
+        // Embedded fan stuck at FULL outside game mode (old game mode that did not return the cooler): back to STD once.
         if (!gameOn && !System.IO.File.Exists(GameStatePath) && r.UnstickEmbedded()) r.ResumeControl();
         r.FanChanged += _ => Dispatcher.BeginInvoke(RenderCooler);
-        RenderCooler();
+        RenderCooler(); RenderFanNames();
     }
 
-    /// <summary>null = CURVAS (a config própria do cooler: curvas/fixo por parte).</summary>
+    /// <summary>null = CURVES (the cooler's own config: curves/fixed per part).</summary>
     private static readonly (RyujinCurves.Preset? P, string Label)[] CoolerPresets =
-        [(null, "CURVAS"), (RyujinCurves.Preset.Silent, "SILENT"), (RyujinCurves.Preset.Standard, "STD"), (RyujinCurves.Preset.Turbo, "TURBO"), (RyujinCurves.Preset.FullSpeed, "FULL")];
+        [(null, "CURVES"), (RyujinCurves.Preset.Silent, "SILENT"), (RyujinCurves.Preset.Standard, "STD"), (RyujinCurves.Preset.Turbo, "TURBO"), (RyujinCurves.Preset.FullSpeed, "FULL")];
 
     private void RenderCooler()
     {
@@ -300,9 +312,9 @@ public sealed class PopupContent : StackPanel
             bool on = c.Enabled && (p == null ? cur == null : cur == p);
             var (b, _) = ModeButton(label, on, p == RyujinCurves.Preset.FullSpeed);
             var pp = p;
-            // CURVAS aplica a config própria (a de antes do preset, ou as curvas padrão); a janela do controle térmico abre pelo título.
-            b.ToolTip = pp is RyujinCurves.Preset ? $"Bomba e radiador do water cooler em {label}" : "Bomba e radiador nas curvas do cooler (as de antes do preset)";
-            if (!c.Enabled) b.ToolTip += "\n(liga o controle do cooler pelo Marz)";
+            // CURVES applies the cooler's own config (the one from before the preset, or the default curves); the thermal control window opens from the title.
+            b.ToolTip = pp is RyujinCurves.Preset ? $"Water cooler pump and radiator at {label}" : "Pump and radiator on the cooler curves (the ones from before the preset)";
+            if (!c.Enabled) b.ToolTip += "\n(turns on cooler control by Marz)";
             b.Click += () =>
             {
                 if (pp is RyujinCurves.Preset preset) cooler.ApplyPreset(preset, enable: true);
@@ -312,28 +324,33 @@ public sealed class PopupContent : StackPanel
             };
             coolerButtons.Children.Add(b);
         }
-        coolerStatus.Text = !c.Enabled ? "só leitura" : fs.TuneProgress is double tp ? $"auto tuning {(int)Math.Round(tp * 11) + 1}/11" : fs.Notice != null ? "aviso" : "";
+        coolerStatus.Text = !c.Enabled ? "read-only" : fs.TuneProgress is double tp ? $"auto tuning {(int)Math.Round(tp * 11) + 1}/11" : fs.Notice != null ? "warning" : "";
         coolerStatus.ToolTip = fs.Notice;
         RenderCoolerCards();
         RenderStrip();
     }
 
-    /// <summary>Cards do cooler escolhidos nas Configurações: bomba, um por fan do radiador, fan embutido.</summary>
+    /// <summary>Cooler cards chosen in Settings: pump, one per radiator fan, embedded fan.</summary>
     private void RenderCoolerCards()
     {
         if (cooler == null) return;
         var r = cooler.Latest;
-        var sel = app.Settings.PopupCoolerFans;
+        var s = app.Settings;
+        var sel = s.PopupCoolerFans;
+        // The user's name (Settings.CoolerNames) replaces PUMP/RAD/EMB.; the original goes to the tooltip.
+        string? Custom(string part) => FanNames.Custom(s.CoolerNames, part)?.ToUpperInvariant();
+        string Tip(string part, string what) => FanNames.Custom(s.CoolerNames, part) != null ? s.CoolerTip(part) + "\n" + what : what;
         var items = new List<(string Name, string Tip, int? Rpm, int? Pct, string Id)>();
-        if (sel.Contains("pump")) items.Add(("BOMBA", "Bomba do water cooler", r?.Pump?.PumpRpm, r?.PumpPercent, ThermalMap.PumpId));
+        if (sel.Contains("pump")) items.Add((Custom("pump") ?? "PUMP", Tip("pump", "Water cooler pump"), r?.Pump?.PumpRpm, r?.PumpPercent, ThermalMap.PumpId));
         if (sel.Contains("radiator"))
         {
             var rpm = r?.Fans?.Rpm ?? [];
-            if (rpm.Length == 0) items.Add(("RADIADOR", "Fans do radiador", null, r?.Fans?.DutyPercent, ThermalMap.RadiatorId));
-            for (int i = 0; i < rpm.Length; i++) items.Add(($"RAD {i + 1}", $"Radiador · fan {i + 1}", rpm[i], r!.Fans!.DutyPercent, ThermalMap.RadiatorId));
+            var rad = Custom("radiator");
+            if (rpm.Length == 0) items.Add((rad ?? "RADIATOR", Tip("radiator", "Radiator fans"), null, r?.Fans?.DutyPercent, ThermalMap.RadiatorId));
+            for (int i = 0; i < rpm.Length; i++) items.Add((rad != null ? $"{rad} {i + 1}" : $"RAD {i + 1}", Tip("radiator", $"Radiator · fan {i + 1}"), rpm[i], r!.Fans!.DutyPercent, ThermalMap.RadiatorId));
         }
-        if (sel.Contains("embedded")) items.Add(("EMB.", "Fan embutido na bomba", r?.Pump?.EmbeddedFanRpm, r?.EmbeddedPercent, ThermalMap.EmbeddedId));
-        var layout = string.Join("|", items.Select(x => x.Name));
+        if (sel.Contains("embedded")) items.Add((Custom("embedded") ?? "EMB.", Tip("embedded", "Fan embedded in the pump"), r?.Pump?.EmbeddedFanRpm, r?.EmbeddedPercent, ThermalMap.EmbeddedId));
+        var layout = string.Join("|", items.Select(x => x.Name + "=" + x.Tip));
         if (layout != coolerLayout)
         {
             coolerLayout = layout; coolerCards.Clear(); coolerGrid.Children.Clear();
@@ -341,9 +358,9 @@ public sealed class PopupContent : StackPanel
             coolerGrid.Visibility = items.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
             foreach (var (name, tip, _, _, id) in items)
             {
-                var card = new FanCard(name, locked: false) { ToolTip = tip + "\nBotão direito: ajuste rápido", Margin = CardMargin(coolerCards.Count) };
-                var aid = id; var title = tip;
-                card.RightClick += () => OpenQuick(card, "cooler", aid, title);
+                var card = new FanCard(name, locked: false) { ToolTip = tip + "\nRight click: quick adjust", Margin = CardMargin(coolerCards.Count) };
+                var aid = id;
+                card.RightClick += () => OpenQuick(card, "cooler", aid);
                 coolerCards.Add(card); coolerGrid.Children.Add(card);
             }
             LayoutChanged?.Invoke();
@@ -353,11 +370,11 @@ public sealed class PopupContent : StackPanel
         quickRefresh?.Invoke();
     }
 
-    /// <summary>Cards de fan (placa e cooler) no mesmo grid de 5 colunas: mesmo tamanho nas duas seções; mais de 5 quebra a linha.</summary>
+    /// <summary>Fan cards (board and cooler) in the same 5-column grid: same size in both sections; more than 5 wraps the row.</summary>
     private const int FanCols = 5;
     private static Thickness CardMargin(int i) => new(i % FanCols == 0 ? 0 : 3, i >= FanCols ? 3 : 0, 0, 0);
 
-    /// <summary>Botão de modo/preset (placa, cooler e FAN SPEED da GPU): 9 px SemiBold, altura 18, padding 4, largura natural.</summary>
+    /// <summary>Mode/preset button (board, cooler and GPU FAN SPEED): 9 px SemiBold, height 18, padding 4, natural width.</summary>
     private static (FlatButton B, TextBlock T) ModeButton(string label, bool on, bool full)
     {
         var t = Ui.T(label, 9, Theme.Muted, weight: 600, tabular: true).With(x => { x.HorizontalAlignment = HorizontalAlignment.Center; x.VerticalAlignment = VerticalAlignment.Center; x.TextTrimming = TextTrimming.None; });
@@ -373,15 +390,15 @@ public sealed class PopupContent : StackPanel
 
     private void RenderGameIcon()
     {
-        // Ativo se o pedido está ligado; se o usuário mudou as fans por fora (AUTO, CURVAS), o ícone apaga.
+        // Active while the request is on; if the user changed the fans elsewhere (AUTO, CURVES), the icon goes dark.
         var gpuFull = !app.Settings.GameTargets.Contains("gpu") || fanService?.State is { Mode: FanMode.Manual } gs && gs.RequestedPercent == (uint)app.Settings.GameGpuPercent;
         var acFull = !app.Settings.GameTargets.Contains("board") || ac is not { Available: true } || (ac.Pending ?? ac.Mode) == "full";
         TryRestoreBoard();
-        bool settled = !pendingBoardRestore && (DateTime.UtcNow - gameAt).TotalSeconds > 8; // dá tempo à GPU e ao Armoury Crate confirmarem
+        bool settled = !pendingBoardRestore && (DateTime.UtcNow - gameAt).TotalSeconds > 8; // gives the GPU and Armoury Crate time to confirm
         if (gameOn && settled && fanService?.State is { Busy: false } st && st.Mode != FanMode.Unknown && !gpuFull && !(ac?.Pending != null)) gameOn = false;
         if (gameOn && settled && ac is { Available: true, Pending: null } && !acFull) gameOn = false;
         if (gameOn && settled && coolerBeforeGame != null && cooler?.FanConfig is { } cc && !cc.Enabled) gameOn = false;
-        // Game apagou sozinho (GPU/placa mudadas por fora): o cooler também volta ao que era antes, senão fica em FULL.
+        // Game mode went off on its own (GPU/board changed elsewhere): the cooler also goes back to what it was, otherwise it stays at FULL.
         if (!gameOn && coolerBeforeGame != null && !shuttingDown && cooler != null)
         {
             var cur = cooler.FanConfig;
@@ -390,8 +407,8 @@ public sealed class PopupContent : StackPanel
         }
         if (game.Active && !gameOn && !shuttingDown) SaveGameState();
         game.Active = gameOn;
-        game.ToolTip = gameOn ? "Modo game LIGADO" + (autoGame.Owned ? $" (automático: {autoGame.Game})" : "") + " — clique para voltar ao normal"
-            : "Modo game: " + GameSummary() + "\n(configurável nas Configurações)";
+        game.ToolTip = gameOn ? "Game mode ON" + (autoGame.Owned ? $" (automatic: {autoGame.Game})" : "") + " — click to go back to normal"
+            : "Game mode: " + GameSummary() + "\n(configurable in Settings)";
         RenderStrip();
     }
     private AsusFanModes? ac;
@@ -403,7 +420,7 @@ public sealed class PopupContent : StackPanel
     private Border acModesSetting = null!, acFansSetting = null!, boardCardsSetting = null!;
     private readonly List<(uint? Value, FlatButton Button, TextBlock Text)> fanButtons = [];
     private static readonly uint?[] PopupPresets = [null, 30, 50, 75, 100];
-    /// <summary>Cabeçalho: arrastar move o popup; duplo clique devolve para cima do relógio.</summary>
+    /// <summary>Header: dragging moves the popup; double click puts it back above the clock.</summary>
     public Border Header { get; }
     public event Action? CloseRequested, DetailsRequested, LayoutChanged, AboutRequested, QuitRequested;
     private readonly Check15 startHidden, closeToTray;
@@ -412,12 +429,12 @@ public sealed class PopupContent : StackPanel
     {
         this.app = app;
         Width = 344;
-        // ---- B1 cabeçalho
+        // ---- B1 header
         var header = new DockPanel { LastChildFill = false };
         var hb = Ui.Box(new Thickness(0, 0, 0, 1), new Thickness(10, 4, 6, 4), header);
-        hb.Background = Brushes.Transparent; // área de arrasto
+        hb.Background = Brushes.Transparent; // drag area
         Header = hb;
-        back = FlatButton.Icon(Icons.ChevronLeft, 20, 13, "Voltar");
+        back = FlatButton.Icon(Icons.ChevronLeft, 20, 13, "Back");
         back.Margin = new Thickness(-4, 0, 6, 0);
         back.Click += () => ShowSettings(false);
         glyph = Ui.Glyph(6).With(g => g.Margin = new Thickness(0, 0, 6, 0));
@@ -427,28 +444,28 @@ public sealed class PopupContent : StackPanel
         DockPanel.SetDock(left, Dock.Left);
         header.Children.Add(left);
         refresh = Ui.T("1s", 11, Theme.Muted, tabular: true).With(t => t.VerticalAlignment = VerticalAlignment.Center);
-        var refreshBtn = new FlatButton { Height = 22, Padding = new Thickness(5, 0, 5, 0), Margin = new Thickness(0, 0, 2, 0), ToolTip = "Taxa de atualização (clique para trocar: 0,5s · 1s · 2s)" }.Content(refresh);
+        var refreshBtn = new FlatButton { Height = 22, Padding = new Thickness(5, 0, 5, 0), Margin = new Thickness(0, 0, 2, 0), ToolTip = "Refresh rate (click to switch: 0.5s · 1s · 2s)" }.Content(refresh);
         refreshBtn.Click += () => app.Update(s => s with { RefreshMs = s.RefreshMs switch { 500 => 1000, 1000 => 2000, _ => 500 } });
         var (dIcon, _) = Icons.Make(Icons.ExternalLink, 12, Theme.Muted);
         dIcon.HorizontalAlignment = HorizontalAlignment.Center; dIcon.VerticalAlignment = VerticalAlignment.Center;
-        details = new FlatButton { Width = 22, Height = 22, ToolTip = "Abrir detalhes" }.Content(dIcon);
+        details = new FlatButton { Width = 22, Height = 22, ToolTip = "Open details" }.Content(dIcon);
         details.Click += () => DetailsRequested?.Invoke();
-        gear = FlatButton.Icon(Icons.Settings, 22, 13, "Configurações");
+        gear = FlatButton.Icon(Icons.Settings, 22, 13, "Settings");
         gear.Margin = new Thickness(2, 0, 0, 0);
         gear.Click += () => ShowSettings(settings!.Visibility != Visibility.Visible);
-        // Pin: fixado = popup fica aberto ao clicar fora; solto = some ao perder o foco. Mesmo ajuste de "Fechar ao perder foco".
+        // Pin: pinned = popup stays open when clicking outside; unpinned = hides on focus loss. Same setting as "Close on focus loss".
         pin = FlatButton.Icon(Icons.Pin, 22, 12, "");
         pin.Margin = new Thickness(0, 0, 2, 0);
         pinIcon = (FrameworkElement)pin.Child;
         pin.Click += () => app.Update(s => s with { Autohide = !s.Autohide });
-        var close = FlatButton.Icon(Icons.X, 22, 12, "Fechar");
+        var close = FlatButton.Icon(Icons.X, 22, 12, "Close");
         close.Margin = new Thickness(2, 0, 0, 0);
         close.Click += () => { if (app.Settings.CloseToTray) CloseRequested?.Invoke(); else QuitRequested?.Invoke(); };
-        // Modo game: todas as ventoinhas a 100% (GPU + placa via Armoury Crate). Clique de novo volta ao automático/curvas.
-        game = FlatButton.Icon(Icons.Gamepad, 22, 14, "Modo game: todas as ventoinhas a 100%");
+        // Game mode: all fans at 100% (GPU + board via Armoury Crate). Click again to go back to automatic/curves.
+        game = FlatButton.Icon(Icons.Gamepad, 22, 14, "Game mode: all fans at 100%");
         game.Margin = new Thickness(0, 0, 2, 0); game.ActiveBg = Theme.UStroke;
         game.Click += ToggleGame;
-        var thermal = FlatButton.Icon(Icons.Thermometer, 22, 14, "Controle térmico: water cooler, fans da placa e curvas");
+        var thermal = FlatButton.Icon(Icons.Thermometer, 22, 14, "Thermal control: water cooler, board fans and curves");
         thermal.Margin = new Thickness(0, 0, 2, 0);
         thermal.Click += () => ThermalRequested?.Invoke();
         var right = new StackPanel { Orientation = Orientation.Horizontal, Children = { thermal, game, refreshBtn, pin, details, gear, close } };
@@ -456,7 +473,7 @@ public sealed class PopupContent : StackPanel
         header.Children.Add(right);
         Children.Add(hb);
 
-        // ---- Faixa de automáticos (proteções que agiram, modo game): fina, some quando não há nada.
+        // ---- Automatic actions strip (protections that kicked in, game mode): thin, hidden when there is nothing.
         stripText = Ui.T("", 10, weight: 600, tabular: true).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.TextTrimming = TextTrimming.CharacterEllipsis; });
         var stripTint = new Border { Opacity = 0.16 };
         stripTint.SetResourceReference(Border.BackgroundProperty, Theme.UStroke);
@@ -467,7 +484,7 @@ public sealed class PopupContent : StackPanel
         strip.MouseLeftButtonUp += (_, _) => { if (ac?.LastSafety != null) { ac.LastSafety = null; RenderStrip(); } };
         Children.Add(strip);
 
-        // ---- B2 métricas
+        // ---- B2 metrics
         main = new StackPanel();
         var metrics = new Grid();
         for (int i = 0; i < 3; i++) metrics.ColumnDefinitions.Add(new ColumnDefinition());
@@ -480,20 +497,20 @@ public sealed class PopupContent : StackPanel
         }
         main.Children.Add(Ui.Box(new Thickness(0, 0, 0, 1), new Thickness(0), metrics));
 
-        // ---- B3 disco
+        // ---- B3 disk
         (rd, _) = (Ui.T("0.0", 16, weight: 600, tabular: true), 0);
         (wr, _) = (Ui.T("0.0", 16, weight: 600, tabular: true), 0);
-        // Leitura e escrita numa caixinha só: "L/E  2.1 / 0.8 MB/s".
+        // Read and write in a single box: "R/W  2.1 / 0.8 MB/s".
         var slash = Ui.T("/", 13, Theme.Muted).With(t => { t.Margin = new Thickness(4, 0, 4, 0); t.VerticalAlignment = VerticalAlignment.Center; });
         rd.VerticalAlignment = VerticalAlignment.Center; wr.VerticalAlignment = VerticalAlignment.Center;
         var le = new StackPanel { Orientation = Orientation.Horizontal, Children =
         {
-            Ui.T("L/E", 11, Theme.Muted).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 0, 6, 0); }),
+            Ui.T("R/W", 11, Theme.Muted).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 0, 6, 0); }),
             rd, slash, wr,
             Ui.T("MB/s", 11, Theme.Muted).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(4, 3, 0, 0); }),
         } };
-        _ = le; // total L/E saiu do popup: cada unidade mostra o seu (tooltip do STORAGE traz o total)
-        // STORAGE pequeno à esquerda e as unidades na mesma linha (letra, %, L/E e barra de uso).
+        _ = le; // the R/W total left the popup: each drive shows its own (the STORAGE tooltip has the total)
+        // Small STORAGE on the left and the drives on the same row (letter, %, R/W and usage bar).
         storageLabel = Ui.T("STORAGE", 9, Theme.Muted).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 0, 6, 0); t.Opacity = 0.85; t.Background = Brushes.Transparent; });
         volumesPanel = new UniformGrid { Rows = 1 };
         var sd = new DockPanel();
@@ -502,31 +519,31 @@ public sealed class PopupContent : StackPanel
         volumesBox.Visibility = Visibility.Collapsed;
         main.Children.Add(volumesBox);
 
-        // ---- B4 rede
+        // ---- B4 network
         down = Ui.T("0", 16, weight: 600, tabular: true); downU = Ui.T("KB/s", 11, Theme.Muted);
         up = Ui.T("0", 16, weight: 600, tabular: true); upU = Ui.T("KB/s", 11, Theme.Muted);
         var (ai, _) = Icons.Make(Icons.ArrowDown, 10, Theme.DStroke);
         var (ui, _) = Icons.Make(Icons.ArrowUp, 10, Theme.UStroke);
-        _ = (ai, ui); // a linha REDE saiu: o valor atual fica no canto do gráfico
+        _ = (ai, ui); // the NET row is gone: the current value sits in the chart corner
 
-        // ---- B5 gráfico espelhado
+        // ---- B5 mirrored chart
         chart = new MirrorChart { Height = 58 };
-        // Linha própria embaixo do gráfico (nada cobre a curva): REDE, ↓ e ↑ lado a lado no canto esquerdo (atual em destaque | escala).
+        // Own row below the chart (nothing covers the curve): NET, ↓ and ↑ side by side on the left (current highlighted | scale).
         scaleDown = Ui.T("", 10, Theme.Muted, tabular: true).With(t => { t.VerticalAlignment = VerticalAlignment.Bottom; t.TextTrimming = TextTrimming.None; });
         scaleUp = Ui.T("", 10, Theme.Muted, tabular: true).With(t => { t.VerticalAlignment = VerticalAlignment.Bottom; t.TextTrimming = TextTrimming.None; t.Margin = new Thickness(12, 0, 0, 0); });
-        var netLabel = Ui.T("REDE", 9, Theme.Muted).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 1, 8, 0); t.Opacity = 0.85; });
+        var netLabel = Ui.T("NET", 9, Theme.Muted).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 1, 8, 0); t.Opacity = 0.85; });
         var netNow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 3, 0, 0), Children = { netLabel, scaleDown, scaleUp } };
         var chartBox = Ui.Box(new Thickness(0, 1, 0, 1), new Thickness(0), chart);
         chartBox.Height = 58 + 2;
         main.Children.Add(new StackPanel { Margin = new Thickness(9, 5, 9, 5), Children = { chartBox, netNow } });
 
-        // ---- Temperaturas: cards escolhidos e ordenados nas Configurações; sensor sem leitura = card omitido.
+        // ---- Temperatures: cards chosen and ordered in Settings; sensor without a reading = card omitted.
         tempsGrid = new UniformGrid { Rows = 1 };
         tempsBox = Ui.Box(new Thickness(0, 1, 0, 0), new Thickness(9, 4, 9, 5), tempsGrid);
         tempsBox.Visibility = Visibility.Collapsed;
         main.Children.Add(tempsBox);
 
-        // ---- GPU: título, FAN SPEED (mesmo botão dos modos) e, à direita, o ícone da fan com o modo (A ou %) e o % de cada fan.
+        // ---- GPU: title, FAN SPEED (same button as the modes) and, on the right, the fan icon with the mode (A or %) and each fan's %.
         var fd = new DockPanel { LastChildFill = false };
         gpuName = Ui.T("GPU", 12, weight: 600).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 0, 8, 0); t.Background = Brushes.Transparent; });
         var (fanIcon, fanPath) = Icons.Make(Icons.Fan, 15, Theme.Fill);
@@ -538,7 +555,7 @@ public sealed class PopupContent : StackPanel
         var fanGlyph = new Grid { Width = 15, Height = 15, VerticalAlignment = VerticalAlignment.Center, Children = { fanIcon, badgeBox } };
         fanSpeeds = Ui.T("", 10, Theme.Muted, tabular: true).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(5, 0, 0, 0); });
         var fanBox = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { fanGlyph, fanSpeeds } };
-        // FAN SPEED na linha do título: presets com o mesmo botão dos modos; bloqueados ficam apagados com o motivo.
+        // FAN SPEED on the title row: presets with the same button as the modes; blocked ones are dimmed with the reason.
         var presets = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         presets.Children.Add(Ui.T("FAN SPEED", 9, Theme.Muted).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 0, 6, 0); t.Opacity = 0.75; }));
         foreach (var v in PopupPresets)
@@ -556,15 +573,15 @@ public sealed class PopupContent : StackPanel
         }
         DockPanel.SetDock(gpuName, Dock.Left); DockPanel.SetDock(presets, Dock.Left); DockPanel.SetDock(fanBox, Dock.Right);
         fd.Children.Add(gpuName); fd.Children.Add(presets); fd.Children.Add(fanBox);
-        gpuName.Cursor = System.Windows.Input.Cursors.Hand; gpuName.ToolTip = "Abrir a GPU no Detalhes";
+        gpuName.Cursor = System.Windows.Input.Cursors.Hand; gpuName.ToolTip = "Open the GPU in Details";
         gpuName.MouseLeftButtonUp += (_, _) => DetailsRequested?.Invoke();
         fanRow = Ui.Box(new Thickness(0, 1, 0, 0), new Thickness(9, 4, 9, 4), fd);
         fanRow.Visibility = Visibility.Collapsed;
         main.Children.Add(fanRow);
 
-        // ---- Placa (via Armoury Crate): modos escolhidos nas Configurações + cards dos fans escolhidos (clique = OFF, experimental).
+        // ---- Board (via Armoury Crate): modes chosen in Settings + cards of the chosen fans (click = OFF, experimental).
         var ad = new DockPanel { LastChildFill = true };
-        var al = Ui.T("PLACA-MÃE", 12, weight: 600).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 0, 8, 0); });
+        var al = Ui.T("BOARD", 12, weight: 600).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 0, 8, 0); });
         acButtons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         acStatus = Ui.T("", 9, Theme.Muted, tabular: true).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.HorizontalAlignment = HorizontalAlignment.Right; t.TextTrimming = TextTrimming.CharacterEllipsis; t.Background = Brushes.Transparent; });
         DockPanel.SetDock(al, Dock.Left); DockPanel.SetDock(acButtons, Dock.Left);
@@ -574,9 +591,9 @@ public sealed class PopupContent : StackPanel
         acRow.Visibility = Visibility.Collapsed;
         main.Children.Add(acRow);
 
-        // ---- Water cooler (aparece só com o RYUJIN II conectado): presets + cards escolhidos nas Configurações.
+        // ---- Water cooler (shown only with the RYUJIN II connected): presets + cards chosen in Settings.
         var cd = new DockPanel { LastChildFill = true };
-        var cl = Ui.T("WC RYUJIN II", 12, weight: 600).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 0, 8, 0); t.Cursor = System.Windows.Input.Cursors.Hand; t.ToolTip = "Abrir o controle térmico"; t.Background = Brushes.Transparent; });
+        var cl = Ui.T("WC RYUJIN II", 12, weight: 600).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 0, 8, 0); t.Cursor = System.Windows.Input.Cursors.Hand; t.ToolTip = "Open thermal control"; t.Background = Brushes.Transparent; });
         cl.MouseLeftButtonUp += (_, _) => ThermalRequested?.Invoke();
         coolerButtons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         coolerStatus = Ui.T("", 9, Theme.Muted).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.HorizontalAlignment = HorizontalAlignment.Right; t.Background = Brushes.Transparent; });
@@ -587,14 +604,14 @@ public sealed class PopupContent : StackPanel
         coolerRow.Visibility = Visibility.Collapsed;
         main.Children.Add(coolerRow);
 
-        // ---- Teclado (OLED): tela atual, fixar, próxima, editar telas.
+        // ---- Keyboard (OLED): current screen, pin, next, edit screens.
         var kd = new DockPanel { LastChildFill = true };
-        var kl = Ui.T("TECLADO", 11, Theme.Muted).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 0, 8, 0); });
-        kbPin = FlatButton.Icon(Icons.Pin, 20, 11, "Fixar/soltar a tela do teclado");
+        var kl = Ui.T("KEYBOARD", 11, Theme.Muted).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 0, 8, 0); });
+        kbPin = FlatButton.Icon(Icons.Pin, 20, 11, "Pin/unpin the keyboard screen");
         kbPin.Click += () => KeyboardAction?.Invoke("pin");
-        var next = FlatButton.Icon(Icons.ChevronRight, 20, 12, "Próxima tela do teclado");
+        var next = FlatButton.Icon(Icons.ChevronRight, 20, 12, "Next keyboard screen");
         next.Click += () => KeyboardAction?.Invoke("next");
-        var edit = FlatButton.Icon(Icons.Pencil, 20, 11, "Editar as telas do teclado");
+        var edit = FlatButton.Icon(Icons.Pencil, 20, 11, "Edit the keyboard screens");
         edit.Click += () => KeyboardRequested?.Invoke();
         var kr = new StackPanel { Orientation = Orientation.Horizontal, Children = { kbPin, next, edit } };
         kbText = Ui.T("", 11, tabular: true).With(t => t.VerticalAlignment = VerticalAlignment.Center);
@@ -605,9 +622,9 @@ public sealed class PopupContent : StackPanel
         main.Children.Add(kbRow);
         Children.Add(main);
 
-        // ---- B6 configurações
+        // ---- B6 settings
         settings = new StackPanel { Visibility = Visibility.Collapsed };
-        paletteLabel = Label("COR · ELÉTRICO");
+        paletteLabel = Label("COLOR · ELECTRIC");
         var sw = new StackPanel { Orientation = Orientation.Horizontal };
         foreach (var p in Theme.Palettes)
         {
@@ -620,118 +637,126 @@ public sealed class PopupContent : StackPanel
             sw.Children.Add(outline);
         }
         settings.Children.Add(SettingRow(paletteLabel, sw, new Thickness(10, 7, 10, 7)));
-        segTheme = Seg(("claro", "Claro"), ("escuro", "Escuro"), ("sistema", "Sistema"));
+        segTheme = Seg(("light", "Light"), ("dark", "Dark"), ("system", "System"));
         segTheme.Changed += v => app.Update(s => s with { Theme = (string)v });
-        settings.Children.Add(SettingRow(Label("TEMA"), segTheme));
-        segRefresh = Seg((500, "0,5s"), (1000, "1s"), (2000, "2s"));
+        settings.Children.Add(SettingRow(Label("THEME"), segTheme));
+        segRefresh = Seg((500, "0.5s"), (1000, "1s"), (2000, "2s"));
         segRefresh.Changed += v => app.Update(s => s with { RefreshMs = (int)v });
-        settings.Children.Add(SettingRow(Label("ATUALIZAÇÃO"), segRefresh));
+        settings.Children.Add(SettingRow(Label("REFRESH"), segRefresh));
         segHistory = Seg((60, "1m"), (300, "5m"), (600, "10m"), (1800, "30m"), (3600, "1h"), (7200, "2h"));
         segHistory.Changed += v => app.Update(s => s with { History = (int)v });
-        settings.Children.Add(SettingRow(Label("HISTÓRICO"), segHistory));
-        segScale = Seg(("independente", "Separada"), ("compartilhada", "Única"));
+        settings.Children.Add(SettingRow(Label("HISTORY"), segHistory));
+        segScale = Seg(("independent", "Separate"), ("shared", "Shared"));
         segScale.Changed += v => app.Update(s => s with { Scale = (string)v });
-        settings.Children.Add(SettingRow(Label("ESCALA REDE"), segScale));
+        settings.Children.Add(SettingRow(Label("NET SCALE"), segScale));
         segNetUnit = Seg(("bytes", "MB/s"), ("bits", "Mbps"));
         segNetUnit.Changed += v => app.Update(s => s with { NetUnit = (string)v });
-        settings.Children.Add(SettingRow(Label("UNIDADE REDE"), segNetUnit));
+        settings.Children.Add(SettingRow(Label("NET UNIT"), segNetUnit));
         acModeChecks = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, MaxWidth = 230 };
-        acModesSetting = SettingRow(Label("MODOS DA PLACA"), acModeChecks); acModesSetting.Visibility = Visibility.Collapsed;
+        acModesSetting = SettingRow(Label("BOARD MODES"), acModeChecks); acModesSetting.Visibility = Visibility.Collapsed;
         settings.Children.Add(acModesSetting);
         acFanChecks = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, MaxWidth = 230 };
-        acFansSetting = SettingRow(Label("VENTOINHAS NOS MODOS"), acFanChecks); acFansSetting.Visibility = Visibility.Collapsed;
+        acFansSetting = SettingRow(Label("FANS IN MODES"), acFanChecks); acFansSetting.Visibility = Visibility.Collapsed;
         settings.Children.Add(acFansSetting);
-        // Popup: cards de temperatura (quais e ordem), cards dos fans da placa e do cooler, desligar fan (experimental).
+        // Popup: temperature cards (which and order), board and cooler fan cards, turn off fan (experimental).
         tempChecks = new StackPanel();
         settings.Children.Add(Ui.Box(new Thickness(0, 0, 0, 1), new Thickness(10, 6, 6, 4), new StackPanel { Children =
         {
-            new DockPanel { Margin = new Thickness(0, 0, 4, 3), Children = { Label("TEMPERATURAS NO POPUP"), Ui.T($"máx. {TempCards.MaxCards} · ordem ▲▼", 10, Theme.Muted).With(t => { t.HorizontalAlignment = HorizontalAlignment.Right; t.VerticalAlignment = VerticalAlignment.Center; }) } },
+            new DockPanel { Margin = new Thickness(0, 0, 4, 3), Children = { Label("POPUP TEMPERATURES"), Ui.T($"max {TempCards.MaxCards} · order ▲▼", 10, Theme.Muted).With(t => { t.HorizontalAlignment = HorizontalAlignment.Right; t.VerticalAlignment = VerticalAlignment.Center; }) } },
             tempChecks,
         } }));
         RenderTempSettings();
         boardCardChecks = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, MaxWidth = 230 };
-        boardCardsSetting = SettingRow(Label("FANS DA PLACA"), boardCardChecks); boardCardsSetting.Visibility = Visibility.Collapsed;
+        boardCardsSetting = SettingRow(Label("BOARD FANS"), boardCardChecks); boardCardsSetting.Visibility = Visibility.Collapsed;
         settings.Children.Add(boardCardsSetting);
         coolerCardChecks = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, MaxWidth = 230 };
-        settings.Children.Add(SettingRow(Label("FANS DO COOLER"), coolerCardChecks));
+        settings.Children.Add(SettingRow(Label("COOLER FANS"), coolerCardChecks));
         RenderCoolerSettings();
+        // Fan names: the original header on the left, the user's name on the right (empty = original).
+        fanNameRows = new StackPanel();
+        fanNamesSetting = Ui.Box(new Thickness(0, 0, 0, 1), new Thickness(10, 6, 6, 6), new StackPanel { Children =
+        {
+            new DockPanel { Margin = new Thickness(0, 0, 4, 0), Children = { Label("FAN NAMES"), Ui.T($"empty = original · max {FanNames.MaxLength}", 10, Theme.Muted).With(t => { t.HorizontalAlignment = HorizontalAlignment.Right; t.VerticalAlignment = VerticalAlignment.Center; }) } },
+            fanNameRows,
+        } }).With(b => { b.Visibility = Visibility.Collapsed; b.ToolTip = "Your name for each fan, shown in the popup, the quick card and thermal control.\nEnter or clicking away saves, Esc undoes. Empty = the name printed on the board."; });
+        settings.Children.Add(fanNamesSetting);
         boardOff = new Check15(); boardOff.Changed += v => app.Update(s => s with { BoardFanOff = v });
-        var offRow = SettingRow(Label("DESLIGAR FAN DA PLACA"), boardOff);
-        offRow.ToolTip = "Experimental: clique no card do fan da placa desliga/religa.\nNo chip vira a curva de proteção: 0% até 80 °C, 100% a partir de 85 °C.\nCPU e bombas não desligam; religa tudo com CPU > 85 °C, GPU > 80 °C, FULL ou modo game; não fica salvo ao sair.";
+        var offRow = SettingRow(Label("TURN OFF BOARD FAN"), boardOff);
+        offRow.ToolTip = "Experimental: clicking a board fan card turns it off/back on.\nOn the chip it becomes the protection curve: 0% up to 80 °C, 100% from 85 °C.\nCPU and pumps do not turn off; everything turns back on with CPU > 85 °C, GPU > 80 °C, FULL or game mode; not kept after quitting.";
         settings.Children.Add(offRow);
         gameChecks = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, MaxWidth = 230 };
-        settings.Children.Add(SettingRow(Label("MODO GAME"), gameChecks));
+        settings.Children.Add(SettingRow(Label("GAME MODE"), gameChecks));
         gameFanChecks = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, MaxWidth = 230 };
-        gameFansSetting = SettingRow(Label("PLACA NO GAME"), gameFanChecks); gameFansSetting.Visibility = Visibility.Collapsed;
+        gameFansSetting = SettingRow(Label("BOARD IN GAME"), gameFanChecks); gameFansSetting.Visibility = Visibility.Collapsed;
         settings.Children.Add(gameFansSetting);
         var segGpuG = Seg(Settings.GamePercents.Select(p => ((object)p, $"{p}%")), app.Settings.GameGpuPercent);
         segGpuG.Changed += v => app.Update(x => x with { GameGpuPercent = (int)v });
-        settings.Children.Add(SettingRow(Label("GPU NO GAME"), segGpuG));
+        settings.Children.Add(SettingRow(Label("GPU IN GAME"), segGpuG));
         var segCoolG = Seg(Settings.GamePercents.Select(p => ((object)p, $"{p}%")), app.Settings.GameCoolerPercent);
         segCoolG.Changed += v => app.Update(x => x with { GameCoolerPercent = (int)v });
-        settings.Children.Add(SettingRow(Label("COOLER NO GAME"), segCoolG));
+        settings.Children.Add(SettingRow(Label("COOLER IN GAME"), segCoolG));
         RenderGameSettings();
-        // Jogos que ligam o modo game sozinhos (nome do .exe); detecção por lista de processos a cada ~3 s, sem admin.
+        // Games that turn game mode on by themselves (.exe name); detection via the process list every ~3 s, no admin.
         gameExeList = new WrapPanel();
         gameExeInput = new TextBox { BorderThickness = new Thickness(0), Background = Brushes.Transparent, FontFamily = AppFonts.Body, FontSize = 11, VerticalContentAlignment = VerticalAlignment.Center, Padding = new Thickness(0), FocusVisualStyle = null, MaxLength = 64 };
         gameExeInput.SetResourceReference(TextBox.ForegroundProperty, Theme.Text);
         gameExeInput.SetResourceReference(TextBox.CaretBrushProperty, Theme.Text);
         gameExeInput.SetResourceReference(TextBox.SelectionBrushProperty, Theme.Fill);
-        var exeHint = Ui.T("jogo.exe", 11, Theme.Muted, head: false).With(t => { t.IsHitTestVisible = false; t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(1, 0, 0, 0); });
+        var exeHint = Ui.T("game.exe", 11, Theme.Muted, head: false).With(t => { t.IsHitTestVisible = false; t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(1, 0, 0, 0); });
         gameExeInput.TextChanged += (_, _) => exeHint.Visibility = gameExeInput.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         gameExeInput.KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) { AddGameExe(); e.Handled = true; } };
         var exeBox = Ui.Box(new Thickness(1), new Thickness(6, 0, 6, 0), new Grid { Children = { exeHint, gameExeInput } }).With(b => { b.Height = 20; b.Cursor = System.Windows.Input.Cursors.IBeam; });
         exeBox.MouseLeftButtonDown += (_, _) => gameExeInput.Focus();
-        var addExe = new FlatButton { Height = 20, Padding = new Thickness(6, 0, 6, 0), Margin = new Thickness(4, 0, 0, 0), BorderThickness = new Thickness(1), ToolTip = "Adicionar o executável à lista" }.Content(Ui.T("ADICIONAR", 10, Theme.Muted).With(t => t.VerticalAlignment = VerticalAlignment.Center));
+        var addExe = new FlatButton { Height = 20, Padding = new Thickness(6, 0, 6, 0), Margin = new Thickness(4, 0, 0, 0), BorderThickness = new Thickness(1), ToolTip = "Add the executable to the list" }.Content(Ui.T("ADD", 10, Theme.Muted).With(t => t.VerticalAlignment = VerticalAlignment.Center));
         addExe.SetResourceReference(Border.BorderBrushProperty, Theme.Line);
         addExe.Click += AddGameExe;
         var addRow = new DockPanel { Margin = new Thickness(0, 4, 4, 0) };
         DockPanel.SetDock(addExe, Dock.Right); addRow.Children.Add(addExe); addRow.Children.Add(exeBox);
         settings.Children.Add(Ui.Box(new Thickness(0, 0, 0, 1), new Thickness(10, 6, 6, 6), new StackPanel { Children =
         {
-            new DockPanel { Margin = new Thickness(0, 0, 4, 2), Children = { Label("MODO GAME AUTOMÁTICO"), Ui.T("liga com o jogo aberto", 10, Theme.Muted).With(t => { t.HorizontalAlignment = HorizontalAlignment.Right; t.VerticalAlignment = VerticalAlignment.Center; }) } },
+            new DockPanel { Margin = new Thickness(0, 0, 4, 2), Children = { Label("AUTOMATIC GAME MODE"), Ui.T("on while the game runs", 10, Theme.Muted).With(t => { t.HorizontalAlignment = HorizontalAlignment.Right; t.VerticalAlignment = VerticalAlignment.Center; }) } },
             gameExeList, addRow,
-        } }).With(b => b.ToolTip = "Com um destes executáveis rodando o modo game liga; quando todos fecham, desliga.\nSe você ligou o modo game no botão, o automático não desliga. Desligado no botão com o jogo aberto, só volta no próximo jogo."));
+        } }).With(b => b.ToolTip = "With one of these executables running, game mode turns on; when all of them close, it turns off.\nIf you turned game mode on with the button, automatic does not turn it off. Turned off with the button while the game is open, it only comes back with the next game."));
         RenderGameExes();
-        // Ícone da bandeja: maior temperatura entre os cards habilitados e/ou cor de alerta perto do limite.
+        // Tray icon: highest temperature among the enabled cards and/or alert color near the limit.
         trayTemp = new Check15 { VerticalAlignment = VerticalAlignment.Center }; trayTemp.Changed += v => app.Update(s => s with { TrayTemp = v });
         trayAlert = new Check15 { VerticalAlignment = VerticalAlignment.Center }; trayAlert.Changed += v => app.Update(s => s with { TrayAlert = v });
         StackPanel Opt(Check15 c, string label) => new() { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 2, 0, 2), Background = Brushes.Transparent, Children = { c, Ui.T(label, 10, Theme.Muted).With(t => { t.Margin = new Thickness(4, 0, 0, 0); t.VerticalAlignment = VerticalAlignment.Center; }) } };
-        var trayRow = SettingRow(Label("ÍCONE DA BANDEJA"), new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, MaxWidth = 230, Children = { Opt(trayTemp, "TEMPERATURA"), Opt(trayAlert, "COR DE ALERTA") } });
-        trayRow.ToolTip = "Temperatura: o ícone mostra as escolhidas em TEMPERATURA NO ÍCONE (ou a maior entre os cards).\nCor de alerta: âmbar com algum card a 5 °C do limite, vermelho no limite.\nCom qualquer um ligado, os sensores seguem sendo lidos com o popup fechado.";
+        var trayRow = SettingRow(Label("TRAY ICON"), new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, MaxWidth = 230, Children = { Opt(trayTemp, "TEMPERATURE"), Opt(trayAlert, "ALERT COLOR") } });
+        trayRow.ToolTip = "Temperature: the icon shows the ones chosen in ICON TEMPERATURE (or the highest among the cards).\nAlert color: amber with any card within 5 °C of its limit, red at the limit.\nWith either one on, sensors keep being read with the popup closed.";
         settings.Children.Add(trayRow);
         segTrayFont = Seg(Settings.TrayFontSizes.Select(x => ((object)x, x.ToUpperInvariant())), app.Settings.TrayFontSize);
         segTrayFont.Changed += v => app.Update(s => s with { TrayFontSize = (string)v });
         trayTempPicks = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, MaxWidth = 230 };
-        settings.Children.Add(SettingRow(Label("TEMPERATURA NO ÍCONE"), trayTempPicks).With(b => b.ToolTip = "Quais temperaturas o ícone mostra, na ordem em que você liga.\nNenhuma = a mais quente entre os cards do popup.\nMais de uma = alternam no tempo escolhido abaixo.\nO tooltip do ícone diz qual está aparecendo."));
+        settings.Children.Add(SettingRow(Label("ICON TEMPERATURE"), trayTempPicks).With(b => b.ToolTip = "Which temperatures the icon shows, in the order you turn them on.\nNone = the hottest among the popup cards.\nMore than one = they alternate at the interval chosen below.\nThe icon tooltip tells which one is showing."));
         segTrayRotate = Seg(Settings.TrayRotateSeconds.Select(x => ((object)x, x + "s")), app.Settings.TrayRotateSec);
         segTrayRotate.Changed += v => app.Update(s => s with { TrayRotateSec = (int)v });
-        settings.Children.Add(SettingRow(Label("TROCAR A CADA"), segTrayRotate).With(b => b.ToolTip = "Tempo de cada temperatura no ícone quando há mais de uma escolhida."));
-        settings.Children.Add(SettingRow(Label("TAMANHO DA FONTE"), segTrayFont).With(b => b.ToolTip = "Número da temperatura no ícone da bandeja: PP (padrão), P, M ou G (ocupa o ícone todo)."));
+        settings.Children.Add(SettingRow(Label("SWITCH EVERY"), segTrayRotate).With(b => b.ToolTip = "Time each temperature stays on the icon when more than one is chosen."));
+        settings.Children.Add(SettingRow(Label("FONT SIZE"), segTrayFont).With(b => b.ToolTip = "Temperature number on the tray icon: XS (default), S, M or L (fills the whole icon)."));
         opacity = new MiniSlider();
         opacityLabel = Ui.T("90%", 13, tabular: true).With(t => { t.Width = 32; t.TextAlignment = TextAlignment.Right; t.Margin = new Thickness(8, 0, 0, 0); t.VerticalAlignment = VerticalAlignment.Center; });
         opacity.Changed += v => app.Update(s => s with { Opacity = v });
-        settings.Children.Add(SettingRow(Label("OPACIDADE"), new StackPanel { Orientation = Orientation.Horizontal, Children = { opacity, opacityLabel } }));
+        settings.Children.Add(SettingRow(Label("OPACITY"), new StackPanel { Orientation = Orientation.Horizontal, Children = { opacity, opacityLabel } }));
         autostart = new Check15(); autostart.Changed += v => app.Update(s => s with { Autostart = v });
-        settings.Children.Add(SettingRow(Label("INICIAR COM O WINDOWS"), autostart));
+        settings.Children.Add(SettingRow(Label("START WITH WINDOWS"), autostart));
         autohide = new Check15(); autohide.Changed += v => app.Update(s => s with { Autohide = v });
-        settings.Children.Add(SettingRow(Label("FECHAR AO PERDER FOCO"), autohide));
+        settings.Children.Add(SettingRow(Label("CLOSE ON FOCUS LOSS"), autohide));
         startHidden = new Check15(); startHidden.Changed += v => app.Update(s => s with { StartHidden = v });
-        settings.Children.Add(SettingRow(Label("INICIAR OCULTO NA BANDEJA"), startHidden));
+        settings.Children.Add(SettingRow(Label("START HIDDEN IN TRAY"), startHidden));
         closeToTray = new Check15(); closeToTray.Changed += v => app.Update(s => s with { CloseToTray = v });
-        settings.Children.Add(SettingRow(Label("FECHAR ESCONDE NA BANDEJA"), closeToTray));
-        // Rodapé: versão + Sobre
+        settings.Children.Add(SettingRow(Label("CLOSE HIDES TO TRAY"), closeToTray));
+        // Footer: version + About
         var ver = Ui.T($"v{AppInfo.Version}", 10, Theme.Muted, tabular: true).With(t => t.VerticalAlignment = VerticalAlignment.Center);
-        var about = new FlatButton { Padding = new Thickness(6, 1, 6, 1), ToolTip = "Sobre o Marz Monitor" }.Content(Ui.T("SOBRE", 11, Theme.Muted));
+        var about = new FlatButton { Padding = new Thickness(6, 1, 6, 1), ToolTip = "About Marz Monitor" }.Content(Ui.T("ABOUT", 11, Theme.Muted));
         about.Click += () => AboutRequested?.Invoke();
-        var quit = new FlatButton { Padding = new Thickness(6, 1, 6, 1), ToolTip = "Sair (fans voltam ao automático)" }.Content(Ui.T("SAIR", 11, Theme.Muted));
+        var quit = new FlatButton { Padding = new Thickness(6, 1, 6, 1), ToolTip = "Quit (fans return to automatic)" }.Content(Ui.T("QUIT", 11, Theme.Muted));
         quit.Click += () => QuitRequested?.Invoke();
         var fdock = new DockPanel();
         DockPanel.SetDock(ver, Dock.Left); fdock.Children.Add(ver);
         var fr = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Children = { about, quit } };
         fdock.Children.Add(fr);
         settings.Children.Add(Ui.Box(new Thickness(0, 1, 0, 0), new Thickness(10, 4, 6, 4), fdock));
-        // Com as listas do popup a página passa da altura de uma tela 1080p: rola dentro do popup.
+        // With the popup lists the page gets taller than a 1080p screen: it scrolls inside the popup.
         settingsScroll = new ScrollViewer { Content = settings, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false, CanContentScroll = false, MaxHeight = SettingsMaxHeight };
         Children.Add(settingsScroll);
 
@@ -742,7 +767,7 @@ public sealed class PopupContent : StackPanel
     public bool InSettings => settings.Visibility == Visibility.Visible;
 
     private readonly ScrollViewer settingsScroll;
-    /// <summary>Altura máxima da página de Configurações (rola acima disso); a prévia usa infinito para o PNG sair inteiro.</summary>
+    /// <summary>Max height of the Settings page (scrolls beyond it); the preview uses infinity so the PNG comes out whole.</summary>
     internal static double SettingsMaxHeight { get; set; } = 760;
 
     public void ShowSettings(bool on)
@@ -752,7 +777,7 @@ public sealed class PopupContent : StackPanel
         main.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
         back.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
         glyph.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
-        title.Text = on ? "CONFIGURAÇÕES" : "MARZ MONITOR";
+        title.Text = on ? "SETTINGS" : "MARZ MONITOR";
         gear.Active = on;
         LayoutChanged?.Invoke();
     }
@@ -772,7 +797,7 @@ public sealed class PopupContent : StackPanel
         return Ui.Box(new Thickness(0, 0, 0, last ? 0 : 1), pad ?? new Thickness(10, 6, 10, 6), d);
     }
 
-    /// <summary>Linha da rede embaixo do gráfico: seta + velocidade atual em destaque e a escala pequena.</summary>
+    /// <summary>Network row below the chart: arrow + current speed highlighted and the small scale.</summary>
     private static void NetCorner(TextBlock t, string arrow, string current, string scale, string color)
     {
         t.Inlines.Clear();
@@ -825,10 +850,10 @@ public sealed class PopupContent : StackPanel
         foreach (var v in vols) volumeRows[v.Letter].Set(v);
     }
 
-    /// <summary>Caixinha por unidade numa linha só: "C:  R 12M W 850K  40%" (L/E em branco quando parado) + barra de uso.</summary>
+    /// <summary>One small box per drive on a single row: "C:  R 12M W 850K  40%" (R/W blank when idle) + usage bar.</summary>
     private sealed class VolumeChip : Border
     {
-        /// <summary>Taxa curta: "850K", "12M", "1.2G" (bytes/s, base 1024); vazio abaixo de 1 KB/s.</summary>
+        /// <summary>Short rate: "850K", "12M", "1.2G" (bytes/s, base 1024); empty below 1 KB/s.</summary>
         internal static string Rate(double bps)
         {
             const double K = 1024, M = K * K, G = M * K;
@@ -862,9 +887,9 @@ public sealed class PopupContent : StackPanel
             pct.Text = Math.Round(v.Fraction * 100).ToString("0", CultureInfo.InvariantCulture) + "%";
             double r = v.ReadBps ?? 0, w = v.WriteBps ?? 0;
             rd.Text = Rate(r) is { Length: > 0 } rs ? "R " + rs : ""; wr.Text = Rate(w) is { Length: > 0 } ws ? "W " + ws : "";
-            var hw = v.Hardware.Length > 0 ? v.Hardware : "disco";
-            var tip = $"{v.Letter} {hw}" + (v.Label.Length > 0 ? $" · {v.Label}" : "") + $"\n{Formatter.UsedTotal(v.Used, v.Total)} usados"
-                + (v.ReadBps != null ? $"\nLeitura {Formatter.DiskMBps(r)} MB/s · Escrita {Formatter.DiskMBps(w)} MB/s" : "");
+            var hw = v.Hardware.Length > 0 ? v.Hardware : "disk";
+            var tip = $"{v.Letter} {hw}" + (v.Label.Length > 0 ? $" · {v.Label}" : "") + $"\n{Formatter.UsedTotal(v.Used, v.Total)} used"
+                + (v.ReadBps != null ? $"\nRead {Formatter.DiskMBps(r)} MB/s · Write {Formatter.DiskMBps(w)} MB/s" : "");
             if (!Equals(ToolTip, tip)) ToolTip = tip;
             bar.SetFraction(v.Fraction, v.Fraction >= 0.85);
         }
@@ -881,7 +906,7 @@ public sealed class PopupContent : StackPanel
         var was = kbRow.Visibility;
         kbRow.Visibility = Visibility.Visible;
         var d = s.Delivery;
-        kbText.Text = s.GgStatus ?? (!s.Enabled ? "desligado" : d.Error != null ? "GG sem resposta" : string.Join("  ", d.Lines.Select(l => l.Trim())).Trim() is { Length: > 0 } t ? $"{s.Page + 1}/{s.PageCount}  {t}" : $"tela {s.Page + 1}/{s.PageCount}");
+        kbText.Text = s.GgStatus ?? (!s.Enabled ? "off" : d.Error != null ? "GG not responding" : string.Join("  ", d.Lines.Select(l => l.Trim())).Trim() is { Length: > 0 } t ? $"{s.Page + 1}/{s.PageCount}  {t}" : $"screen {s.Page + 1}/{s.PageCount}");
         kbText.ToolTip = d.Error ?? (d.Lines.Length > 0 ? string.Join("\n", d.Lines) : null);
         kbPin.Active = s.Pinned;
         if (was != Visibility.Visible) LayoutChanged?.Invoke();
@@ -893,7 +918,7 @@ public sealed class PopupContent : StackPanel
     {
         ac = m;
         m.Changed += () => Dispatcher.BeginInvoke(() => { TryRestoreBoard(); TryRestoreChoices(); RenderAc(); RenderGameIcon(); });
-        m.OffRejected += _ => Dispatcher.BeginInvoke(RenderAcRpm); // curva de proteção não conferiu: card volta a ligado (erro no status)
+        m.OffRejected += _ => Dispatcher.BeginInvoke(RenderAcRpm); // protection curve did not verify: card goes back to on (error in the status)
         RenderAc();
     }
 
@@ -903,83 +928,83 @@ public sealed class PopupContent : StackPanel
     private readonly List<(string Fan, FanCard Card)> boardCards = [];
     private string boardLayout = "";
 
-    /// <summary>Apelido do usuário (Settings.AcFanNames) ou o nome curto do conector.</summary>
-    private string FanNick(string acName) => app.Settings.AcFanNames.TryGetValue(acName, out var n) && n.Length > 0 ? n : FanShort(acName);
+    /// <summary>The user's name for the fan (Settings.AcFanNames) or the header printed on the board (CHA_FAN1...).</summary>
+    private string FanName(string acName) => app.Settings.BoardFanName(acName);
 
-    /// <summary>Cards dos fans da placa escolhidos nas Configurações (rpm, %, mini barra). Clique alterna OFF.</summary>
+    /// <summary>Cards of the board fans chosen in Settings (rpm, %, mini bar). Click toggles OFF.</summary>
     private void RenderAcRpm()
     {
         if (ac == null) return;
         bool blocked = offBlocked is { } ob && (DateTime.UtcNow - ob.At).TotalSeconds < 5;
-        acStatus.Text = ac.Error != null ? "erro" : ac.Pending != null ? "aplicando…" : blocked ? "não desligou" : "";
+        acStatus.Text = ac.Error != null ? "error" : ac.Pending != null ? "applying…" : blocked ? "off refused" : "";
         acStatus.ToolTip = ac.Error ?? (blocked ? offBlocked!.Value.Why : null);
         var s = app.Settings;
         var fans = ac.Fans.Where(s.PopupBoardFans.Contains).ToList();
-        var layout = string.Join("|", fans.Select(f => f + "=" + FanNick(f)));
+        var layout = string.Join("|", fans.Select(f => f + "=" + FanName(f)));
         if (layout != boardLayout)
         {
             boardLayout = layout; boardCards.Clear(); acRpmGrid.Children.Clear();
             acRpmGrid.Visibility = fans.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
             foreach (var f in fans)
             {
-                var card = new FanCard(FanNick(f).ToUpperInvariant(), BoardFanOff.Locked(f)) { Margin = CardMargin(boardCards.Count) };
+                var card = new FanCard(FanName(f).ToUpperInvariant(), BoardFanOff.Locked(f)) { Margin = CardMargin(boardCards.Count) };
                 var fan = f;
                 card.Click += () => ToggleBoardFan(fan);
-                card.RightClick += () => OpenQuick(card, "board", fan, FanShort(fan) + " · " + FanNick(fan));
+                card.RightClick += () => OpenQuick(card, "board", fan);
                 boardCards.Add((f, card)); acRpmGrid.Children.Add(card);
             }
             LayoutChanged?.Invoke();
         }
         foreach (var (f, card) in boardCards)
         {
-            var rd = BoardFanMap.Read(f, mbRpm, mbCtl); // rpm só dos conectores conferidos; nunca calculado a partir do %
+            var rd = BoardFanMap.Read(f, mbRpm, mbCtl); // rpm only from verified connectors; never computed from the %
             bool off = ac.Off.IsOff(f);
             card.Set(rd.Rpm, rd.Percent, off);
             var man = ac.Off.ManualPercent(f);
             card.SetManual(man != null);
             card.Clickable = BoardFanOff.Clickable(f, s.BoardFanOff);
-            var head = FanShort(f) + " · " + FanNick(f)
-                + (rd.RpmMeasured ? "" : $"\nrpm não medido (saída do chip deste conector não confirmada); % de controle da saída {rd.ChipIndex?.ToString(CultureInfo.InvariantCulture) ?? "—"} (estimada).");
-            // Opção desligada: card só de leitura (sem mãozinha, sem dica de desligar).
+            var head = s.BoardFanTip(f)
+                + (rd.RpmMeasured ? "" : $"\nrpm not measured (chip output of this connector not confirmed); control % of output {rd.ChipIndex?.ToString(CultureInfo.InvariantCulture) ?? "—"} (estimated).");
+            // Option disabled: read-only card (no hand cursor, no turn-off hint).
             card.ToolTip = !s.BoardFanOff ? head
-                : BoardFanOff.Locked(f) ? head + "\nCPU e bombas não desligam."
-                : off ? head + "\nDESLIGADO (0% até 80 °C, 100% a partir de 85 °C). Clique para religar."
-                : head + (BoardFanOff.BlockReason(f, cpuTemp, gpuTemp) is string why ? $"\nNão desliga agora: {why}." : "\nClique para desligar (religa sozinho com CPU > 85 °C ou GPU > 80 °C).");
-            card.ToolTip = card.ToolTip + (man is int mp ? $"\nMANUAL {mp}% (100% a partir de 85 °C)" : "") + "\nBotão direito: ajuste rápido";
+                : BoardFanOff.Locked(f) ? head + "\nCPU and pumps do not turn off."
+                : off ? head + "\nOFF (0% up to 80 °C, 100% from 85 °C). Click to turn back on."
+                : head + (BoardFanOff.BlockReason(f, cpuTemp, gpuTemp) is string why ? $"\nCannot turn off now: {why}." : "\nClick to turn off (turns back on by itself with CPU > 85 °C or GPU > 80 °C).");
+            card.ToolTip = card.ToolTip + (man is int mp ? $"\nMANUAL {mp}% (100% from 85 °C)" : "") + "\nRight click: quick adjust";
         }
         quickRefresh?.Invoke();
     }
 
-    /// <summary>Clique no card: desliga/religa sem diálogo (só com a opção experimental ligada; nunca CPU/bombas).</summary>
+    /// <summary>Card click: turns off/back on without a dialog (only with the experimental option on; never CPU/pumps).</summary>
     private void ToggleBoardFan(string fan)
     {
         if (ac is not { Available: true }) return;
         switch (ac.Off.ClickAction(fan, app.Settings.BoardFanOff, cpuTemp, gpuTemp))
         {
-            case BoardFanClick.TurnOn: ac.TurnOn([fan], "clique no card"); break;
-            case BoardFanClick.TurnOff: if (!ac.TurnOff(fan, cpuTemp, gpuTemp)) offBlocked = (DateTime.UtcNow, "Não desligou."); break;
-            case BoardFanClick.Blocked: offBlocked = (DateTime.UtcNow, $"{FanNick(fan)} não desliga agora: {BoardFanOff.BlockReason(fan, cpuTemp, gpuTemp)}."); break;
+            case BoardFanClick.TurnOn: ac.TurnOn([fan], "card click"); break;
+            case BoardFanClick.TurnOff: if (!ac.TurnOff(fan, cpuTemp, gpuTemp)) offBlocked = (DateTime.UtcNow, "Did not turn off."); break;
+            case BoardFanClick.Blocked: offBlocked = (DateTime.UtcNow, $"{FanName(fan)} cannot turn off now: {BoardFanOff.BlockReason(fan, cpuTemp, gpuTemp)}."); break;
             default: return;
         }
         RenderAcRpm();
     }
 
-    /// <summary>Último clique que não desligou (proteção): o status da linha da placa mostra por alguns segundos.</summary>
+    /// <summary>Last click that did not turn off (protection): the board row status shows it for a few seconds.</summary>
     private (DateTime At, string Why)? offBlocked;
 
-    /// <summary>Só para a prévia: modo game "ligado" (automático por <paramref name="by"/> ou na mão) sem comandar GPU/placa/cooler.</summary>
+    /// <summary>Preview only: game mode "on" (automatic by <paramref name="by"/> or by hand) without commanding GPU/board/cooler.</summary>
     internal void PreviewGame(string? by) { gameOn = true; gameAt = DateTime.UtcNow; autoGame.Restore(by != null, by); game.Active = true; RenderStrip(); }
 
-    /// <summary>Só para a prévia: aviso de fans religados pela proteção.</summary>
+    /// <summary>Preview only: notice of fans turned back on by the protection.</summary>
     internal void PreviewSafety(SafetyEvent e) { if (ac != null) { ac.LastSafety = e; RenderStrip(); } }
 
-    /// <summary>Só para a prévia: tooltip do card de temperatura (mín./máx. da sessão).</summary>
+    /// <summary>Preview only: temperature card tooltip (session min/max).</summary>
     internal string? TempTip(string id) => tempCards.FirstOrDefault(c => c.Def.Id == id).Card?.ToolTip as string;
 
-    /// <summary>Só para a prévia: marca um fan como desligado sem tocar no hardware (AsusFanModes.Fake).</summary>
+    /// <summary>Preview only: marks a fan as off without touching the hardware (AsusFanModes.Fake).</summary>
     internal void PreviewBoardOff(string fan) { ac?.Off.TurnOff(fan, 50, 50); RenderAcRpm(); }
 
-    // ---- Quick card (botão direito no card de fan): CURVA / MANUAL / OFF e % rápido.
+    // ---- Quick card (right click on a fan card): CURVE / MANUAL / OFF and quick %.
     public event Action<string>? ThermalActuatorRequested;
     private Popup? quick;
     private Action? quickRefresh;
@@ -995,7 +1020,7 @@ public sealed class PopupContent : StackPanel
         cooler.ResumeControl();
     }
 
-    private void OpenQuick(FrameworkElement anchor, string kind, string id, string title)
+    private void OpenQuick(FrameworkElement anchor, string kind, string id)
     {
         if (quick == null)
         {
@@ -1004,12 +1029,15 @@ public sealed class PopupContent : StackPanel
         }
         quick.IsOpen = false;
         quick.PlacementTarget = anchor;
-        quick.Child = QuickCard(kind, id, title);
+        quick.Child = QuickCard(kind, id);
         quick.IsOpen = true;
     }
 
-    /// <summary>Conteúdo do quick card (também usado pela prévia). Grava só no clique/ao soltar o slider.</summary>
-    internal Border QuickCard(string kind, string id, string title)
+    /// <summary>
+    /// Quick card content (also used by the preview). Saves only on click/on slider release.
+    /// Title = the fan's name; "Rename" turns it into a text box (Enter saves, Esc cancels, empty = original name).
+    /// </summary>
+    internal Border QuickCard(string kind, string id, bool rename = false)
     {
         var body = new StackPanel { Width = 200 };
         var box = new Border { BorderThickness = new Thickness(1), Padding = new Thickness(8, 6, 8, 8), Child = body, SnapsToDevicePixels = true };
@@ -1018,11 +1046,17 @@ public sealed class PopupContent : StackPanel
         bool board = kind == "board";
         int min = board ? BoardFanOff.ManualMinPercent : id == ThermalMap.PumpId ? MonitorTray.Ryujin.CoolerSafety.PumpMinPercent : 0;
         int? sliderValue = null;
+        bool renaming = rename;
+        var part = board ? null : FanNames.CoolerPart(id);
+        string Original() => board ? FanNames.BoardHeader(id) : FanNames.CoolerHeader(part!);
+        string? Custom() => board ? FanNames.Custom(app.Settings.AcFanNames, id) : FanNames.Custom(app.Settings.CoolerNames, part!);
+        void SaveName(string v) => app.Update(x => board ? x with { AcFanNames = FanNames.Rename(x.AcFanNames, id, v, Original()) }
+                                                          : x with { CoolerNames = FanNames.Rename(x.CoolerNames, part!, v, Original()) });
 
         void Manual(int v)
         {
             v = Math.Clamp(v, min, 100);
-            if (board) { if (ac == null || !ac.SetManual(id, v)) offBlocked = (DateTime.UtcNow, ac?.Error ?? "Não aplicou."); }
+            if (board) { if (ac == null || !ac.SetManual(id, v)) offBlocked = (DateTime.UtcNow, ac?.Error ?? "Not applied."); }
             else SetCoolerPart(id, s => s with { Mode = CoolerFanMode.Fixed, FixedPercent = v });
             sliderValue = null;
             RenderAfterQuick();
@@ -1036,7 +1070,7 @@ public sealed class PopupContent : StackPanel
         void Off()
         {
             if (ac == null) return;
-            if (!ac.TurnOff(id, cpuTemp, gpuTemp)) offBlocked = (DateTime.UtcNow, $"{FanNick(id)} não desliga agora: {BoardFanOff.BlockReason(id, cpuTemp, gpuTemp) ?? "recusado"}.");
+            if (!ac.TurnOff(id, cpuTemp, gpuTemp)) offBlocked = (DateTime.UtcNow, $"{FanName(id)} cannot turn off now: {BoardFanOff.BlockReason(id, cpuTemp, gpuTemp) ?? "refused"}.");
             RenderAfterQuick();
         }
 
@@ -1049,8 +1083,8 @@ public sealed class PopupContent : StackPanel
                 var rd = BoardFanMap.Read(id, mbRpm, mbCtl);
                 rpm = rd.Rpm; pct = rd.Percent; manual = ac?.Off.ManualPercent(id); isOff = ac?.Off.IsOff(id) == true;
                 canOff = app.Settings.BoardFanOff && !BoardFanOff.Locked(id);
-                block = ac is not { Available: true } ? "Armoury Crate indisponível" : ac.Pending != null ? "aplicando um modo…" : null;
-                note = $"MANUAL: fica no % até {BoardFanOff.CurveOffUntilC} °C e vai a 100% a partir de {BoardFanOff.CurveFullFromC} °C (no chip). Volta à curva ao sair do Marz.";
+                block = ac is not { Available: true } ? "Armoury Crate unavailable" : ac.Pending != null ? "applying a mode…" : null;
+                note = $"MANUAL: stays at the % up to {BoardFanOff.CurveOffUntilC} °C and goes to 100% from {BoardFanOff.CurveFullFromC} °C (on the chip). Back to the curve when Marz quits.";
             }
             else
             {
@@ -1058,20 +1092,35 @@ public sealed class PopupContent : StackPanel
                 rpm = id == ThermalMap.PumpId ? r?.Pump?.PumpRpm : id == ThermalMap.EmbeddedId ? r?.Pump?.EmbeddedFanRpm : r?.Fans?.Rpm is { Length: > 0 } rr ? (int)rr.Average() : null;
                 pct = id == ThermalMap.PumpId ? r?.PumpPercent : id == ThermalMap.EmbeddedId ? r?.EmbeddedPercent : r?.Fans?.DutyPercent;
                 manual = c.Enabled && part.Mode == CoolerFanMode.Fixed ? part.FixedPercent : null;
-                block = cooler is not { DeviceFound: true } ? "cooler não encontrado" : cooler.Tuning ? "auto tuning em andamento" : null;
-                note = id == ThermalMap.RadiatorId ? "Os 3 fans do radiador andam juntos (limite do cooler)."
-                    : id == ThermalMap.PumpId ? $"Bomba nunca abaixo de {min}%. Líquido ≥ 50 °C põe tudo em 100%."
-                    : "Fan embutido na bomba.";
+                block = cooler is not { DeviceFound: true } ? "cooler not found" : cooler.Tuning ? "auto tuning in progress" : null;
+                note = id == ThermalMap.RadiatorId ? "The 3 radiator fans run together (cooler limitation)."
+                    : id == ThermalMap.PumpId ? $"Pump never below {min}%. Liquid ≥ 50 °C puts everything at 100%."
+                    : "Fan embedded in the pump.";
             }
             var head = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
             var live = Ui.T(isOff ? "OFF" : $"{(rpm is int x ? x + " rpm · " : "")}{(pct is int y ? y + "%" : "—")}", 10, Theme.Muted, tabular: true).With(t => t.VerticalAlignment = VerticalAlignment.Center);
             DockPanel.SetDock(live, Dock.Right); head.Children.Add(live);
-            head.Children.Add(Ui.T(title, 11, weight: 600).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 0, 6, 0); }));
+            if (renaming)
+            {
+                bool done = false;
+                var input = NameBox(Custom() ?? "", Original(), out var nameBox);
+                nameBox.Margin = new Thickness(0, 0, 6, 0);
+                void Finish(bool save) { if (done) return; done = true; renaming = false; if (save) SaveName(input.Text); Render(); }
+                input.KeyDown += (_, e) =>
+                {
+                    if (e.Key == System.Windows.Input.Key.Enter) { e.Handled = true; Finish(true); }
+                    else if (e.Key == System.Windows.Input.Key.Escape) { e.Handled = true; Finish(false); }
+                };
+                input.LostKeyboardFocus += (_, _) => Finish(true);
+                head.Children.Add(nameBox);
+                Dispatcher.BeginInvoke(() => { input.Focus(); input.SelectAll(); }, System.Windows.Threading.DispatcherPriority.Input);
+            }
+            else head.Children.Add(Ui.T(Custom() ?? Original(), 11, weight: 600).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 0, 6, 0); t.ToolTip = board ? app.Settings.BoardFanTip(id) : app.Settings.CoolerTip(part!); }));
             body.Children.Add(head);
 
             bool enabled = block == null;
             var modes = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-            var (bc, _) = ModeButton("CURVA", manual == null && !isOff, false); bc.Click += () => { if (enabled) Curve(); };
+            var (bc, _) = ModeButton("CURVE", manual == null && !isOff, false); bc.Click += () => { if (enabled) Curve(); };
             var (bm, _) = ModeButton("MANUAL", manual != null, false); bm.Click += () => { if (enabled) Manual(manual ?? pct ?? 50); };
             modes.Children.Add(bc); modes.Children.Add(bm);
             if (canOff) { var (bo, _) = ModeButton("OFF", isOff, false); bo.Click += () => { if (enabled && !isOff) Off(); }; modes.Children.Add(bo); }
@@ -1094,27 +1143,23 @@ public sealed class PopupContent : StackPanel
             }
             body.Children.Add(quickRow);
             body.Children.Add(Ui.T(block ?? note, 10, Theme.Muted, head: false).With(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; t.Margin = new Thickness(0, 6, 0, 0); }));
-            var edit = Ui.T("Editar curva…", 10.5, Theme.Text).With(t => { t.Margin = new Thickness(0, 6, 0, 0); t.Cursor = System.Windows.Input.Cursors.Hand; t.TextDecorations = TextDecorations.Underline; });
+            var edit = Ui.T("Edit curve…", 10.5, Theme.Text).With(t => { t.Cursor = System.Windows.Input.Cursors.Hand; t.TextDecorations = TextDecorations.Underline; });
             edit.MouseLeftButtonUp += (_, e) => { e.Handled = true; if (quick != null) quick.IsOpen = false; ThermalActuatorRequested?.Invoke(board ? ThermalMap.BoardId(id) : id); };
-            body.Children.Add(edit);
+            var ren = Ui.T("Rename", 10.5, Theme.Muted).With(t => { t.Margin = new Thickness(12, 0, 0, 0); t.Cursor = System.Windows.Input.Cursors.Hand; t.TextDecorations = TextDecorations.Underline; t.ToolTip = $"Rename {Original()} (empty = original name)"; });
+            ren.MouseLeftButtonUp += (_, e) => { e.Handled = true; renaming = true; Render(); };
+            body.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0), Children = { edit, ren } });
         }
-        quickRefresh = () => { if (sliderValue == null) Render(); };
+        quickRefresh = () => { if (sliderValue == null && !renaming) Render(); };
         Render();
         return box;
     }
 
     private void RenderAfterQuick() { RenderAcRpm(); RenderCooler(); quickRefresh?.Invoke(); }
 
-    /// <summary>Só para a prévia: MANUAL sem tocar no hardware.</summary>
+    /// <summary>Preview only: MANUAL without touching the hardware.</summary>
     internal void PreviewBoardManual(string fan, int pct) { ac?.Off.SetManual(fan, pct); RenderAcRpm(); }
 
-    private static string FanShort(string acName) => acName switch
-    {
-        "CPU Fan" => "CPU", "CPU Optional Fan" => "CPU_OPT", "Water Pump+" => "W_PUMP+", "AIO Pump" => "AIO_PUMP",
-        _ => acName.Replace("Chassis Fan ", "CHA"),
-    };
-
-    /// <summary>Linha PLACA (botões) e as duas linhas de configuração; reconstrói a partir das Configurações.</summary>
+    /// <summary>BOARD row (buttons) and the two settings rows; rebuilt from Settings.</summary>
     private void RenderAc()
     {
         if (ac == null || !ac.Available)
@@ -1127,14 +1172,14 @@ public sealed class PopupContent : StackPanel
         acRow.Visibility = s.AcModes.Count > 0 || s.PopupBoardFans.Any(ac.Fans.Contains) ? Visibility.Visible : Visibility.Collapsed;
         acModesSetting.Visibility = acFansSetting.Visibility = boardCardsSetting.Visibility = Visibility.Visible;
         acButtons.Children.Clear();
-        var current = ac.Pending ?? ac.Mode ?? "curvas";
+        var current = ac.Pending ?? ac.Mode ?? "curves";
         foreach (var mode in AsusFanModes.AllModes.Where(s.AcModes.Contains))
         {
             var (b, _) = ModeButton(AsusFanModes.Label(mode), mode == current, mode == "full");
             var fans = s.AcFans.Where(ac.Fans.Contains).ToList();
-            b.ToolTip = (mode == "curvas" ? "Volta às suas curvas do Armoury Crate (perfil User)" : mode == "full" ? "Ventoinhas em 100% (religa as desligadas)" : $"Perfil {AsusFanModes.Label(mode)} do Armoury Crate")
-                + "\nVentoinhas: " + (fans.Count == 0 ? "nenhuma (escolha nas Configurações)" : string.Join(", ", fans.Select(FanShort)))
-                + (mode != "full" && ac.Off.Any ? "\nAs desligadas seguem desligadas." : "");
+            b.ToolTip = (mode == "curves" ? "Back to your Armoury Crate curves (User profile)" : mode == "full" ? "Fans at 100% (turns the stopped ones back on)" : $"Armoury Crate {AsusFanModes.Label(mode)} profile")
+                + "\nFans: " + (fans.Count == 0 ? "none (choose in Settings)" : string.Join(", ", fans.Select(FanName)))
+                + (mode != "full" && ac.Off.Any ? "\nThe stopped ones stay off." : "");
             var m = mode;
             b.Click += () => { if (fans.Count > 0) ac.Apply(m, fans); };
             acButtons.Children.Add(b);
@@ -1150,19 +1195,20 @@ public sealed class PopupContent : StackPanel
             }));
         acFanChecks.Children.Clear();
         foreach (var fan in ac.Fans)
-            acFanChecks.Children.Add(Toggle(FanShort(fan), s.AcFans.Contains(fan), v =>
+            acFanChecks.Children.Add(Toggle(FanName(fan), s.AcFans.Contains(fan), v =>
             {
                 var l = ac.Fans.Where(x => x == fan ? v : app.Settings.AcFans.Contains(x)).ToList();
                 app.Update(x => x with { AcFans = l });
-            }, fan.Contains("Pump") || fan.StartsWith("CPU") ? "Cuidado: bomba/CPU" : null));
+            }, s.BoardFanTip(fan) + (fan.Contains("Pump") || fan.StartsWith("CPU") ? "\nCareful: pump/CPU" : "")));
         boardCardChecks.Children.Clear();
         foreach (var fan in ac.Fans)
-            boardCardChecks.Children.Add(Toggle(FanNick(fan), s.PopupBoardFans.Contains(fan), v =>
+            boardCardChecks.Children.Add(Toggle(FanName(fan), s.PopupBoardFans.Contains(fan), v =>
             {
                 var l = ac.Fans.Where(x => x == fan ? v : app.Settings.PopupBoardFans.Contains(x)).ToList();
                 app.Update(x => x with { PopupBoardFans = l });
-            }, FanShort(fan)));
+            }, s.BoardFanTip(fan)));
         RenderGameSettings();
+        RenderFanNames();
         if (was != acRow.Visibility) LayoutChanged?.Invoke();
     }
 
@@ -1171,7 +1217,7 @@ public sealed class PopupContent : StackPanel
     private Check15 boardOff = null!;
     private string tempSettingsKey = "";
 
-    /// <summary>Lista das temperaturas: ligadas na ordem escolhida (▲▼ movem), depois as desligadas na ordem do catálogo.</summary>
+    /// <summary>Temperature list: enabled ones in the chosen order (▲▼ move), then the disabled ones in catalog order.</summary>
     private void RenderTempSettings()
     {
         var on = app.Settings.PopupTemps;
@@ -1187,10 +1233,10 @@ public sealed class PopupContent : StackPanel
             c.Changed += v =>
             {
                 app.Update(x => x with { PopupTemps = PickList.Toggle(x.PopupTemps, id, v, TempCards.MaxCards) });
-                if (v && !app.Settings.PopupTemps.Contains(id)) c.Value = false; // já há 8: não liga
+                if (v && !app.Settings.PopupTemps.Contains(id)) c.Value = false; // already 8: does not turn on
             };
             var row = new DockPanel { Margin = new Thickness(0, 1, 0, 1), Background = Brushes.Transparent, ToolTip = def.Tip };
-            var moveUp = FlatButton.Icon(Icons.ChevronUp, 18, 11, "Subir"); var moveDown = FlatButton.Icon(Icons.ChevronDown, 18, 11, "Descer");
+            var moveUp = FlatButton.Icon(Icons.ChevronUp, 18, 11, "Move up"); var moveDown = FlatButton.Icon(Icons.ChevronDown, 18, 11, "Move down");
             int idx = on.ToList().IndexOf(id);
             moveUp.Visibility = enabled && idx > 0 ? Visibility.Visible : Visibility.Hidden;
             moveDown.Visibility = enabled && idx < on.Count - 1 ? Visibility.Visible : Visibility.Hidden;
@@ -1206,14 +1252,78 @@ public sealed class PopupContent : StackPanel
         }
     }
 
-    private static readonly (string Id, string Label)[] CoolerCardLabels = [("pump", "BOMBA"), ("radiator", "RADIADOR"), ("embedded", "FAN EMB.")];
+    private static readonly (string Id, string Label)[] CoolerCardLabels = [("pump", "PUMP"), ("radiator", "RADIATOR"), ("embedded", "EMB. FAN")];
 
     private void RenderCoolerSettings()
     {
         coolerCardChecks.Children.Clear();
         foreach (var (id, label) in CoolerCardLabels)
-            coolerCardChecks.Children.Add(Toggle(label, app.Settings.PopupCoolerFans.Contains(id), v =>
-                app.Update(x => x with { PopupCoolerFans = Settings.CoolerCardIds.Where(y => y == id ? v : x.PopupCoolerFans.Contains(y)).ToList() })));
+            coolerCardChecks.Children.Add(Toggle(FanNames.Custom(app.Settings.CoolerNames, id)?.ToUpperInvariant() ?? label, app.Settings.PopupCoolerFans.Contains(id), v =>
+                app.Update(x => x with { PopupCoolerFans = Settings.CoolerCardIds.Where(y => y == id ? v : x.PopupCoolerFans.Contains(y)).ToList() }), app.Settings.CoolerTip(id)));
+    }
+
+    private StackPanel fanNameRows = null!;
+    private Border fanNamesSetting = null!;
+    private string fanNamesKey = "\0";
+
+    /// <summary>
+    /// FAN NAMES list: one row per board fan Armoury Crate exposes (and per cooler part with the RYUJIN II connected).
+    /// Original name on the left, the user's name on the right; not rebuilt while a name is being typed.
+    /// </summary>
+    private void RenderFanNames()
+    {
+        var s = app.Settings;
+        IReadOnlyList<string> board = ac is { Available: true } ? ac.Fans : [];
+        IReadOnlyList<string> parts = cooler is { DeviceFound: true } ? FanNames.CoolerParts : [];
+        var key = string.Join("|", board.Select(f => f + "=" + FanNames.Custom(s.AcFanNames, f))) + "#" + string.Join("|", parts.Select(p => p + "=" + FanNames.Custom(s.CoolerNames, p)));
+        if (key == fanNamesKey || fanNameRows.IsKeyboardFocusWithin) return;
+        fanNamesKey = key;
+        fanNameRows.Children.Clear();
+        foreach (var f in board)
+        {
+            var fan = f; var original = FanNames.BoardHeader(f);
+            fanNameRows.Children.Add(NameRow(original, FanNames.Custom(s.AcFanNames, f), v => app.Update(x => x with { AcFanNames = FanNames.Rename(x.AcFanNames, fan, v, original) })));
+        }
+        foreach (var p in parts)
+        {
+            var part = p; var original = FanNames.CoolerHeader(p);
+            fanNameRows.Children.Add(NameRow(original, FanNames.Custom(s.CoolerNames, p), v => app.Update(x => x with { CoolerNames = FanNames.Rename(x.CoolerNames, part, v, original) })));
+        }
+        var vis = fanNameRows.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (fanNamesSetting.Visibility != vis) fanNamesSetting.Visibility = vis;
+        LayoutChanged?.Invoke();
+    }
+
+    /// <summary>A FAN NAMES row: saves on Enter or when the box loses focus; Esc puts the saved name back.</summary>
+    private FrameworkElement NameRow(string original, string? custom, Action<string> save)
+    {
+        var input = NameBox(custom ?? "", original, out var box);
+        box.Width = 150;
+        input.KeyDown += (_, e) =>
+        {
+            if (e.Key == System.Windows.Input.Key.Escape) input.Text = custom ?? "";
+            if (e.Key is System.Windows.Input.Key.Enter or System.Windows.Input.Key.Escape) { e.Handled = true; System.Windows.Input.Keyboard.ClearFocus(); }
+        };
+        input.LostKeyboardFocus += (_, _) => { if (FanNames.Clean(input.Text) != (custom ?? "")) save(input.Text); };
+        var label = Ui.T(original, 10, Theme.Muted).With(t => t.VerticalAlignment = VerticalAlignment.Center);
+        var row = new DockPanel { Margin = new Thickness(0, 3, 4, 0) };
+        DockPanel.SetDock(box, Dock.Right); row.Children.Add(box); row.Children.Add(label);
+        return row;
+    }
+
+    /// <summary>Name text box in the style of the game .exe box: placeholder = the original name, max 16 characters.</summary>
+    private static TextBox NameBox(string text, string placeholder, out Border box)
+    {
+        var input = new TextBox { Text = text, BorderThickness = new Thickness(0), Background = Brushes.Transparent, FontFamily = AppFonts.Body, FontSize = 11, VerticalContentAlignment = VerticalAlignment.Center, Padding = new Thickness(0), FocusVisualStyle = null, MaxLength = FanNames.MaxLength };
+        input.SetResourceReference(TextBox.ForegroundProperty, Theme.Text);
+        input.SetResourceReference(TextBox.CaretBrushProperty, Theme.Text);
+        input.SetResourceReference(TextBox.SelectionBrushProperty, Theme.Fill);
+        var hint = Ui.T(placeholder, 11, Theme.Muted, head: false).With(t => { t.IsHitTestVisible = false; t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(1, 0, 0, 0); });
+        void Hint() => hint.Visibility = input.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        input.TextChanged += (_, _) => Hint(); Hint();
+        box = Ui.Box(new Thickness(1), new Thickness(6, 0, 6, 0), new Grid { Children = { hint, input } }).With(b => { b.Height = 20; b.Cursor = System.Windows.Input.Cursors.IBeam; });
+        box.MouseLeftButtonDown += (_, _) => input.Focus();
+        return input;
     }
 
     private WrapPanel gameChecks = null!, gameFanChecks = null!, gameExeList = null!;
@@ -1224,7 +1334,7 @@ public sealed class PopupContent : StackPanel
     private WrapPanel trayTempPicks = null!;
     private string? trayPicksKey;
 
-    /// <summary>Botões das temperaturas do ícone: acesos na ordem do rodízio (número = posição); nenhum aceso = a mais quente.</summary>
+    /// <summary>Icon temperature buttons: lit in rotation order (number = position); none lit = the hottest.</summary>
     private void RenderTrayTempPicks()
     {
         var on = app.Settings.TrayTemps;
@@ -1251,7 +1361,7 @@ public sealed class PopupContent : StackPanel
         gameExeInput.Text = "";
     }
 
-    /// <summary>Lista dos jogos: um chip por executável com × para remover.</summary>
+    /// <summary>Game list: one chip per executable with × to remove.</summary>
     private void RenderGameExes()
     {
         var exes = app.Settings.GameExes;
@@ -1260,12 +1370,12 @@ public sealed class PopupContent : StackPanel
         gameExesKey = key;
         gameExeList.Children.Clear();
         if (exes.Count == 0)
-            gameExeList.Children.Add(Ui.T("nenhum jogo na lista", 10, Theme.Muted, head: false).With(t => t.Margin = new Thickness(0, 2, 0, 2)));
+            gameExeList.Children.Add(Ui.T("no games in the list", 10, Theme.Muted, head: false).With(t => t.Margin = new Thickness(0, 2, 0, 2)));
         foreach (var exe in exes)
         {
             var (x, _) = Icons.Make(Icons.X, 9, Theme.Muted);
             x.Margin = new Thickness(4, 0, 0, 0); x.VerticalAlignment = VerticalAlignment.Center;
-            var chip = new FlatButton { Height = 18, Padding = new Thickness(6, 0, 4, 0), Margin = new Thickness(0, 2, 4, 2), BorderThickness = new Thickness(1), ToolTip = $"Remover {exe}" }
+            var chip = new FlatButton { Height = 18, Padding = new Thickness(6, 0, 4, 0), Margin = new Thickness(0, 2, 4, 2), BorderThickness = new Thickness(1), ToolTip = $"Remove {exe}" }
                 .Content(new StackPanel { Orientation = Orientation.Horizontal, Children = { Ui.T(exe, 10, tabular: true).With(t => t.VerticalAlignment = VerticalAlignment.Center), x } });
             chip.SetResourceReference(Border.BorderBrushProperty, Theme.Line);
             var e = exe;
@@ -1274,7 +1384,7 @@ public sealed class PopupContent : StackPanel
         }
         LayoutChanged?.Invoke();
     }
-    private static readonly (string Id, string Label)[] GameTargetLabels = [("gpu", "GPU"), ("board", "PLACA"), ("pump", "BOMBA"), ("radiator", "RADIADOR"), ("embedded", "FAN EMB.")];
+    private static readonly (string Id, string Label)[] GameTargetLabels = [("gpu", "GPU"), ("board", "BOARD"), ("pump", "PUMP"), ("radiator", "RADIATOR"), ("embedded", "EMB. FAN")];
 
     private static Segmented Seg(IEnumerable<(object, string)> o, object sel) { var s = new Segmented(o); s.Select(sel); return s; }
 
@@ -1282,13 +1392,13 @@ public sealed class PopupContent : StackPanel
     {
         var s = app.Settings; var parts = new List<string>();
         if (s.GameTargets.Contains("gpu")) parts.Add($"GPU {s.GameGpuPercent}%");
-        if (s.GameTargets.Contains("board")) parts.Add("placa FULL");
+        if (s.GameTargets.Contains("board")) parts.Add("board FULL");
         var c = GameTargetLabels.Skip(2).Where(x => s.GameTargets.Contains(x.Id)).Select(x => x.Label.ToLowerInvariant()).ToList();
         if (c.Count > 0) parts.Add($"{string.Join("/", c)} {s.GameCoolerPercent}%");
-        return parts.Count == 0 ? "nada selecionado" : string.Join(" · ", parts);
+        return parts.Count == 0 ? "nothing selected" : string.Join(" · ", parts);
     }
 
-    /// <summary>O que o modo game liga e quais ventoinhas da placa entram (Configurações).</summary>
+    /// <summary>What game mode turns on and which board fans are included (Settings).</summary>
     private void RenderGameSettings()
     {
         var s = app.Settings;
@@ -1306,12 +1416,12 @@ public sealed class PopupContent : StackPanel
         {
             var chosen = GameBoardFans();
             foreach (var fan in ac.Fans)
-                gameFanChecks.Children.Add(Toggle(FanShort(fan), chosen.Contains(fan), v =>
+                gameFanChecks.Children.Add(Toggle(FanName(fan), chosen.Contains(fan), v =>
                 {
                     var cur = GameBoardFans();
                     var l = ac.Fans.Where(x => x == fan ? v : cur.Contains(x)).ToList();
                     app.Update(x => x with { GameBoardFans = l });
-                }, fan.Contains("Pump") || fan.StartsWith("CPU") ? "Bomba/CPU em FULL é seguro (só mais barulho)" : null));
+                }, s.BoardFanTip(fan) + (fan.Contains("Pump") || fan.StartsWith("CPU") ? "\nPump/CPU at FULL is safe (just more noise)" : "")));
         }
     }
 
@@ -1336,17 +1446,17 @@ public sealed class PopupContent : StackPanel
         var was = fanRow.Visibility;
         fanRow.Visibility = Visibility.Visible;
         var r = s.Reading;
-        // Título fixo "GPU" (como PLACA-MÃE e WC); o modelo fica no tooltip. Temperaturas estão na faixa de cards.
-        if (r != null) gpuName.ToolTip = r.Identity.Name + " · abrir no Detalhes";
-        // Ícone: "A" = automático do driver; número = preset manual; "?" = misto/desconhecido.
+        // Fixed "GPU" title (like BOARD and WC); the model goes in the tooltip. Temperatures are in the card strip.
+        if (r != null) gpuName.ToolTip = r.Identity.Name + " · open in Details";
+        // Icon: "A" = driver automatic; number = manual preset; "?" = mixed/unknown.
         fanBadge.Text = s.Mode switch { FanMode.Automatic => "A", FanMode.Manual => s.RequestedPercent?.ToString(CultureInfo.InvariantCulture) ?? "M", _ => "?" };
         fanPath.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, s.Mode == FanMode.Manual ? Theme.UStroke : s.Mode == FanMode.Automatic ? Theme.Fill : Theme.Muted);
-        fanSpeeds.Text = s.Error != null && r == null ? "sem leitura"
+        fanSpeeds.Text = s.Error != null && r == null ? "no reading"
             : r == null ? "—" : Formatter.GpuFans(r.Fans.Select(f => (f.SpeedPercent, f.SpeedRpm)));
         var tip = r == null ? s.Error : string.Join("\n", r.Fans.Select(f => $"Fan {f.Index + 1}: {(f.SpeedPercent is uint v ? v + "%" : "—")} · {(f.SpeedRpm is uint rr ? rr + " RPM" : "— RPM")}"))
             + "\n" + Views.FanText.Mode(s);
         fanSpeeds.ToolTip = tip;
-        // Gira enquanto as fans giram; mais rápido com mais %. Parado em 0%.
+        // Spins while the fans spin; faster with a higher %. Still at 0%.
         var speed = r?.Fans.Max(f => (double?)f.SpeedPercent) ?? 0;
         var secs = speed <= 0 ? 0 : Math.Round(Math.Clamp(3.0 - speed / 40.0, 0.5, 3.0), 1);
         if (secs != spinSeconds)
@@ -1359,9 +1469,9 @@ public sealed class PopupContent : StackPanel
         foreach (var (v, b, t) in fanButtons)
         {
             string? block = v is uint pv ? s.BlockFor(pv, now)
-                : !s.CanControl ? s.ReadOnlyReason ?? "Controle indisponível." : s.Busy ? "Comando em andamento." : s.Reading == null ? "Sem leitura." : null;
+                : !s.CanControl ? s.ReadOnlyReason ?? "Control unavailable." : s.Busy ? "Command in progress." : s.Reading == null ? "No reading." : null;
             b.IsEnabled = block == null; b.Opacity = block == null ? 1 : 0.45;
-            b.ToolTip = block ?? s.Error ?? (v is null ? "Devolver ao automático do driver" : $"Fixar as fans em {v}%");
+            b.ToolTip = block ?? s.Error ?? (v is null ? "Hand back to driver automatic" : $"Lock the fans at {v}%");
             bool active = v is null ? s.Mode == FanMode.Automatic : s.Mode == FanMode.Manual && s.RequestedPercent == v;
             b.Active = active;
             t.SetResourceReference(TextBlock.ForegroundProperty, active ? Theme.Bg : Theme.Muted);
@@ -1369,14 +1479,14 @@ public sealed class PopupContent : StackPanel
         if (was != Visibility.Visible) LayoutChanged?.Invoke();
     }
 
-    /// <summary>Nome curto da GPU (ver Formatter.ShortGpuName).</summary>
+    /// <summary>Short GPU name (see Formatter.ShortGpuName).</summary>
     internal static string ShortGpuName(string name) => Formatter.ShortGpuName(name);
 
     public void ApplySettings(Settings s)
     {
         if (ac != null) Dispatcher.BeginInvoke(RenderAc);
         refresh.Text = Formatter.RefreshLabel(s.RefreshMs);
-        paletteLabel.Text = "COR · " + Theme.Palette(s.Palette).Name.ToUpper(CultureInfo.GetCultureInfo("pt-BR"));
+        paletteLabel.Text = "COLOR · " + Theme.Palette(s.Palette).Name.ToUpperInvariant();
         foreach (var (id, box) in swatches) box.SetResourceReference(Border.BorderBrushProperty, id == s.Palette ? Theme.Text : "Transparent");
         segTheme.Select(s.Theme); segRefresh.Select(s.RefreshMs); segHistory.Select(s.History); segScale.Select(s.Scale); segNetUnit.Select(s.NetUnit);
         opacity.Value = s.Opacity; opacityLabel.Text = s.Opacity + "%";
@@ -1387,9 +1497,10 @@ public sealed class PopupContent : StackPanel
         RenderGameExes();
         RenderTempSettings(); RenderTemps();
         if (cooler != null) RenderCoolerCards();
+        RenderCoolerSettings(); RenderFanNames();
         bool pinned = !s.Autohide;
         pin.Active = pinned;
-        pin.ToolTip = pinned ? "Fixado: fica aberto ao clicar fora (clique para soltar)" : "Solto: esconde ao clicar fora (clique para fixar)";
+        pin.ToolTip = pinned ? "Pinned: stays open when clicking outside (click to unpin)" : "Unpinned: hides when clicking outside (click to pin)";
         pinIcon.RenderTransformOrigin = new Point(0.5, 0.5);
         pinIcon.RenderTransform = new RotateTransform(pinned ? 0 : 45);
     }
@@ -1401,7 +1512,7 @@ public sealed class PopupContent : StackPanel
         gpu.Set(s.GpuLoad, s.GpuPower);
         mem.SetMem(s.MemUsed, s.MemTotal);
         rd.Text = Formatter.DiskMBps(s.DiskReadBps); wr.Text = Formatter.DiskMBps(s.DiskWriteBps);
-        storageLabel.ToolTip = $"Total L/E: {rd.Text} / {wr.Text} MB/s";
+        storageLabel.ToolTip = $"Total R/W: {rd.Text} / {wr.Text} MB/s";
         UpdateVolumes(snap.Volumes);
         cpuTemp = s.CpuTemp; gpuTemp = s.GpuTemp ?? (fanService?.State.Reading?.TemperatureC is uint g ? (float?)g : null);
         TryRestoreOff();
@@ -1409,19 +1520,19 @@ public sealed class PopupContent : StackPanel
         lhmTemps = snap.Temps; tempSources = snap.TempSources; RenderTemps();
         var d = Formatter.Net(s.NetDownBps); var u = Formatter.Net(s.NetUpBps);
         down.Text = d.Value; downU.Text = d.Unit; up.Text = u.Value; upU.Text = u.Unit;
-        // O serviço já entrega a janela agrupada (pico por balde) com 1 ponto extra à esquerda para a rolagem.
+        // The service already delivers the bucketed window (peak per bucket) with 1 extra point on the left for scrolling.
         var n = snap.HistoryPoints;
-        var (sd, su) = NiceScale.NetScales(snap.NetDownHistory, snap.NetUpHistory, app.Settings.Scale == "compartilhada");
+        var (sd, su) = NiceScale.NetScales(snap.NetDownHistory, snap.NetUpHistory, app.Settings.Scale == "shared");
         chart.Set(snap.NetDownHistory, snap.NetUpHistory, n, sd, su);
-        chart.ToolTip = "Rede · últimos " + Formatter.Window(app.Settings.History) + (n < app.Settings.History ? " (pico a cada " + RateHistoryLabel(app.Settings.History) + ")" : "");
+        chart.ToolTip = "Network · last " + Formatter.Window(app.Settings.History) + (n < app.Settings.History ? " (peak every " + RateHistoryLabel(app.Settings.History) + ")" : "");
         NetCorner(scaleDown, "↓", $"{Formatter.Net(s.NetDownBps)}", $"{Formatter.Net(sd)}", Theme.DStroke);
         NetCorner(scaleUp, "↑", $"{Formatter.Net(s.NetUpBps)}", $"{Formatter.Net(su)}", Theme.UStroke);
-        scaleDown.ToolTip = scaleUp.ToolTip = "atual  |  escala do gráfico";
+        scaleDown.ToolTip = scaleUp.ToolTip = "current  |  chart scale";
     }
 
     /// <summary>
-    /// Faixa de temperaturas: papéis escolhidos nas Configurações, na ordem; sem leitura = card omitido.
-    /// LHM primeiro; GPU pela NVML quando o LHM não tem; líquido pelo cooler.
+    /// Temperature strip: roles chosen in Settings, in order; no reading = card omitted.
+    /// LHM first; GPU via NVML when LHM has none; liquid from the cooler.
     /// </summary>
     private void RenderTemps()
     {
@@ -1447,19 +1558,19 @@ public sealed class PopupContent : StackPanel
         foreach (var (def, card) in tempCards) card.Set(values[def.Id], Session.Range(def.Id), Target(def.Id));
     }
 
-    /// <summary>Para onde o clique leva: sensor do LHM no Detalhes; GPU pela NVML = dispositivo GPU; líquido = controle térmico.</summary>
-    private string Target(string id) => id == "liq" ? "controle térmico" : tempSources.ContainsKey(id) ? "Detalhes" : id is "gpu" or "hot" or "vram" ? "GPU no Detalhes" : "Detalhes";
+    /// <summary>Where the click leads: LHM sensor in Details; GPU via NVML = GPU device; liquid = thermal control.</summary>
+    private string Target(string id) => id == "liq" ? "thermal control" : tempSources.ContainsKey(id) ? "Details" : id is "gpu" or "hot" or "vram" ? "GPU in Details" : "Details";
 
     private void OpenTemp(string id)
     {
         if (id == "liq") { ThermalRequested?.Invoke(); return; }
-        var category = id is "gpu" or "hot" or "vram" ? "GPU" : id is "cpu" or "coremax" ? "CPU" : id == "ram" ? "Memória" : "Placa-mãe";
+        var category = id is "gpu" or "hot" or "vram" ? "GPU" : id is "cpu" or "coremax" ? "CPU" : id == "ram" ? "Memory" : "Motherboard";
         SensorRequested?.Invoke(tempSources.TryGetValue(id, out var sid) ? sid : null, category);
     }
 
     private static string RateHistoryLabel(int window) { var b = MonitorTray.Core.History.RateHistory.BucketSeconds(window); return b >= 60 ? b / 60 + " min" : b + " s"; }
 
-    /// <summary>Célula de métrica (CPU/GPU/MEM): carga em destaque; W (ou % da memória) no canto. Temperaturas ficam nos cards.</summary>
+    /// <summary>Metric cell (CPU/GPU/MEM): load highlighted; W (or memory %) in the corner. Temperatures live in the cards.</summary>
     private sealed class Metric : StackPanel
     {
         private readonly TextBlock value, unit, secondary, secUnit;
@@ -1503,8 +1614,8 @@ public sealed class PopupContent : StackPanel
     }
 
     /// <summary>
-    /// Card de temperatura (menor que o do mock): rótulo, valor, mini barra (cheia no limite). Cor de alerta pelos limites das
-    /// proteções (TempLimits): perto (≥ limite − 5 °C) o valor fica na cor B; no limite também o contorno. Clique abre o sensor.
+    /// Temperature card (smaller than the mock's): label, value, mini bar (full at the limit). Alert color from the protection
+    /// limits (TempLimits): near (≥ limit − 5 °C) the value takes color B; at the limit the outline too. Click opens the sensor.
     /// </summary>
     private sealed class TempCard : Border
     {
@@ -1526,8 +1637,8 @@ public sealed class PopupContent : StackPanel
             SetLevel(TempLevel.Normal);
         }
 
-        /// <param name="range">Mínimo e máximo desde que o app abriu.</param>
-        /// <param name="target">Para onde o clique leva (texto do tooltip).</param>
+        /// <param name="range">Min and max since the app started.</param>
+        /// <param name="target">Where the click leads (tooltip text).</param>
         public void Set(float v, (float Min, float Max)? range, string target)
         {
             var text = Def.Id == "liq" ? v.ToString("0.0", CultureInfo.InvariantCulture) : Math.Round(v, MidpointRounding.AwayFromZero).ToString("0", CultureInfo.InvariantCulture);
@@ -1550,9 +1661,9 @@ public sealed class PopupContent : StackPanel
         {
             static string F(float x) => x.ToString("0.0", CultureInfo.InvariantCulture);
             return $"{d.Tip}: {F(v)} °C"
-                + (range is { } r ? $"\nSessão: mín. {F(r.Min)} · máx. {F(r.Max)} °C" : "")
-                + $"\nAlerta: perto a partir de {d.LimitC - TempLimits.NearMarginC:0} °C, limite {d.LimitC:0} °C"
-                + $"\nClique: abrir no {target}";
+                + (range is { } r ? $"\nSession: min {F(r.Min)} · max {F(r.Max)} °C" : "")
+                + $"\nAlert: near from {d.LimitC - TempLimits.NearMarginC:0} °C, limit {d.LimitC:0} °C"
+                + $"\nClick: open in {target}";
         }
 
         private void SetLevel(TempLevel l)
@@ -1573,9 +1684,9 @@ public sealed class PopupContent : StackPanel
     }
 
     /// <summary>
-    /// Card de fan de tamanho padrão (placa e cooler): nome curto (+ cadeado) com o % à direita; rpm embaixo, mini barra.
-    /// Sem rpm medido: "—" no lugar do rpm (o % segue; o rpm nunca é estimado). Desligado: cinza, "OFF" e o rpm/% lidos.
-    /// Clicável só quando pode desligar.
+    /// Standard-size fan card (board and cooler): short name (+ lock) with the % on the right; rpm below, mini bar.
+    /// No measured rpm: "—" instead of the rpm (the % stays; rpm is never estimated). Off: gray, "OFF" and the read rpm/%.
+    /// Clickable only when it can be turned off.
     /// </summary>
     private sealed class FanCard : Border
     {
@@ -1585,10 +1696,10 @@ public sealed class PopupContent : StackPanel
         private bool? off;
         private bool manual;
         public event Action? Click;
-        /// <summary>Botão direito: abre o quick card (ajuste rápido).</summary>
+        /// <summary>Right click: opens the quick card (quick adjust).</summary>
         public event Action? RightClick;
 
-        /// <summary>MANUAL: contorno na cor de destaque.</summary>
+        /// <summary>MANUAL: outline in the accent color.</summary>
         public void SetManual(bool m)
         {
             if (manual == m) return;
@@ -1611,7 +1722,7 @@ public sealed class PopupContent : StackPanel
                 lk.Margin = new Thickness(2, 0, 0, 1); lk.VerticalAlignment = VerticalAlignment.Center;
                 DockPanel.SetDock(lk, Dock.Right); head.Children.Add(lk);
             }
-            head.Children.Add(n);
+            head.Children.Add(n); // a long name is cut with an ellipsis (full name in the card tooltip)
             value = Ui.T("—", 12, weight: 600, tabular: true).With(t => { t.LineHeight = 14; t.LineStackingStrategy = LineStackingStrategy.BlockLineHeight; t.TextTrimming = TextTrimming.None; t.VerticalAlignment = VerticalAlignment.Bottom; });
             unit = Ui.T(" rpm", 9, Theme.Muted).With(t => { t.VerticalAlignment = VerticalAlignment.Bottom; t.Margin = new Thickness(0, 0, 0, 1); t.TextTrimming = TextTrimming.None; });
             var row = new StackPanel { Orientation = Orientation.Horizontal, Children = { value, unit } };
@@ -1619,10 +1730,10 @@ public sealed class PopupContent : StackPanel
             SetOff(false);
         }
 
-        /// <summary>false = só leitura: cursor normal (herdado) e o clique passa direto.</summary>
+        /// <summary>false = read-only: normal (inherited) cursor and the click passes through.</summary>
         public bool Clickable { get => clickable; set { clickable = value; Cursor = value ? System.Windows.Input.Cursors.Hand : null; } }
 
-        /// <param name="rpm">rpm medido; null = sem medição ("—", sem unidade).</param>
+        /// <param name="rpm">measured rpm; null = not measured ("—", no unit).</param>
         public void Set(int? rpm, int? percent, bool isOff)
         {
             value.Text = isOff ? "OFF" : rpm is int r ? r.ToString(CultureInfo.InvariantCulture) : Formatter.Dash;
@@ -1636,7 +1747,7 @@ public sealed class PopupContent : StackPanel
         {
             if (off == o) return;
             off = o;
-            // Desligado: fundo e contorno apagados, textos em Muted.
+            // Off: dimmed background and outline, texts in Muted.
             if (o) SetResourceReference(BackgroundProperty, Theme.Track); else Background = Brushes.Transparent;
             SetResourceReference(BorderBrushProperty, manual ? Theme.DStroke : Theme.Line);
             value.SetResourceReference(TextBlock.ForegroundProperty, o ? Theme.Muted : Theme.Text);

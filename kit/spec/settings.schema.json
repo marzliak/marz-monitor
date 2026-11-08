@@ -9,22 +9,22 @@
     },
     "theme": {
       "enum": [
-        "claro",
-        "escuro",
-        "sistema"
+        "light",
+        "dark",
+        "system"
       ],
-      "default": "escuro"
+      "default": "dark"
     },
     "palette": {
       "enum": [
-        "eletrico",
+        "electric",
         "neon",
-        "lima",
-        "brasa",
-        "violeta",
-        "aco"
+        "lime",
+        "ember",
+        "violet",
+        "steel"
       ],
-      "default": "eletrico"
+      "default": "electric"
     },
     "opacity": {
       "type": "integer",
@@ -48,14 +48,14 @@
         120
       ],
       "default": 60,
-      "description": "nº de amostras visíveis no gráfico de rede"
+      "description": "number of samples visible in the network chart"
     },
     "scale": {
       "enum": [
-        "independente",
-        "compartilhada"
+        "independent",
+        "shared"
       ],
-      "default": "independente"
+      "default": "independent"
     },
     "autostart": {
       "type": "boolean",

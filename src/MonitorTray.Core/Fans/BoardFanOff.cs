@@ -3,10 +3,10 @@ using MonitorTray.Core.Normalize;
 namespace MonitorTray.Core.Fans;
 
 /// <summary>
-/// Fans da placa desligados pelo usuário no popup (clique no card). Só memória: ao sair/reiniciar tudo volta ligado.
-/// Regras: CPU/bombas nunca desligam; sem leitura da CPU ou CPU &gt; 85 °C / GPU &gt; 80 °C não desliga e religa todos;
-/// FULL e modo game religam todos; os demais modos não mexem nos desligados nem nos em MANUAL (FULL tira do MANUAL). No chip, "desligado" é uma curva de proteção
-/// (0% até 80 °C, 100% a partir de 85 °C), então o fan volta sozinho mesmo com o app fechado/travado.
+/// Board fans turned off by the user in the popup (card click). In memory only: on exit/restart everything is back on.
+/// Rules: CPU/pumps never turn off; with no CPU reading or CPU &gt; 85 °C / GPU &gt; 80 °C nothing turns off and all turn back on;
+/// FULL and game mode turn all back on; the other modes leave the ones that are off or in MANUAL alone (FULL takes them out of MANUAL). On the chip, "off" is a protection curve
+/// (0% up to 80 °C, 100% from 85 °C), so the fan comes back on its own even with the app closed/frozen.
 /// </summary>
 public enum BoardFanClick { None, TurnOn, TurnOff, Blocked }
 
@@ -18,32 +18,32 @@ public sealed class BoardFanOff
     private readonly HashSet<string> off = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> manual = new(StringComparer.Ordinal);
 
-    /// <summary>Menor % do MANUAL na placa (abaixo disso os fans de gabinete param; para 0 existe o OFF).</summary>
+    /// <summary>Lowest MANUAL % on the board (below that the case fans stop; for 0 there is OFF).</summary>
     public const int ManualMinPercent = 20;
 
-    /// <summary>Conector que nunca desliga (cadeado): fan da CPU e bombas.</summary>
+    /// <summary>Header that never turns off (lock): CPU fan and pumps.</summary>
     public static bool Locked(string fan) =>
         fan.StartsWith("CPU", StringComparison.OrdinalIgnoreCase) || fan.Contains("Pump", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>Temperatura acima do limite: nada fica desligado.</summary>
+    /// <summary>Temperature above the limit: nothing stays off.</summary>
     public static bool TooHot(float? cpuC, float? gpuC) => cpuC > CpuLimitC || gpuC > GpuLimitC;
 
-    /// <summary>Por que este fan não pode desligar agora (null = pode).</summary>
+    /// <summary>Why this fan cannot turn off right now (null = it can).</summary>
     public static string? BlockReason(string fan, float? cpuC, float? gpuC) =>
-        Locked(fan) ? "CPU e bombas não desligam"
-        : cpuC is null ? "sem leitura da temperatura da CPU"
-        : TooHot(cpuC, gpuC) ? $"CPU acima de {CpuLimitC:0} °C ou GPU acima de {GpuLimitC:0} °C"
+        Locked(fan) ? "CPU and pumps never turn off"
+        : cpuC is null ? "no CPU temperature reading"
+        : TooHot(cpuC, gpuC) ? $"CPU above {CpuLimitC:0} °C or GPU above {GpuLimitC:0} °C"
         : null;
 
     /// <summary>
-    /// Curva de proteção gravada no lugar da curva do fan: <paramref name="points"/> pontos (°C, PWM 0..255),
-    /// PWM 0 até 80 °C e 255 a partir de 85 °C. Temperaturas crescentes (os primeiros pontos de 10 em 10 °C abaixo de 80).
+    /// Protection curve written in place of the fan curve: <paramref name="points"/> points (°C, PWM 0..255),
+    /// PWM 0 up to 80 °C and 255 from 85 °C. Increasing temperatures (the first points 10 °C apart below 80).
     /// </summary>
     public static int[][] ProtectionCurve(int points) => HoldCurve(points, 0);
 
     /// <summary>
-    /// Curva plana no PWM pedido (0..255) até 80 °C e 255 a partir de 85 °C: usada pelo OFF (PWM 0) e pelo MANUAL.
-    /// O chip sobe o fan sozinho se esquentar, mesmo com o Marz fechado/travado.
+    /// Flat curve at the requested PWM (0..255) up to 80 °C and 255 from 85 °C: used by OFF (PWM 0) and by MANUAL.
+    /// The chip ramps the fan up on its own if it heats up, even with Marz closed/frozen.
     /// </summary>
     public static int[][] HoldCurve(int points, int pwm)
     {
@@ -55,15 +55,15 @@ public sealed class BoardFanOff
         return c;
     }
 
-    /// <summary>% do MANUAL limitado (mínimo <see cref="ManualMinPercent"/>, máximo 100).</summary>
+    /// <summary>Clamped MANUAL % (minimum <see cref="ManualMinPercent"/>, maximum 100).</summary>
     public static int ClampManual(int percent) => Math.Clamp(percent, ManualMinPercent, 100);
 
-    /// <summary>% fixo do fan em MANUAL (null = segue a curva/modo).</summary>
+    /// <summary>Fixed % of the fan in MANUAL (null = follows the curve/mode).</summary>
     public int? ManualPercent(string fan) { lock (off) return manual.TryGetValue(fan, out var p) ? p : null; }
     public bool AnyManual { get { lock (off) return manual.Count > 0; } }
     public IReadOnlyList<string> Manual { get { lock (off) return manual.Keys.ToList(); } }
 
-    /// <summary>Põe em MANUAL (sai do OFF). Devolve o % aplicado.</summary>
+    /// <summary>Puts it in MANUAL (leaves OFF). Returns the applied %.</summary>
     public int SetManual(string fan, int percent)
     {
         var p = ClampManual(percent);
@@ -71,7 +71,7 @@ public sealed class BoardFanOff
         return p;
     }
 
-    /// <summary>Volta para a curva. true = estava em MANUAL.</summary>
+    /// <summary>Goes back to the curve. true = it was in MANUAL.</summary>
     public bool ClearManual(string fan) { lock (off) return manual.Remove(fan); }
     public IReadOnlyList<string> ClearAllManual() { lock (off) { var l = manual.Keys.ToList(); manual.Clear(); return l; } }
 
@@ -79,7 +79,7 @@ public sealed class BoardFanOff
     public bool IsOff(string fan) { lock (off) return off.Contains(fan); }
     public bool Any { get { lock (off) return off.Count > 0; } }
 
-    /// <summary>Marca como desligado se as regras deixam. true = mudou.</summary>
+    /// <summary>Marks it as off if the rules allow. true = changed.</summary>
     public bool TurnOff(string fan, float? cpuC, float? gpuC)
     {
         if (BlockReason(fan, cpuC, gpuC) != null) return false;
@@ -89,8 +89,8 @@ public sealed class BoardFanOff
     public bool TurnOn(string fan) { lock (off) return off.Remove(fan); }
 
     /// <summary>
-    /// O que o clique no card faz. Opção "DESLIGAR FAN DA PLACA" desligada ou CPU/bomba: nada (o card nem parece clicável).
-    /// Desligado: religa. Ligado: desliga, ou Blocked quando as regras não deixam agora (BlockReason diz o motivo).
+    /// What clicking the card does. "TURN OFF BOARD FAN" option off or CPU/pump: nothing (the card does not even look clickable).
+    /// Off: turns it back on. On: turns it off, or Blocked when the rules do not allow it now (BlockReason gives the reason).
     /// </summary>
     public BoardFanClick ClickAction(string fan, bool optionOn, float? cpuC, float? gpuC) =>
         !optionOn || Locked(fan) ? BoardFanClick.None
@@ -98,17 +98,17 @@ public sealed class BoardFanOff
         : BlockReason(fan, cpuC, gpuC) != null ? BoardFanClick.Blocked
         : BoardFanClick.TurnOff;
 
-    /// <summary>O card do fan reage ao mouse (mãozinha, clique) só com a opção ligada e fora do cadeado.</summary>
+    /// <summary>The fan card reacts to the mouse (hand cursor, click) only with the option on and when not locked.</summary>
     public static bool Clickable(string fan, bool optionOn) => optionOn && !Locked(fan);
 
     public IReadOnlyList<string> ClearAll() { lock (off) { var l = off.ToList(); off.Clear(); return l; } }
 
-    /// <summary>Checagem a cada leitura: sem leitura da CPU ou acima do limite religa todos. Devolve os religados.</summary>
+    /// <summary>Check on every reading: no CPU reading or above the limit turns all back on. Returns the ones turned back on.</summary>
     public IReadOnlyList<string> Check(float? cpuC, float? gpuC) => cpuC is null || TooHot(cpuC, gpuC) ? ClearAll() : [];
 
     /// <summary>
-    /// Fans que recebem um modo. FULL inclui os desligados (religa todos, mesmo fora da lista) e limpa o estado;
-    /// os outros modos pulam os desligados, que seguem desligados.
+    /// Fans that receive a mode. FULL includes the ones that are off (turns all back on, even outside the list) and clears the state;
+    /// the other modes skip the ones that are off, which stay off.
     /// </summary>
     public IReadOnlyList<string> ModeTargets(string mode, IEnumerable<string> fans)
     {

@@ -1,4 +1,4 @@
-// Portado do GPU by MarzOps (CmpInf, homolog 260a683f). Lógica mantida; só namespace/log/visibilidade mudaram.
+// Ported from GPU by MarzOps (CmpInf, homolog 260a683f). Logic kept; only namespace/log/visibility changed.
 // CmpInf local r3.3-wheel. Pure logic: no Windows input/audio/hardware calls.
 // Licensed under the same GPL terms as the surrounding CmpInf adaptation.
 using System;

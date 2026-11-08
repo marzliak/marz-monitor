@@ -1,6 +1,6 @@
 namespace MonitorTray.Oled;
 
-/// <summary>Log curto do teclado em %APPDATA%\MonitorTray\logs\keyboard.log (limite 512 KB, depois recomeça).</summary>
+/// <summary>Short keyboard log in %APPDATA%\MonitorTray\logs\keyboard.log (512 KB limit, then starts over).</summary>
 internal static class Log
 {
     private static readonly object Gate = new();

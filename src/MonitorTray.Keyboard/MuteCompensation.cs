@@ -1,4 +1,4 @@
-// Portado do GPU by MarzOps (CmpInf, homolog 260a683f). Lógica mantida; só namespace/log/visibilidade mudaram.
+// Ported from GPU by MarzOps (CmpInf, homolog 260a683f). Logic kept; only namespace/log/visibility changed.
 // Mute compensation on the default render endpoint only; NOT HID suppression.
 // No volume-level changes, no microphone access, no keystroke injection.
 using System;
@@ -138,7 +138,7 @@ internal sealed class R33Audio : IDisposable
             Guid iid=typeof(R33EndpointVolume).GUID;
             Check(device.Activate(ref iid,23,IntPtr.Zero,out object volume));endpoint=(R33EndpointVolume)volume;
             Check(endpoint.GetMute(out bool muted));
-            if (callGate.Success("get-mute") == AudioCallResult.Recovered) Log.Info("Audio GetMute recuperado.");
+            if (callGate.Success("get-mute") == AudioCallResult.Recovered) Log.Info("Audio GetMute recovered.");
             correlation.Reset(muted);
             int currentEpoch=epoch;
             callback=new R33VolumeSink((notification,t)=>
@@ -147,7 +147,7 @@ internal sealed class R33Audio : IDisposable
             });
             Check(endpoint.RegisterControlChangeNotify(callback));
         }
-        catch(Exception ex){CloseEndpoint();if(callGate.Failure("get-mute", ex)==AudioCallResult.FirstFailure)Log.Warn("Compensacao de mudo indisponivel: "+ex.Message);}
+        catch(Exception ex){CloseEndpoint();if(callGate.Failure("get-mute", ex)==AudioCallResult.FirstFailure)Log.Warn("Mute compensation unavailable: "+ex.Message);}
         finally {if(next!=null)Marshal.ReleaseComObject(next);}
     }
     internal void Pump()
@@ -174,15 +174,15 @@ internal sealed class R33Audio : IDisposable
         try
         {
             Check(endpoint.GetMute(out bool actual));
-            if (callGate.Success("get-mute") == AudioCallResult.Recovered) Log.Info("Audio GetMute recuperado.");
+            if (callGate.Success("get-mute") == AudioCallResult.Recovered) Log.Info("Audio GetMute recovered.");
             if(actual!=fix.Expected){correlation.Reset(actual);return;}
             Guid ctx=ownContext;
             Check(endpoint.SetMute(fix.Desired,ref ctx));
-            if (callGate.Success("set-mute") == AudioCallResult.Recovered) Log.Info("Audio SetMute recuperado.");
+            if (callGate.Success("set-mute") == AudioCallResult.Recovered) Log.Info("Audio SetMute recovered.");
             correlation.Corrected(fix.Desired);Corrections++;
-            Log.Info("Rodinha: estado anterior de mudo restaurado (compensacao, nao bloqueio HID).");
+            Log.Info("Wheel: previous mute state restored (compensation, not HID blocking).");
         }
-        catch(Exception ex){correlation.Cancel(Environment.TickCount64);if(callGate.Failure("set-mute", ex)==AudioCallResult.FirstFailure)Log.Warn("Nao foi possivel compensar mudo: "+ex.Message);}
+        catch(Exception ex){correlation.Cancel(Environment.TickCount64);if(callGate.Failure("set-mute", ex)==AudioCallResult.FirstFailure)Log.Warn("Could not compensate mute: "+ex.Message);}
     }
     private void CloseEndpoint()
     {

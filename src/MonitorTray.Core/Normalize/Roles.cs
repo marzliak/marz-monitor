@@ -3,12 +3,12 @@ using MonitorTray.Core.Model;
 
 namespace MonitorTray.Core.Normalize;
 
-/// <summary>Papel do sensor (docs/05 §6). Overrides por regex ficam no topo.</summary>
+/// <summary>Sensor role (docs/05 §6). Regex overrides sit at the top.</summary>
 public static partial class Roles
 {
     private static readonly (Regex Family, Regex Name, SensorRole Role)[] Overrides =
     [
-        // (família, nome, papel) — avaliados antes das regras gerais. Vazio por padrão.
+        // (family, name, role) — evaluated before the general rules. Empty by default.
     ];
 
     [GeneratedRegex(@"Distance to TjMax", RegexOptions.IgnoreCase)] private static partial Regex Margin();
@@ -33,14 +33,14 @@ public static partial class Roles
     }
 
     public static string Tag(SensorRole role, SensorQuality quality, string name) =>
-        quality == SensorQuality.Unavailable ? "sem leitura"
-        : quality == SensorQuality.Partial ? "parcial"
-        : IsMargin(name) ? "margem"
+        quality == SensorQuality.Unavailable ? "no reading"
+        : quality == SensorQuality.Partial ? "partial"
+        : IsMargin(name) ? "margin"
         : role switch
         {
-            SensorRole.Accumulated => "acumulado",
-            SensorRole.Estimate => "estimativa",
-            SensorRole.Limit => "limite",
+            SensorRole.Accumulated => "cumulative",
+            SensorRole.Estimate => "estimate",
+            SensorRole.Limit => "limit",
             SensorRole.Metadata => "SPD",
             _ => "",
         };

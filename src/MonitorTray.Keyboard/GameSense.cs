@@ -12,8 +12,8 @@ public interface IOledTransport
 }
 
 /// <summary>
-/// Cliente GameSense local (SteelSeries GG). Lê o endereço do coreProps.json a cada chamada (a porta muda quando o GG reinicia),
-/// aceita só localhost, registra o jogo, liga o evento de tela do OLED 128x40 e envia as 2 linhas. Heartbeat a cada 10 s.
+/// Local GameSense client (SteelSeries GG). Reads the address from coreProps.json on every call (the port changes when GG restarts),
+/// accepts localhost only, registers the game, binds the 128x40 OLED screen event and sends the 2 lines. Heartbeat every 10 s.
 /// </summary>
 public sealed class GameSenseClient : IOledTransport
 {
@@ -33,19 +33,19 @@ public sealed class GameSenseClient : IOledTransport
 
     public static string Address()
     {
-        var p = CorePropsPath() ?? throw new FileNotFoundException("SteelSeries GG não encontrado (coreProps.json ausente).");
+        var p = CorePropsPath() ?? throw new FileNotFoundException("SteelSeries GG not found (coreProps.json missing).");
         using var doc = JsonDocument.Parse(File.ReadAllText(p));
-        var a = doc.RootElement.GetProperty("address").GetString() ?? throw new InvalidDataException("coreProps.json sem endereço.");
+        var a = doc.RootElement.GetProperty("address").GetString() ?? throw new InvalidDataException("coreProps.json has no address.");
         return ValidateLocal(a);
     }
 
     public static string ValidateLocal(string address)
     {
         if (!address.StartsWith("http://") && !address.StartsWith("https://")) address = "http://" + address;
-        if (!Uri.TryCreate(address, UriKind.Absolute, out var uri)) throw new InvalidDataException("Endereço do GG inválido.");
+        if (!Uri.TryCreate(address, UriKind.Absolute, out var uri)) throw new InvalidDataException("Invalid GG address.");
         if ((uri.Scheme != "http" && uri.Scheme != "https") || !new[] { "localhost", "127.0.0.1", "::1" }.Contains(uri.Host.Trim('[', ']'), StringComparer.OrdinalIgnoreCase)
             || uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0 || uri.AbsolutePath != "/")
-            throw new InvalidOperationException("GameSense aceita somente o endereço local do GG.");
+            throw new InvalidOperationException("GameSense accepts only the local GG address.");
         return address.TrimEnd('/');
     }
 
@@ -89,14 +89,14 @@ public sealed class GameSenseClient : IOledTransport
 
 public sealed record OledDelivery(bool Enabled, string Status, string? Error, DateTimeOffset? SentAt, string[] Lines);
 
-/// <summary>Único escritor do OLED (bind/send/release serializados). Falha marca liberação pendente antes de religar.</summary>
+/// <summary>Sole OLED writer (bind/send/release serialized). A failure marks a pending release before binding again.</summary>
 public sealed class OledOutput
 {
     private readonly IOledTransport transport;
     private readonly SemaphoreSlim gate = new(1, 1);
     private bool bound, releasePending, enabled = true;
     private int? boundIcon;
-    private OledDelivery delivery = new(true, "Aguardando GG", null, null, []);
+    private OledDelivery delivery = new(true, "Waiting for GG", null, null, []);
     public OledOutput(IOledTransport transport) { this.transport = transport; }
     public OledDelivery Snapshot => Volatile.Read(ref delivery);
 
@@ -115,13 +115,13 @@ public sealed class OledOutput
             }
             var frame = new[] { lines.ElementAtOrDefault(0) ?? " ", lines.ElementAtOrDefault(1) ?? " " };
             await transport.SendAsync(frame, token);
-            Volatile.Write(ref delivery, new(true, "Enviado ao GG", null, DateTimeOffset.UtcNow, frame));
+            Volatile.Write(ref delivery, new(true, "Sent to GG", null, DateTimeOffset.UtcNow, frame));
             return true;
         }
         catch (Exception ex)
         {
             releasePending = true;
-            Volatile.Write(ref delivery, new(enabled, "Falha no envio", ex is OperationCanceledException ? "GG não respondeu no prazo" : ex.Message, null, []));
+            Volatile.Write(ref delivery, new(enabled, "Send failed", ex is OperationCanceledException ? "GG did not respond in time" : ex.Message, null, []));
             return false;
         }
         finally { gate.Release(); }
@@ -134,9 +134,9 @@ public sealed class OledOutput
         {
             enabled = on;
             if (!on && (bound || releasePending)) await Release(token);
-            Volatile.Write(ref delivery, new(on, on ? "Aguardando envio" : "Desligado (o GG volta à tela dele)", null, null, []));
+            Volatile.Write(ref delivery, new(on, on ? "Waiting to send" : "Off (GG shows its own screen again)", null, null, []));
         }
-        catch (Exception ex) { Volatile.Write(ref delivery, new(on, "Falha ao liberar", ex.Message, null, [])); }
+        catch (Exception ex) { Volatile.Write(ref delivery, new(on, "Release failed", ex.Message, null, [])); }
         finally { gate.Release(); }
     }
 

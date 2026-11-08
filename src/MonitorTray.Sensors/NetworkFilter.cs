@@ -4,9 +4,9 @@ using System.Text.RegularExpressions;
 namespace MonitorTray.Sensors;
 
 /// <summary>
-/// Adaptadores físicos/lógicos reais. O Windows expõe, para cada placa, interfaces de filtro (WFP, QoS)
-/// e WAN Miniports com os mesmos contadores; somá-las conta o mesmo tráfego várias vezes.
-/// Regra genérica do Windows, não depende de modelo de hardware.
+/// Real physical/logical adapters. For each adapter Windows exposes filter interfaces (WFP, QoS)
+/// and WAN Miniports with the same counters; summing them counts the same traffic several times.
+/// Generic Windows rule, does not depend on the hardware model.
 /// </summary>
 public static partial class NetworkFilter
 {
@@ -29,7 +29,7 @@ public static partial class NetworkFilter
             if (ni.OperationalStatus == OperationalStatus.NotPresent) continue;
             if (upOnly && ni.OperationalStatus != OperationalStatus.Up) continue;
             if (IsFilterOrVirtual(ni.Name, ni.Description)) continue;
-            // Mesmo MAC = mesma placa vista por outra camada.
+            // Same MAC = same adapter seen through another layer.
             string mac;
             try { mac = ni.GetPhysicalAddress().ToString(); } catch (Exception) { mac = ""; }
             if (mac.Length > 0 && mac.Trim('0').Length > 0 && !macs.Add(mac)) continue;

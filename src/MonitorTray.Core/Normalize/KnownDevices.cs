@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace MonitorTray.Core.Normalize;
 
-/// <summary>known-devices.json: IDs já vistos, para a tag NOVO (docs/05 §1).</summary>
+/// <summary>known-devices.json: IDs already seen, for the NEW tag (docs/05 §1).</summary>
 public sealed class KnownDevices
 {
     private readonly string path;
@@ -34,7 +34,7 @@ public sealed class KnownDevices
         }
     }
 
-    /// <summary>Grava todos os IDs vistos (chamado ao fechar o Detalhes e na saída).</summary>
+    /// <summary>Writes all seen IDs (called when Details closes and on exit).</summary>
     public void Save()
     {
         string[] ids;

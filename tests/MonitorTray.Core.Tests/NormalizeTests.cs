@@ -1,4 +1,5 @@
 using MonitorTray.Core.Detail;
+using MonitorTray.Core.Fans;
 using MonitorTray.Core.History;
 using MonitorTray.Core.Model;
 using MonitorTray.Core.Normalize;
@@ -9,7 +10,7 @@ namespace MonitorTray.Core.Tests;
 
 public class NormalizeTests
 {
-    private static string DataPath => Path.Combine(AppContext.BaseDirectory, "data", "sensores.json");
+    private static string DataPath => Path.Combine(AppContext.BaseDirectory, "data", "sensors.json");
 
     internal static (IReadOnlyList<Device> Devices, SensorTracker Tracker, SimulatedSource Src) Simulate(int ticks = 12, bool fake = false)
     {
@@ -33,7 +34,7 @@ public class NormalizeTests
         Assert.Equal("CPU Total", P(cpu, "Load"));
         Assert.Equal("GPU Core", P(gpu, "Temperature"));
         var mem = devs.Single(d => d.Family == "Memory");
-        Assert.StartsWith("Física · Memory", P(mem, "Load"));
+        Assert.StartsWith("Physical · Memory", P(mem, "Load"));
         foreach (var ssd in devs.Where(d => d.Family == "Storage"))
             Assert.Equal("Composite Temperature", DetailModel.HotSensor(ssd)!.Name);
         Assert.Equal("CPU Package", DetailModel.HotSensor(cpu)!.Name);
@@ -51,25 +52,25 @@ public class NormalizeTests
     public void MemoryConsolidatedWithSlots()
     {
         var (devs, _, _) = Simulate();
-        var mem = devs.Where(d => d.Category == "Memória").ToList();
+        var mem = devs.Where(d => d.Category == "Memory").ToList();
         Assert.Single(mem);
         var m = mem[0];
         Assert.Equal("family:Memory", m.Id);
         Assert.Equal([(1, 1), (2, 3)], m.Modules.Select(x => (x.Index, x.Slot)));
-        Assert.Contains(m.Sensors, s => s.Name.StartsWith("Módulo 1 · ", StringComparison.Ordinal));
+        Assert.Contains(m.Sensors, s => s.Name.StartsWith("Module 1 · ", StringComparison.Ordinal));
         Assert.Contains(m.Sensors, s => s.Name.StartsWith("Virtual · ", StringComparison.Ordinal));
         var panel = DetailModel.Panel(m, m.Sensors, new SensorTracker());
-        Assert.Contains("2 módulos · módulo 1 no slot 1, módulo 2 no slot 3", panel.Meta);
+        Assert.Contains("2 modules · module 1 in slot 1, module 2 in slot 3", panel.Meta);
     }
 
     [Fact]
     public void NetworkGenericNamesAndDuplicates()
     {
         var (devs, _, _) = Simulate();
-        var net = devs.Single(d => d.Category == "Rede");
-        Assert.Equal("Rede", net.DisplayName);
-        Assert.Contains(net.Sensors, s => s.Name.StartsWith("Adaptador de rede 1 · ", StringComparison.Ordinal));
-        Assert.Contains(net.Sensors, s => s.Name.StartsWith("Adaptador de rede 2 · ", StringComparison.Ordinal));
+        var net = devs.Single(d => d.Category == "Network");
+        Assert.Equal("Network", net.DisplayName);
+        Assert.Contains(net.Sensors, s => s.Name.StartsWith("Network adapter 1 · ", StringComparison.Ordinal));
+        Assert.Contains(net.Sensors, s => s.Name.StartsWith("Network adapter 2 · ", StringComparison.Ordinal));
         var kc = devs.Where(d => d.RawName == "KINGSTON SKC3000D2048G").Select(d => d.DisplayName).Order().ToList();
         Assert.Equal(["KINGSTON SKC3000D2048G · hw-1", "KINGSTON SKC3000D2048G · hw-2"], kc);
     }
@@ -79,7 +80,7 @@ public class NormalizeTests
     {
         var (devs, _, _) = Simulate();
         var cats = devs.Select(d => d.Category).Distinct().ToList();
-        Assert.Equal(["CPU", "GPU", "Memória", "Placa-mãe", "Armazenamento", "Rede"], cats);
+        Assert.Equal(["CPU", "GPU", "Memory", "Motherboard", "Storage", "Network"], cats);
     }
 
     [Fact]
@@ -89,20 +90,20 @@ public class NormalizeTests
         var ssd = devs.First(d => d.Family == "Storage");
         Assert.Equal(SensorRole.Limit, ssd.Sensors.First(s => s.Name == "Warning Temperature").Role);
         Assert.Equal(SensorRole.Limit, ssd.Sensors.First(s => s.Name == "Critical Temperature").Role);
-        Assert.Equal("acumulado", ssd.Sensors.First(s => s.Name == "Data Read").Tag);
-        Assert.Equal("estimativa", ssd.Sensors.First(s => s.Name == "Life").Tag);
+        Assert.Equal("cumulative", ssd.Sensors.First(s => s.Name == "Data Read").Tag);
+        Assert.Equal("estimate", ssd.Sensors.First(s => s.Name == "Life").Tag);
         Assert.Equal(SensorRole.Reading, ssd.Sensors.First(s => s.Name == "Composite Temperature").Role);
-        var mb = devs.Where(d => d.Category == "Placa-mãe").SelectMany(d => d.Sensors).ToList();
+        var mb = devs.Where(d => d.Category == "Motherboard").SelectMany(d => d.Sensors).ToList();
         foreach (var n in new[] { "Water In", "Water Out", "T Sensor" })
         {
             var s = mb.First(x => x.Name == n);
-            Assert.Equal("sem leitura", s.Tag); Assert.Null(s.Value);
+            Assert.Equal("no reading", s.Tag); Assert.Null(s.Value);
         }
         Assert.True(mb.First(x => x.Name == "Water Flow").AllZero);
         var mem = devs.Single(d => d.Family == "Memory");
         Assert.All(mem.Sensors.Where(s => s.KindRaw == "Timing"), s => Assert.Equal(SensorRole.Metadata, s.Role));
         var cpu = devs.First(d => d.Category == "CPU");
-        Assert.All(cpu.Sensors.Where(s => s.Name.Contains("Distance to TjMax")), s => Assert.Equal("margem", s.Tag));
+        Assert.All(cpu.Sensors.Where(s => s.Name.Contains("Distance to TjMax")), s => Assert.Equal("margin", s.Tag));
     }
 
     [Fact]
@@ -114,7 +115,7 @@ public class NormalizeTests
         Assert.DoesNotContain(v.Panel!.Sections.SelectMany(s => s.Tiles), t => t.Name == "Warning Temperature");
         var on = DetailModel.Build(devs, tracker, Filters.Default with { ShowLimits = true }, ssdId);
         var w = on.Panel!.Sections.SelectMany(s => s.Tiles).First(t => t.Name == "Warning Temperature");
-        Assert.Equal("limite", w.Tag);
+        Assert.Equal("limit", w.Tag);
         Assert.True(v.HiddenLimits > 0 && v.HiddenZero > 0);
     }
 
@@ -125,8 +126,8 @@ public class NormalizeTests
         var cpu = devs.First(d => d.Category == "CPU");
         var v = DetailModel.Build(devs, tracker, Filters.Default, cpu.Id);
         var p = v.Panel!;
-        Assert.Equal("CPU Package", p.Cards.First(c => c.Label == "Temperatura").SensorName);
-        Assert.Equal("CPU Total", p.Cards.First(c => c.Label == "Carga").SensorName);
+        Assert.Equal("CPU Package", p.Cards.First(c => c.Label == "Temperature").SensorName);
+        Assert.Equal("CPU Total", p.Cards.First(c => c.Label == "Load").SensorName);
         foreach (var kind in new[] { "Load", "Clock", "Voltage" })
             Assert.True(p.Sections.First(s => s.KindRaw == kind).IsGrid, kind);
         Assert.All(p.Sections.Where(s => s.IsGrid), s => Assert.True(s.Cells.Count >= 9));
@@ -140,16 +141,16 @@ public class NormalizeTests
         var key = cpu.Id + "|Clock";
         var def = DetailModel.Build(devs, tracker, Filters.Default, cpu.Id).Panel!.Cards.First(c => c.Label == "Clock");
         Assert.Contains(def.Options, o => o.Key == DetailModel.PickAvg);
-        Assert.True(def.Options.Count >= 10); // média, máximo e cada núcleo (lista vem do hardware)
+        Assert.True(def.Options.Count >= 10); // average, max and each core (list comes from the hardware)
         var avg = DetailModel.Build(devs, tracker, Filters.Default, cpu.Id, new Dictionary<string, string> { [key] = "avg" }).Panel!.Cards.First(c => c.Label == "Clock");
-        Assert.StartsWith("Média", avg.SensorName);
+        Assert.StartsWith("Average", avg.SensorName);
         var clocks = cpu.Sensors.Where(s => s.KindRaw == "Clock" && s.Unit == "MHz" && s.Value != null).Select(s => (double)s.Value!.Value).ToList();
         Assert.Equal(clocks.Average(), avg.Raw!.Value, 3);
         var core = def.Options.Last();
         var one = DetailModel.Build(devs, tracker, Filters.Default, cpu.Id, new Dictionary<string, string> { [key] = core.Key }).Panel!.Cards.First(c => c.Label == "Clock");
         Assert.Equal(core.Label, one.SensorName);
-        var bad = DetailModel.Build(devs, tracker, Filters.Default, cpu.Id, new Dictionary<string, string> { [key] = "sumiu" }).Panel!.Cards.First(c => c.Label == "Clock");
-        Assert.Equal(def.SensorName, bad.SensorName); // escolha inválida volta ao padrão
+        var bad = DetailModel.Build(devs, tracker, Filters.Default, cpu.Id, new Dictionary<string, string> { [key] = "gone" }).Panel!.Cards.First(c => c.Label == "Clock");
+        Assert.Equal(def.SensorName, bad.SensorName); // invalid choice falls back to the default
     }
 
     [Fact]
@@ -164,7 +165,7 @@ public class NormalizeTests
     public void SearchIsAccentInsensitive()
     {
         var (devs, tracker, _) = Simulate();
-        var v = DetailModel.Build(devs, tracker, Filters.Default with { Query = "tensao" }, null);
+        var v = DetailModel.Build(devs, tracker, Filters.Default with { Query = "VOLTÄGE" }, null); // case and diacritics are folded
         Assert.NotEmpty(v.Devices);
         Assert.All(v.Panel!.Sections, s => Assert.Equal("Voltage", s.KindRaw));
         var none = DetailModel.Build(devs, tracker, Filters.Default with { Query = "xyzzy" }, null);
@@ -175,9 +176,9 @@ public class NormalizeTests
     public void UnknownTypeInPsuRenders()
     {
         var (devs, tracker, _) = Simulate(fake: true);
-        var psu = devs.Single(d => d.Category == "Fonte");
+        var psu = devs.Single(d => d.Category == "PSU");
         var v = DetailModel.Build(devs, tracker, Filters.Default, psu.Id);
-        Assert.Contains(v.Panel!.Sections, s => s.Label == "Corrente");
+        Assert.Contains(v.Panel!.Sections, s => s.Label == "Current");
     }
 
     [Fact]
@@ -238,17 +239,17 @@ public class NetworkPanelTests
         var raw = new List<RawSensor>
         {
             S("/nic/abc", "Ethernet", "Download Speed", 5000), S("/nic/abc", "Ethernet", "Upload Speed", 100),
-            S(NetTrafficIds.Internet, "Tráfego internet", "Download", 3000), S(NetTrafficIds.Internet, "Tráfego internet", "Upload", 50),
-            S(NetTrafficIds.Local, "Tráfego rede local", "Download", 2000), S(NetTrafficIds.Local, "Tráfego rede local", "Upload", 50),
-            S(NetTrafficIds.Total, "Tráfego total", "Download", 5000), S(NetTrafficIds.Total, "Tráfego total", "Upload", 100),
+            S(NetTrafficIds.Internet, "Internet traffic", "Download", 3000), S(NetTrafficIds.Internet, "Internet traffic", "Upload", 50),
+            S(NetTrafficIds.Local, "Local network traffic", "Download", 2000), S(NetTrafficIds.Local, "Local network traffic", "Upload", 50),
+            S(NetTrafficIds.Total, "Total traffic", "Download", 5000), S(NetTrafficIds.Total, "Total traffic", "Upload", 100),
         };
         var t = new SensorTracker();
         for (int i = 0; i < 3; i++) { t.BeginTick(); foreach (var r in raw) t.Push(r.Id, r.Value + i); }
         var devs = DeviceBuilder.Build(raw, t, _ => false);
-        var net = devs.Single(d => d.Category == "Rede");
+        var net = devs.Single(d => d.Category == "Network");
         var panel = DetailModel.Panel(net, net.Sensors, t);
-        Assert.Equal(["Total", "Rede local", "Internet", "Ethernet"], panel.Sections.Select(s => s.Label));
-        Assert.Equal(["Total", "Rede local", "Internet"], panel.Cards.Select(c => c.Label));
+        Assert.Equal(["Total", "Local network", "Internet", "Ethernet"], panel.Sections.Select(s => s.Label));
+        Assert.Equal(["Total", "Local network", "Internet"], panel.Cards.Select(c => c.Label));
         Assert.All(panel.Cards, c => Assert.Equal("Download", c.SensorName));
         Assert.Equal(["Download", "Upload"], panel.Cards[2].Options.Select(o => o.Label));
         var up = DetailModel.Panel(net, net.Sensors, t, new Dictionary<string, string> { [net.Id + "|src:Internet"] = NetTrafficIds.Internet + "/throughput/Upload" });
@@ -302,7 +303,7 @@ public class TrackerTests
         for (int i = 0; i < 5; i++) { t.BeginTick(); t.Push("a", 1); }
         t.BeginTick(); t.Push("late", 7);
         var h = t.Get("late")!.History.ToArray();
-        Assert.Equal(6, h.Length); // alinhado aos 6 ticks dos demais sensores
+        Assert.Equal(6, h.Length); // aligned to the 6 ticks of the other sensors
         Assert.All(h.Take(5), v => Assert.Null(v));
         Assert.Equal(7f, h[^1]);
     }
@@ -324,14 +325,14 @@ public class SettingsTests
     {
         Assert.Equal(Settings.Default, Settings.Parse("{not json"));
         Assert.Equal(Settings.Default, Settings.Parse("{\"version\":2}"));
-        var s = Settings.Parse("{\"version\":1,\"theme\":\"roxo\",\"opacity\":42,\"refreshMs\":500,\"palette\":\"lima\"}");
-        Assert.Equal("escuro", s.Theme); Assert.Equal(90, s.Opacity); Assert.Equal(500, s.RefreshMs); Assert.Equal("lima", s.Palette);
+        var s = Settings.Parse("{\"version\":1,\"theme\":\"purple\",\"opacity\":42,\"refreshMs\":500,\"palette\":\"lime\"}");
+        Assert.Equal("dark", s.Theme); Assert.Equal(90, s.Opacity); Assert.Equal(500, s.RefreshMs); Assert.Equal("lime", s.Palette);
     }
 
     [Fact]
     public void RoundTrip()
     {
-        var s = Settings.Default with { Theme = "claro", History = 3600, StartHidden = false, CloseToTray = false, CardPicks = new Dictionary<string, string> { ["/intelcpu/0|Clock"] = "avg" }, DetailsWindow = new DetailsWindowState(10, 20, 960, 640, true) };
+        var s = Settings.Default with { Theme = "light", History = 3600, StartHidden = false, CloseToTray = false, CardPicks = new Dictionary<string, string> { ["/intelcpu/0|Clock"] = "avg" }, DetailsWindow = new DetailsWindowState(10, 20, 960, 640, true) };
         Assert.Equal(s, Settings.Parse(s.ToJson()));
     }
 
@@ -342,11 +343,176 @@ public class SettingsTests
         try
         {
             var store = new SettingsStore(Path.Combine(dir, "settings.json"));
-            store.Save(Settings.Default with { Palette = "brasa" }); store.Flush();
-            Assert.Equal("brasa", store.Load().Palette);
+            store.Save(Settings.Default with { Palette = "ember" }); store.Flush();
+            Assert.Equal("ember", store.Load().Palette);
             Assert.Single(Directory.GetFiles(dir));
         }
         finally { Directory.Delete(dir, true); }
+    }
+}
+
+public class SettingsMigrationTests
+{
+    // legacy (0.1.33) values: real settings.json written by a Portuguese version of the app
+    private const string LegacyUserFile = """
+        {"version":1,"theme":"escuro","palette":"eletrico","opacity":90,"refreshMs":1000,"history":60,"scale":"independente","netUnit":"bytes","autohide":false,"closeToTray":true,"acModes":["curvas","silent","standard","turbo","full"],"acFans":["Chassis Fan 1","Chassis Fan 2","Chassis Fan 3","Chassis Fan 4"],"gameTargets":["gpu","board","pump","radiator","embedded"],"gameGpuPercent":100,"gameCoolerPercent":100,"popupTemps":["cpu","gpu","hot","vram","vrm","chip","liq","ram"],"popupBoardFans":["CPU Fan","Chassis Fan 1","Chassis Fan 2","Chassis Fan 3","Chassis Fan 4"],"popupCoolerFans":["pump","radiator","embedded"],"boardFanOff":true,"trayTemp":false,"trayAlert":false,"trayFontSize":"pp","trayTemps":[],"trayRotateSec":3,"gameExes":[],"acFanNames":{"Chassis Fan 1":"Exaustor","Chassis Fan 2":"Front top","Chassis Fan 3":"Front down","Chassis Fan 4":"Rear"},"autostart":true,"startHidden":true}
+        """;
+
+    private static Settings With(string key, string value) => Settings.Parse("{\"version\":1,\"" + key + "\":\"" + value + "\"}");
+
+    [Fact]
+    public void LegacyUserFileKeepsEveryChoice()
+    {
+        var s = Settings.Parse(LegacyUserFile);
+        Assert.Equal("dark", s.Theme);
+        Assert.Equal("electric", s.Palette);
+        Assert.Equal("independent", s.Scale);
+        Assert.Equal(["curves", "silent", "standard", "turbo", "full"], s.AcModes);
+        Assert.Equal("xs", s.TrayFontSize);
+        Assert.Empty(s.AcFanNames); // the old built-in nicknames are dropped: the board header shows
+        Assert.Equal("CHA_FAN1", s.BoardFanName("Chassis Fan 1")); Assert.Equal("CHA_FAN3", s.BoardFanName("Chassis Fan 3"));
+        Assert.True(s.BoardFanOff); Assert.True(s.Autostart); Assert.True(s.StartHidden);
+        var json = s.ToJson();
+        foreach (var old in new[] { "escuro", "eletrico", "independente", "curvas", "\"pp\"", "Exaustor", "Front down" }) // legacy (0.1.33) values
+            Assert.DoesNotContain(old, json);
+    }
+
+    [Theory]
+    [InlineData("theme", "claro", "light")] // legacy (0.1.33) value
+    [InlineData("theme", "escuro", "dark")] // legacy (0.1.33) value
+    [InlineData("theme", "sistema", "system")] // legacy (0.1.33) value
+    [InlineData("palette", "eletrico", "electric")] // legacy (0.1.33) value
+    [InlineData("palette", "lima", "lime")] // legacy (0.1.33) value
+    [InlineData("palette", "brasa", "ember")] // legacy (0.1.33) value
+    [InlineData("palette", "violeta", "violet")] // legacy (0.1.33) value
+    [InlineData("palette", "aco", "steel")] // legacy (0.1.33) value
+    [InlineData("palette", "neon", "neon")]
+    [InlineData("scale", "independente", "independent")] // legacy (0.1.33) value
+    [InlineData("scale", "compartilhada", "shared")] // legacy (0.1.33) value
+    [InlineData("trayFontSize", "pp", "xs")] // legacy (0.1.33) value
+    [InlineData("trayFontSize", "p", "s")] // legacy (0.1.33) value
+    [InlineData("trayFontSize", "m", "m")]
+    [InlineData("trayFontSize", "g", "l")] // legacy (0.1.33) value
+    public void EachLegacyIdMapsToTheNewId(string key, string old, string expected)
+    {
+        var s = With(key, old);
+        var actual = key switch { "theme" => s.Theme, "palette" => s.Palette, "scale" => s.Scale, _ => s.TrayFontSize };
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void NewIdsAreReadAsIs()
+    {
+        Assert.Equal("system", With("theme", "system").Theme);
+        Assert.Equal("violet", With("palette", "violet").Palette);
+        Assert.Equal("shared", With("scale", "shared").Scale);
+        Assert.Equal("l", With("trayFontSize", "l").TrayFontSize);
+    }
+
+    [Fact]
+    public void InvalidOrMisplacedValuesFallBackToDefault()
+    {
+        Assert.Equal(Settings.Default.Theme, With("theme", "purple").Theme);
+        Assert.Equal(Settings.Default.Palette, With("palette", "claro").Palette); // legacy (0.1.33) theme value used as palette
+        Assert.Equal(Settings.Default.Palette, With("palette", "light").Palette);
+        Assert.Equal(Settings.Default.Scale, With("scale", "sistema").Scale); // legacy (0.1.33) value of another key
+        Assert.Equal(Settings.Default.TrayFontSize, With("trayFontSize", "xxl").TrayFontSize);
+    }
+
+    [Theory]
+    [InlineData("Chassis Fan 1", "Exaustor")] // legacy (0.1.33) value
+    [InlineData("Chassis Fan 1", "Exhaust")]
+    [InlineData("Chassis Fan 2", "Front top")]
+    [InlineData("Chassis Fan 3", "Front down")]
+    [InlineData("Chassis Fan 3", "Front bottom")]
+    [InlineData("Chassis Fan 4", "Rear")]
+    public void OldDefaultFanNamesAreDropped(string fan, string name)
+    {
+        var s = Settings.Parse("{\"version\":1,\"acFanNames\":{\"" + fan + "\":\"" + name + "\"}}");
+        Assert.Empty(s.AcFanNames);
+        Assert.Equal(ThermalMap.BoardHeader(fan), s.BoardFanName(fan));
+        Assert.Equal(ThermalMap.BoardHeader(fan), s.BoardFanTip(fan));
+    }
+
+    [Fact]
+    public void UserFanNamesAreKept()
+    {
+        // A default name on another connector is a user's choice; so is any other text.
+        var s = Settings.Parse("{\"version\":1,\"acFanNames\":{\"Chassis Fan 1\":\"Rear\",\"Chassis Fan 2\":\"Meu fan\",\"Chassis Fan 3\":\"  Top intake  \",\"Chassis Fan 4\":\"\",\"CPU Fan\":\"A very long fan name here\"}}"); // legacy (0.1.33) custom name
+        Assert.Equal("Rear", s.AcFanNames["Chassis Fan 1"]);
+        Assert.Equal("Meu fan", s.AcFanNames["Chassis Fan 2"]);
+        Assert.Equal("Top intake", s.AcFanNames["Chassis Fan 3"]); // trimmed
+        Assert.False(s.AcFanNames.ContainsKey("Chassis Fan 4")); // empty = original
+        Assert.Equal("A very long fan", s.AcFanNames["CPU Fan"]); // cut to 16 (and trimmed)
+        Assert.Equal("Rear", s.BoardFanName("Chassis Fan 1"));
+        Assert.Equal("Rear · CHA_FAN1", s.BoardFanTip("Chassis Fan 1"));
+        Assert.Equal("CHA_FAN4", s.BoardFanName("Chassis Fan 4"));
+        Assert.Equal(s, Settings.Parse(s.ToJson()));
+    }
+
+    [Fact]
+    public void DefaultFanNamesAreTheHeaders()
+    {
+        Assert.Empty(Settings.Default.AcFanNames);
+        Assert.Empty(Settings.Default.CoolerNames);
+        Assert.Equal("CPU_FAN", Settings.Default.BoardFanName("CPU Fan"));
+        Assert.Equal("CPU_OPT", Settings.Default.BoardFanName("CPU Optional Fan"));
+        Assert.Equal("W_PUMP+", Settings.Default.BoardFanName("Water Pump+"));
+        Assert.Equal("AIO_PUMP", Settings.Default.BoardFanName("AIO Pump"));
+        Assert.Equal("CHA_FAN7", Settings.Default.BoardFanName("Chassis Fan 7")); // derived, not a fixed list
+        Assert.Equal("PUMP", Settings.Default.CoolerName("pump"));
+        Assert.Equal("RADIATOR", Settings.Default.CoolerName("radiator"));
+        Assert.Equal("EMB.", Settings.Default.CoolerName("embedded"));
+    }
+
+    [Fact]
+    public void CoolerNamesRoundTripAndOnlyKnownParts()
+    {
+        var s = Settings.Parse("{\"version\":1,\"coolerNames\":{\"pump\":\"Main pump\",\"radiator\":\" \",\"fan\":\"x\"}}");
+        Assert.Equal(new Dictionary<string, string> { ["pump"] = "Main pump" }, s.CoolerNames);
+        Assert.Equal("Main pump", s.CoolerName("pump"));
+        Assert.Equal("Main pump · PUMP", s.CoolerTip("pump"));
+        Assert.Equal("RADIATOR", s.CoolerName("radiator"));
+        var back = Settings.Parse(s.ToJson());
+        Assert.Equal(s, back);
+        Assert.NotEqual(Settings.Default, Settings.Default with { CoolerNames = new Dictionary<string, string> { ["pump"] = "P" } });
+        Assert.NotEqual(Settings.Default, Settings.Default with { AcFanNames = new Dictionary<string, string> { ["CPU Fan"] = "P" } });
+    }
+
+    [Fact]
+    public void RenameSetsClearsAndCuts()
+    {
+        IReadOnlyDictionary<string, string> d = new Dictionary<string, string>();
+        d = FanNames.Rename(d, "Chassis Fan 1", "  Exhaust ", "CHA_FAN1");
+        Assert.Equal("Exhaust", d["Chassis Fan 1"]);
+        d = FanNames.Rename(d, "Chassis Fan 2", "12345678901234567890", "CHA_FAN2");
+        Assert.Equal("1234567890123456", d["Chassis Fan 2"]);
+        d = FanNames.Rename(d, "Chassis Fan 1", "", "CHA_FAN1"); // empty = back to the original
+        Assert.False(d.ContainsKey("Chassis Fan 1"));
+        d = FanNames.Rename(d, "Chassis Fan 2", "cha_fan2", "CHA_FAN2"); // the original itself = not renamed
+        Assert.Empty(d);
+        Assert.Equal("pump", FanNames.CoolerPart(ThermalMap.PumpId));
+        Assert.Equal("radiator", FanNames.CoolerPart(ThermalMap.RadiatorId));
+        Assert.Equal("embedded", FanNames.CoolerPart(ThermalMap.EmbeddedId));
+        Assert.Null(FanNames.CoolerPart(ThermalMap.GpuId));
+    }
+
+    [Fact]
+    public void CoolerStripUsesTheUserNames()
+    {
+        var items = ThermalMap.CoolerStrip(2000, 60, [1000, 1010], 50, 3000, 70, p => p == "radiator" ? "Top rad" : null);
+        Assert.Equal([null, "Top rad 1", "Top rad 2", null], items.Select(i => i.Nick));
+        Assert.Equal(["PUMP", "RAD 1", "RAD 2", "EMBEDDED"], items.Select(i => i.Name));
+    }
+
+    [Fact]
+    public void AcModeCurvasBecomesCurves()
+    {
+        Assert.Equal("curves", Settings.MigrateAcMode("curvas")); // legacy (0.1.33) value
+        Assert.Equal("silent", Settings.MigrateAcMode("silent"));
+        Assert.Equal("curves", Settings.MigrateAcMode("curves"));
+        Assert.Null(Settings.MigrateAcMode(null));
+        Assert.Equal(["curves", "full"], Settings.Parse("{\"version\":1,\"acModes\":[\"curvas\",\"full\",\"curves\"]}").AcModes); // legacy (0.1.33) value
     }
 }
 
@@ -357,7 +523,7 @@ public class RateHistoryTests
     public void OneMinuteIsPerSecondWithPeakOfTicks()
     {
         var h = new RateHistory();
-        for (long s = 1000; s < 1100; s++) { h.Add(s, s); h.Add(0, s); } // 2 ticks/s: pico = s
+        for (long s = 1000; s < 1100; s++) { h.Add(s, s); h.Add(0, s); } // 2 ticks/s: peak = s
         var v = h.View(60);
         Assert.Equal(61, v.Length); Assert.Equal(1099, v[^1]); Assert.Equal(1039, v[0]);
         Assert.Equal(60, RateHistory.Points(60));
@@ -372,7 +538,7 @@ public class RateHistoryTests
         for (long s = 0; s <= 7260; s++) h.Add(s == 5000 ? 999 : 1, s);
         var v = h.View(7200);
         Assert.Equal(121, v.Length);
-        Assert.Contains(999, v);           // pico curto continua visível
+        Assert.Contains(999, v);           // short peak stays visible
         Assert.Equal(1, v[^1]);
     }
 
@@ -380,11 +546,11 @@ public class RateHistoryTests
     public void ShortUptimeGivesFewerPointsAndGapsAreZero()
     {
         var h = new RateHistory();
-        h.Add(5, 100); h.Add(5, 101); h.Add(7, 110); // 102..109 suspenso
+        h.Add(5, 100); h.Add(5, 101); h.Add(7, 110); // 102..109 suspended
         var v = h.View(60);
         Assert.Equal(11, v.Length); Assert.Equal(0, v[3]); Assert.Equal(7, v[^1]);
         Assert.Empty(new RateHistory().View(60));
-        h.Add(1000, 50); Assert.Equal(7, h.View(60)[^1]); // segundo antigo é ignorado
+        h.Add(1000, 50); Assert.Equal(7, h.View(60)[^1]); // an old second is ignored
     }
 
     [Fact]

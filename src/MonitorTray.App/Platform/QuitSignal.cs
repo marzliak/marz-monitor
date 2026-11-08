@@ -4,9 +4,9 @@ using System.Security.Principal;
 namespace MonitorTray.App.Platform;
 
 /// <summary>
-/// Evento nomeado "Local\MonitorTray.Quit.&lt;SID&gt;" (mesmo padrão do CmpInf): o instalador (não elevado)
-/// sinaliza e o app roda a saída normal, que devolve as fans ao automático. SDDL: dono = usuário,
-/// SYSTEM/Admins total, o próprio usuário só SYNCHRONIZE|EVENT_MODIFY_STATE; rótulo de integridade média.
+/// Named event "Local\MonitorTray.Quit.&lt;SID&gt;" (same pattern as CmpInf): the (non-elevated) installer
+/// signals it and the app runs the normal quit, which returns the fans to automatic. SDDL: owner = user,
+/// SYSTEM/Admins full access, the user itself only SYNCHRONIZE|EVENT_MODIFY_STATE; medium integrity label.
 /// </summary>
 public static class QuitSignal
 {
@@ -37,7 +37,7 @@ public static class QuitSignal
             var err = Marshal.GetLastWin32Error();
             if (h == IntPtr.Zero) return null;
             var handle = new Handle(h);
-            if (err == 183) { handle.Dispose(); return null; } // já existe com outro dono
+            if (err == 183) { handle.Dispose(); return null; } // already exists with another owner
             return handle;
         }
         catch (Exception) { return null; }

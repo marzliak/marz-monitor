@@ -1,12 +1,12 @@
 namespace MonitorTray.Core.Fans;
 
-/// <summary>Leitura de um card de fan da placa: rpm só quando medido; % de controle da saída do chip.</summary>
+/// <summary>Reading of a board fan card: rpm only when measured; control % of the chip output.</summary>
 public sealed record BoardFanReading(int? Rpm, int? Percent, bool RpmMeasured, int? ChipIndex);
 
 /// <summary>
-/// Conector do Armoury Crate → saída do Super I/O (só leitura de rpm/%). Chassis 1..4 conferidos ao vivo (saídas 0, 2, 3, 4);
-/// CPU e bombas foram estimados pelo % de controle da coleta (saídas 1, 5, 6) e o rpm deles nunca foi confirmado:
-/// o card mostra só o % e "—" no rpm. O rpm nunca é calculado a partir do %.
+/// Armoury Crate header → Super I/O output (rpm/% read only). Chassis 1..4 verified live (outputs 0, 2, 3, 4);
+/// CPU and pumps were estimated from the control % in the capture (outputs 1, 5, 6) and their rpm was never confirmed:
+/// the card shows only the % and "—" for rpm. The rpm is never computed from the %.
 /// </summary>
 public static class BoardFanMap
 {
@@ -15,7 +15,7 @@ public static class BoardFanMap
         "Chassis Fan 1" => 0, "CPU Fan" => 1, "Chassis Fan 2" => 2, "Chassis Fan 3" => 3, "Chassis Fan 4" => 4, "Water Pump+" => 5, "AIO Pump" => 6, _ => null,
     };
 
-    /// <summary>rpm medido e conferido para este conector (só os chassis).</summary>
+    /// <summary>rpm measured and verified for this header (chassis fans only).</summary>
     public static bool RpmMeasured(string acName) => acName.StartsWith("Chassis Fan ", StringComparison.Ordinal) && ChipIndex(acName) != null;
 
     public static BoardFanReading Read(string acName, IReadOnlyDictionary<int, float> rpm, IReadOnlyDictionary<int, float> control)
@@ -28,8 +28,8 @@ public static class BoardFanMap
     }
 
     /// <summary>
-    /// Índice da saída no fim do id do sensor: "/lpc/nct6798d/0/fan/2" → 2. Tolera o sufixo "#nome" das coletas
-    /// exportadas (modo simulado: "/Motherboard/hw-1/fan/2#Fan #3"). null = sem índice.
+    /// Output index at the end of the sensor id: "/lpc/nct6798d/0/fan/2" → 2. Tolerates the "#name" suffix of exported
+    /// captures (simulated mode: "/Motherboard/hw-1/fan/2#Fan #3"). null = no index.
     /// </summary>
     public static int? TrailingIndex(string sensorId)
     {

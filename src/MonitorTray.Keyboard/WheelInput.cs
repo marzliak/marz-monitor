@@ -1,4 +1,4 @@
-// Portado do GPU by MarzOps (CmpInf, homolog 260a683f). Lógica mantida; só namespace/log/visibilidade mudaram.
+// Ported from GPU by MarzOps (CmpInf, homolog 260a683f). Logic kept; only namespace/log/visibility changed.
 // Consumer-Control only. No keyboard hook, key logging, input synthesis or HID driver.
 using System;
 using System.Collections.Generic;
@@ -94,7 +94,7 @@ internal sealed class R33Input : IDisposable
     private Device GetDevice(IntPtr handle)
     {
         if(devices.TryGetValue(handle,out var found)) return found;
-        if(devices.Count>=64) throw new InvalidOperationException("Muitos endpoints HID; reinicie o monitor.");
+        if(devices.Count>=64) throw new InvalidOperationException("Too many HID endpoints; restart the monitor.");
         uint n=0; string path="";
         if(handle!=IntPtr.Zero && GetDeviceData(handle,0x20000007,IntPtr.Zero,ref n)!=uint.MaxValue && n>0 && n<16384)
         {
@@ -110,8 +110,8 @@ internal sealed class R33Input : IDisposable
             var selectedPath = selection.Chosen;
             var next = devices.FirstOrDefault(pair => pair.Value.Candidate && pair.Value.Path == selectedPath).Key;
             if (next != chosen) { chosen = next; reset(); }
-            if (chosen != IntPtr.Zero) Log.Info("Rodinha: HID VID_1038 PID_1640 MI_03 COL01 reconhecido.");
-            else { reset(); Log.Warn("Dois HID com a assinatura da rodinha: captura suspensa, sem escolher por suposicao."); }
+            if (chosen != IntPtr.Zero) Log.Info("Wheel: HID VID_1038 PID_1640 MI_03 COL01 recognized.");
+            else { reset(); Log.Warn("Two HIDs with the wheel signature: capture suspended, not picking one by guesswork."); }
         }
         return device;
     }

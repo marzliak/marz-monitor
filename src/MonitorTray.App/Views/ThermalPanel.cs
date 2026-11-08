@@ -19,10 +19,10 @@ using GpuMode = MonitorTray.Gpu.FanMode;
 namespace MonitorTray.App.Views;
 
 /// <summary>
-/// Aba "Curvas e fans" do controle térmico (mock 03e): faixa com todos os fans, abas por dispositivo, modo do dispositivo,
-/// gráfico grande da curva do atuador (fonte → curva → atuador) e painel com fonte, proteções e fans desligados.
-/// Nada é escrito sem clique: arrastar só muda a edição; Aplicar grava (cooler: ryujin-fans.json; placa: curva User pelo
-/// Armoury Crate); os botões de modo fazem o mesmo que no popup.
+/// "Curves and fans" tab of the thermal control (mock 03e): strip with every fan, per-device tabs, device mode,
+/// large chart of the actuator's curve (source → curve → actuator) and a panel with source, protections and fans turned off.
+/// Nothing is written without a click: dragging only changes the edit; Apply writes (cooler: ryujin-fans.json; board: User curve via
+/// Armoury Crate); the mode buttons do the same as in the popup.
 /// </summary>
 public sealed class ThermalPanel : DockPanel
 {
@@ -35,8 +35,9 @@ public sealed class ThermalPanel : DockPanel
     private readonly Func<string, string> label;
     private readonly Action<FrameworkElement, Action<string>> pickSensor;
 
-    private sealed record Act(string Id, ThermalDevice Dev, string Name, string? Sub);
-    /// <summary>Edição pendente de um atuador. Fixed: % fixo = Points[0].Percent.</summary>
+    /// <summary>Actuator: Name = label shown (the user's name or the original), Sub = extra info ("3 fans"), Tip = "name · ORIGINAL" when renamed.</summary>
+    private sealed record Act(string Id, ThermalDevice Dev, string Name, string? Sub, string? Tip = null);
+    /// <summary>Pending edit of an actuator. Fixed: fixed % = Points[0].Percent.</summary>
     private sealed record Edit(IReadOnlyList<CurvePoint> Points, bool Fixed);
     private sealed record View(Act A, Edit Saved, Edit Cur, (double Min, double Max, double Step) Axis, CurveLimits Limits,
         bool Editable, string? Block, string SourceId, double? Temp, double? NowPercent, string? Overlay, bool Flat, IReadOnlyList<ChartGuard> Guards);
@@ -69,7 +70,7 @@ public sealed class ThermalPanel : DockPanel
     private readonly Border compare;
     private readonly StackPanel side = new();
     private readonly StackPanel nowBox = new();
-    private readonly TextBlock changes = Ui.T("Nenhuma alteração", 12, head: false).With(t => t.VerticalAlignment = VerticalAlignment.Center);
+    private readonly TextBlock changes = Ui.T("No changes", 12, head: false).With(t => t.VerticalAlignment = VerticalAlignment.Center);
     private readonly TextBlock changesNote = Ui.T("", 11, Theme.Muted).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(8, 0, 0, 0); });
     private readonly FlatButton discard, apply;
     private readonly TextBlock applyText;
@@ -83,15 +84,15 @@ public sealed class ThermalPanel : DockPanel
         Snap = () => sensors.Latest;
         LastChildFill = true;
 
-        // Faixa de fans: sempre visível, clique seleciona o atuador.
+        // Fan strip: always visible, a click selects the actuator.
         var stripBox = Ui.Box(new Thickness(0, 0, 0, 1), new Thickness(10, 6, 10, 8), strip);
         stripBox.SetResourceReference(Border.BackgroundProperty, Theme.Track);
         SetDock(stripBox, Dock.Top); Children.Add(stripBox);
 
-        // Barra de ações.
-        discard = new FlatButton { Height = 26, Padding = new Thickness(12, 0, 12, 0), Margin = new Thickness(0, 0, 8, 0), ToolTip = "Volta as curvas ao que está salvo" }.Content(Ui.T("DESCARTAR", 11, Theme.Muted, weight: 600).With(t => t.VerticalAlignment = VerticalAlignment.Center));
+        // Action bar.
+        discard = new FlatButton { Height = 26, Padding = new Thickness(12, 0, 12, 0), Margin = new Thickness(0, 0, 8, 0), ToolTip = "Reverts the curves to what is saved" }.Content(Ui.T("DISCARD", 11, Theme.Muted, weight: 600).With(t => t.VerticalAlignment = VerticalAlignment.Center));
         discard.Click += () => { edits.Clear(); pendingSource = null; Refresh(force: true); };
-        applyText = Ui.T("APLICAR", 11, Theme.Bg, weight: 600).With(t => t.VerticalAlignment = VerticalAlignment.Center);
+        applyText = Ui.T("APPLY", 11, Theme.Bg, weight: 600).With(t => t.VerticalAlignment = VerticalAlignment.Center);
         apply = new FlatButton(Theme.Bg) { Height = 26, Padding = new Thickness(14, 0, 14, 0), ActiveBg = Theme.Fill }.Content(applyText);
         apply.Click += Apply;
         changesDot.SetResourceReference(Border.BackgroundProperty, Theme.UStroke);
@@ -102,7 +103,7 @@ public sealed class ThermalPanel : DockPanel
         var barBox = Ui.Box(new Thickness(0, 1, 0, 0), new Thickness(14, 7, 10, 7), bar);
         SetDock(barBox, Dock.Bottom); Children.Add(barBox);
 
-        // Corpo: centro (abas, modo, título, gráfico, pontos) e painel lateral.
+        // Body: center (tabs, mode, title, chart, points) and side panel.
         var body = new Grid();
         body.ColumnDefinitions.Add(new ColumnDefinition { MinWidth = 520 });
         body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });
@@ -120,7 +121,7 @@ public sealed class ThermalPanel : DockPanel
         SetDock(control, Dock.Right); head.Children.Add(control);
         var titleBox = new Border { BorderThickness = new Thickness(3, 0, 0, 0), Padding = new Thickness(12, 0, 12, 0), Child = new StackPanel { Children =
         {
-            Ui.T("CURVA EM EDIÇÃO", 10, Theme.Muted).With(t => t.Margin = new Thickness(0, 0, 0, 1)), title, sub.With(t => t.Margin = new Thickness(0, 2, 0, 0)),
+            Ui.T("EDITING CURVE", 10, Theme.Muted).With(t => t.Margin = new Thickness(0, 0, 0, 1)), title, sub.With(t => t.Margin = new Thickness(0, 2, 0, 0)),
         } } };
         titleBox.SetResourceReference(Border.BorderBrushProperty, Theme.DStroke);
         head.Children.Add(titleBox);
@@ -133,10 +134,10 @@ public sealed class ThermalPanel : DockPanel
         SetDock(hintRow, Dock.Top); center.Children.Add(hintRow);
 
         var legend = new DockPanel { Margin = new Thickness(0, 8, 0, 0), LastChildFill = false };
-        legendGhost = Swatch("dash", "anterior · salva");
-        var legendCurve = Swatch("line", "editando");
+        legendGhost = Swatch("dash", "previous · saved");
+        var legendCurve = Swatch("line", "editing");
         legendCurveText = (TextBlock)((Panel)legendCurve).Children[1];
-        foreach (var e in new[] { legendCurve, legendGhost, Swatch("now", "agora"), Swatch("hatch", "proteção") }) { SetDock(e, Dock.Left); legend.Children.Add(e); }
+        foreach (var e in new[] { legendCurve, legendGhost, Swatch("now", "now"), Swatch("hatch", "protection") }) { SetDock(e, Dock.Left); legend.Children.Add(e); }
         SetDock(legendRight, Dock.Right); legend.Children.Add(legendRight);
         SetDock(legend, Dock.Top); center.Children.Add(legend);
         SetDock(banner, Dock.Top); center.Children.Add(banner);
@@ -154,36 +155,39 @@ public sealed class ThermalPanel : DockPanel
 
         chart.Edited += OnChartEdited;
         chart.SelectionChanged += i => { selPoint = i; RefreshEdit(); };
-        // Sem assinar eventos dos serviços (a janela é recriada a cada abertura): o tick da janela chama Refresh a cada 500 ms.
+        // No subscription to service events (the window is recreated on every open): the window tick calls Refresh every 500 ms.
         asus?.RefreshCurves();
         Refresh(force: true);
     }
 
-    // ------------------------------------------------------------------ modelo
+    // ------------------------------------------------------------------ model
 
-    /// <summary>Leitura dos sensores (rpm/% dos fans da placa). A prévia troca por uma leitura montada.</summary>
+    /// <summary>Sensor reading (rpm/% of the board fans). The preview swaps it for a built-up reading.</summary>
     public Func<MonitorTray.Core.Model.Snapshot?> Snap { get; set; }
 
     private bool GpuOk => gpu?.State.Reading is { Fans.Count: > 0 };
     private bool BoardOk => asus is { Available: true } && asus.Fans.Count > 0;
     private bool CoolerOk => cooler is { DeviceFound: true };
     private string CoolerSource => pendingSource ?? cooler?.FanConfig.SourceId ?? ThermalMap.CpuSource;
-    private string? Nick(string acName) => app.Settings.AcFanNames.TryGetValue(acName, out var n) && n.Length > 0 ? n : null;
-    private string BoardMode => asus?.Pending ?? asus?.Mode ?? "curvas";
+    private string? Nick(string acName) => FanNames.Custom(app.Settings.AcFanNames, acName);
+    private string? CoolerNick(string part) => FanNames.Custom(app.Settings.CoolerNames, part);
+    private Act CoolerAct(string id, string part, string label, string? sub) =>
+        CoolerNick(part) is string n ? new(id, ThermalDevice.Cooler, n, sub, app.Settings.CoolerTip(part)) : new(id, ThermalDevice.Cooler, label, sub);
+    private string BoardMode => asus?.Pending ?? asus?.Mode ?? "curves";
 
-    private static string DevName(ThermalDevice d) => d switch { ThermalDevice.Gpu => "GPU", ThermalDevice.Board => "PLACA-MÃE", _ => "RYUJIN II" };
+    private static string DevName(ThermalDevice d) => d switch { ThermalDevice.Gpu => "GPU", ThermalDevice.Board => "MOTHERBOARD", _ => "RYUJIN II" };
 
     private List<Act> Acts()
     {
         var l = new List<Act>();
         if (GpuOk) { int n = gpu!.State.Reading!.Fans.Count; l.Add(new(ThermalMap.GpuId, ThermalDevice.Gpu, n > 1 ? "Fans " + string.Join(" + ", Enumerable.Range(1, n)) : "Fan", null)); }
-        if (BoardOk) foreach (var f in asus!.Fans) l.Add(new(ThermalMap.BoardId(f), ThermalDevice.Board, ThermalMap.BoardHeader(f), Nick(f)));
+        if (BoardOk) foreach (var f in asus!.Fans) l.Add(new(ThermalMap.BoardId(f), ThermalDevice.Board, app.Settings.BoardFanName(f), null, Nick(f) != null ? app.Settings.BoardFanTip(f) : null));
         if (CoolerOk)
         {
             int rad = cooler!.Latest?.Fans?.Rpm.Length ?? 0;
-            l.Add(new(ThermalMap.PumpId, ThermalDevice.Cooler, "Bomba", null));
-            l.Add(new(ThermalMap.RadiatorId, ThermalDevice.Cooler, "Radiador", rad > 1 ? $"{rad} fans" : null));
-            l.Add(new(ThermalMap.EmbeddedId, ThermalDevice.Cooler, "Fan embutido", null));
+            l.Add(CoolerAct(ThermalMap.PumpId, "pump", "Pump", null));
+            l.Add(CoolerAct(ThermalMap.RadiatorId, "radiator", "Radiator", rad > 1 ? $"{rad} fans" : null));
+            l.Add(CoolerAct(ThermalMap.EmbeddedId, "embedded", "Embedded fan", null));
         }
         return l;
     }
@@ -196,8 +200,8 @@ public sealed class ThermalPanel : DockPanel
     };
 
     /// <summary>
-    /// Temperatura da fonte como a curva usa: média móvel de ~5 s (<see cref="TempSmoother"/>), igual ao laço do cooler.
-    /// O instantâneo da CPU Package pula 10–20 °C em picos curtos e deixava a linha AGORA ilegível.
+    /// Source temperature as the curve uses it: ~5 s moving average (<see cref="TempSmoother"/>), same as the cooler loop.
+    /// The instantaneous CPU Package value jumps 10–20 °C in short spikes and made the NOW line unreadable.
     /// </summary>
     private double? Temp(string id)
     {
@@ -213,7 +217,7 @@ public sealed class ThermalPanel : DockPanel
 
     private string SourceName(string id) => id switch
     {
-        ThermalMap.CpuSource => "CPU", ThermalMap.GpuSource => "GPU core", RyujinSensorIds.Water => "Líquido · RYUJIN II", _ => label(id),
+        ThermalMap.CpuSource => "CPU", ThermalMap.GpuSource => "GPU core", RyujinSensorIds.Water => "Liquid · RYUJIN II", _ => label(id),
     };
 
     private static Edit Flat(double pct, (double Min, double Max, double Step) axis) => new([new(axis.Min, pct), new(axis.Max, pct)], true);
@@ -237,9 +241,9 @@ public sealed class ThermalPanel : DockPanel
                 var saved = s.Mode == CoolerMode.Fixed ? Flat(s.FixedPercent, axis) : new Edit(curve, false);
                 var guards = new List<ChartGuard>();
                 if (liquid) guards.Add(new(CoolerSafety.WaterPanicC, null, $"≥ {CoolerSafety.WaterPanicC:0} °C → 100%"));
-                if (a.Id == ThermalMap.PumpId) guards.Add(new(null, CoolerSafety.PumpMinPercent, $"bomba nunca abaixo de {CoolerSafety.PumpMinPercent}%"));
+                if (a.Id == ThermalMap.PumpId) guards.Add(new(null, CoolerSafety.PumpMinPercent, $"pump never below {CoolerSafety.PumpMinPercent}%"));
                 var cur = e ?? saved;
-                if (cur.Fixed) cur = Flat(cur.Points[0].Percent, axis); // o eixo pode ter mudado com a fonte
+                if (cur.Fixed) cur = Flat(cur.Points[0].Percent, axis); // the axis may have changed with the source
                 return new View(a, saved, cur, axis, lim, true, null, src, temp, null, null, false, guards);
             }
             case ThermalDevice.Board:
@@ -253,11 +257,11 @@ public sealed class ThermalPanel : DockPanel
                 else if (man is int mp) raw = CurveEdit.FromChip(BoardFanOff.HoldCurve(4, CurveEdit.PwmFromPercent(mp)));
                 else if (mode == "full") { raw = [new(20, 100), new(100, 100)]; flat = true; }
                 else if (asus.Curves.TryGetValue(fan, out var byMode) && byMode.TryGetValue(mode, out var pts)) raw = CurveEdit.FromChip(pts);
-                else { raw = []; overlay = "Curva ainda não lida do Armoury Crate."; }
+                else { raw = []; overlay = "Curve not read from Armoury Crate yet."; }
                 var axis = ThermalMap.Axis(false, raw.Where(p => p.TempC <= 120).Select(p => p.TempC));
                 var lim = ThermalMap.Limits(a.Id, axis, CoolerSafety.PumpMinPercent, raw.Count >= 2 ? raw.Count : 4);
-                var block = raw.Count == 0 ? "curva ainda não lida" : flat ? "FULL: 100% em todas as temperaturas"
-                    : man is int mm ? $"MANUAL {mm}% (volte para CURVA no card do popup para editar)"
+                var block = raw.Count == 0 ? "curve not read yet" : flat ? "FULL: 100% at every temperature"
+                    : man is int mm ? $"MANUAL {mm}% (switch back to CURVE on the popup card to edit)"
                     : ThermalMap.BoardEditBlock(asus.Available, asus.Mode, asus.Pending, off, asus.SavedPending.Contains(fan), CurveEdit.Fits(raw, lim));
                 var saved = new Edit(raw, false);
                 if (block != null) edits.Remove(a.Id);
@@ -270,9 +274,9 @@ public sealed class ThermalPanel : DockPanel
                 double? now = st.Reading?.Fans.Where(f => f.SpeedPercent != null).Select(f => (double)f.SpeedPercent!.Value).DefaultIfEmpty().Average();
                 bool manual = st.Mode == GpuMode.Manual && st.RequestedPercent is uint;
                 var saved = manual ? Flat(st.RequestedPercent!.Value, axis) : new Edit([], false);
-                var guards = new List<ChartGuard> { new(80, null, "core ≥ 80 °C → 100%"), new(50, 30, "< 30% só com core < 50 °C") };
-                var overlay = manual ? null : st.Mode == GpuMode.Automatic ? "AUTOMÁTICO DO DRIVER\nA curva é do driver e não é exposta. 30 / 50 / 75 / 100 fixam o %." : "Modo das fans indefinido (misto ou sem leitura).";
-                return new View(a, saved, saved, axis, new CurveLimits(axis.Min, axis.Max, 0, 2, 2), false, "o driver controla a curva", src, temp, now, overlay, manual, guards);
+                var guards = new List<ChartGuard> { new(80, null, "core ≥ 80 °C → 100%"), new(50, 30, "< 30% only with core < 50 °C") };
+                var overlay = manual ? null : st.Mode == GpuMode.Automatic ? "DRIVER AUTOMATIC\nThe curve belongs to the driver and is not exposed. 30 / 50 / 75 / 100 set a fixed %." : "Fan mode undefined (mixed or no reading).";
+                return new View(a, saved, saved, axis, new CurveLimits(axis.Min, axis.Max, 0, 2, 2), false, "the driver controls the curve", src, temp, now, overlay, manual, guards);
             }
         }
     }
@@ -280,13 +284,13 @@ public sealed class ThermalPanel : DockPanel
     private static bool Same(Edit a, Edit b) => a.Fixed == b.Fixed && (a.Fixed ? a.Points[0].Percent == b.Points[0].Percent : CurveEdit.Changed(a.Points, b.Points) == 0);
 
     private static string ChangeText(Edit saved, Edit cur) =>
-        cur.Fixed != saved.Fixed ? (cur.Fixed ? $"fixo em {cur.Points[0].Percent:0}%" : "curva no lugar do fixo")
-        : cur.Fixed ? $"fixo {saved.Points[0].Percent:0}% → {cur.Points[0].Percent:0}%"
-        : CurveEdit.Changed(saved.Points, cur.Points) is int n && n == 1 ? "1 ponto alterado" : $"{CurveEdit.Changed(saved.Points, cur.Points)} pontos alterados";
+        cur.Fixed != saved.Fixed ? (cur.Fixed ? $"fixed at {cur.Points[0].Percent:0}%" : "curve instead of fixed")
+        : cur.Fixed ? $"fixed {saved.Points[0].Percent:0}% → {cur.Points[0].Percent:0}%"
+        : CurveEdit.Changed(saved.Points, cur.Points) is int n && n == 1 ? "1 point changed" : $"{CurveEdit.Changed(saved.Points, cur.Points)} points changed";
 
-    // ------------------------------------------------------------------ atualização
+    // ------------------------------------------------------------------ refresh
 
-    /// <summary>Tick da janela (~500 ms) e eventos dos serviços: refaz o que mudou; botões só quando a estrutura muda.</summary>
+    /// <summary>Window tick (~500 ms) and service events: rebuilds what changed; buttons only when the structure changes.</summary>
     public void Refresh(bool force = false)
     {
         var acts = Acts();
@@ -301,7 +305,7 @@ public sealed class ThermalPanel : DockPanel
     private string StaticKey(List<Act> acts)
     {
         var st = gpu?.State; var cs = cooler?.FanStatus;
-        return string.Join("|", selected, string.Join(",", acts.Select(a => a.Id + a.Sub)), asus?.Mode, asus?.Pending, asus?.Error, string.Join(",", asus?.Off.Off ?? []),
+        return string.Join("|", selected, string.Join(",", acts.Select(a => a.Id + a.Name + a.Sub)), asus?.Mode, asus?.Pending, asus?.Error, string.Join(",", asus?.Off.Off ?? []),
             asus == null ? 0 : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(asus.Curves), cooler == null ? 0 : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(cooler.FanConfig),
             cs?.Notice, cs?.Tuning, cs?.Controlling, st?.Mode, st?.RequestedPercent, st?.Busy, st?.CanControl, st?.Error, pendingSource, string.Join(",", edits.Keys), app.Settings.GetHashCode());
     }
@@ -309,9 +313,9 @@ public sealed class ThermalPanel : DockPanel
     private void ShowEmpty()
     {
         strip.Children.Clear(); tabs.Children.Clear(); pills.Children.Clear(); modes.Children.Clear(); side.Children.Clear();
-        title.Text = "Nenhum fan controlável encontrado";
-        sub.Text = "GPU (NVML), placa (Armoury Crate) e water cooler aparecem aqui quando disponíveis.";
-        chart.Set(new CurveChartModel { Overlay = "sem dispositivos" }, -1);
+        title.Text = "No controllable fan found";
+        sub.Text = "GPU (NVML), board (Armoury Crate) and water cooler show up here when available.";
+        chart.Set(new CurveChartModel { Overlay = "no devices" }, -1);
         apply.IsEnabled = false; apply.Opacity = 0.45;
     }
 
@@ -322,10 +326,10 @@ public sealed class ThermalPanel : DockPanel
         Refresh(force: true);
     }
 
-    /// <summary>Seleciona um atuador (ThermalMap.*Id ou BoardId).</summary>
+    /// <summary>Selects an actuator (ThermalMap.*Id or BoardId).</summary>
     public void SelectActuator(string id) { if (Acts().Any(a => a.Id == id)) Select(id); }
 
-    /// <summary>Só para a prévia: uma edição pendente (nada é gravado; Aplicar não é chamado).</summary>
+    /// <summary>Preview only: a pending edit (nothing is written; Apply is not called).</summary>
     internal void PreviewEdit(string id, IReadOnlyList<CurvePoint> pts, int sel)
     {
         SelectActuator(id);
@@ -342,7 +346,7 @@ public sealed class ThermalPanel : DockPanel
         bool was = edits.ContainsKey(a.Id);
         if (Same(next, v.Saved)) edits.Remove(a.Id); else edits[a.Id] = next;
         selPoint = sel;
-        if (was != edits.ContainsKey(a.Id)) Refresh(); // aba/pílula com o ponto de alteração e a curva anterior na legenda
+        if (was != edits.ContainsKey(a.Id)) Refresh(); // tab/pill with the change dot and the previous curve in the legend
         else RefreshEdit(fromChart: true);
     }
 
@@ -352,7 +356,7 @@ public sealed class ThermalPanel : DockPanel
         pointsKey = ""; Refresh(force: true);
     }
 
-    // ------------------------------------------------------------------ faixa, abas e pílulas
+    // ------------------------------------------------------------------ strip, tabs and pills
 
     private void RefreshStrip(List<Act> acts)
     {
@@ -365,16 +369,16 @@ public sealed class ThermalPanel : DockPanel
             strip.Children.Add(Group(ThermalDevice.Gpu, "GPU", GpuChip(), ThermalMap.GpuStrip(r.Fans.Select(f => (f.SpeedPercent, f.SpeedRpm))), sel));
         }
         if (BoardOk)
-            strip.Children.Add(Group(ThermalDevice.Board, "PLACA", MonitorTray.App.AsusFanModes.Label(BoardMode),
+            strip.Children.Add(Group(ThermalDevice.Board, "BOARD", MonitorTray.App.AsusFanModes.Label(BoardMode),
                 ThermalMap.BoardStrip(asus!.Fans, Nick, snap?.MbFanRpm ?? new Dictionary<int, float>(), snap?.MbFanControl ?? new Dictionary<int, float>(), asus.Off.IsOff), sel));
         if (CoolerOk)
         {
             var r = cooler!.Latest; var ap = cooler.FanStatus.Applied;
             strip.Children.Add(Group(ThermalDevice.Cooler, "RYUJIN II", CoolerChip(), ThermalMap.CoolerStrip(r?.Pump?.PumpRpm, ap?.PumpPercent ?? r?.PumpPercent,
-                r?.Fans?.Rpm ?? [], ap?.RadiatorPercent ?? r?.Fans?.DutyPercent, r?.Pump?.EmbeddedFanRpm, ap?.EmbeddedPercent ?? r?.EmbeddedPercent), sel));
+                r?.Fans?.Rpm ?? [], ap?.RadiatorPercent ?? r?.Fans?.DutyPercent, r?.Pump?.EmbeddedFanRpm, ap?.EmbeddedPercent ?? r?.EmbeddedPercent, CoolerNick), sel));
         }
 
-        // Abas de dispositivo e pílulas dos atuadores (clique ao pressionar: a atualização periódica não perde o clique).
+        // Device tabs and actuator pills (click on press: the periodic refresh does not lose the click).
         tabs.Children.Clear();
         foreach (var d in new[] { ThermalDevice.Gpu, ThermalDevice.Board, ThermalDevice.Cooler })
         {
@@ -385,7 +389,7 @@ public sealed class ThermalPanel : DockPanel
             {
                 Ui.T(DevName(d), 14, on ? Theme.Text : Theme.Muted, weight: 600).With(t => t.VerticalAlignment = VerticalAlignment.Center),
                 Chip(d == ThermalDevice.Gpu ? GpuChip() : d == ThermalDevice.Board ? MonitorTray.App.AsusFanModes.Label(BoardMode) : CoolerChip(), on).With(c => c.Margin = new Thickness(8, 0, 6, 0)),
-                Ui.T(d == ThermalDevice.Gpu ? "" : $"{mine.Count} curvas", 11, Theme.Muted).With(t => t.VerticalAlignment = VerticalAlignment.Center),
+                Ui.T(d == ThermalDevice.Gpu ? "" : $"{mine.Count} curves", 11, Theme.Muted).With(t => t.VerticalAlignment = VerticalAlignment.Center),
             } };
             if (mine.Any(a => edits.ContainsKey(a.Id))) row.Children.Add(Dot().With(x => x.Margin = new Thickness(6, 0, 0, 0)));
             var inner = new Border { Padding = new Thickness(12, 8, 14, 7), BorderThickness = new Thickness(on ? 1 : 0, 0, on ? 1 : 0, 0), Child = row };
@@ -409,7 +413,7 @@ public sealed class ThermalPanel : DockPanel
             var pct = PercentNow(a);
             bool off = a.Dev == ThermalDevice.Board && asus!.Off.IsOff(ThermalMap.BoardFan(a.Id)!);
             var t = new TextBlock { FontFamily = AppFonts.For(true, on ? 600 : 400), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center };
-            t.Inlines.Add(Rn(a.Dev == ThermalDevice.Board ? a.Sub ?? a.Name : a.Name, on ? Theme.Bg : Theme.Text));
+            t.Inlines.Add(Rn(a.Name, on ? Theme.Bg : Theme.Text));
             t.Inlines.Add(Rn(off ? "  OFF" : pct is int p ? $"  {p}%" : "", on ? Theme.Bg : Theme.Muted, size: 11));
             var pill = new Border { BorderThickness = new Thickness(1), Padding = new Thickness(9, 2, 9, 2), Margin = new Thickness(0, 0, 4, 0), Child = t, Cursor = Cursors.Hand, Background = Brushes.Transparent };
             pill.SetResourceReference(Border.BorderBrushProperty, on ? Theme.Fill : Theme.Line);
@@ -417,7 +421,7 @@ public sealed class ThermalPanel : DockPanel
             if (edits.ContainsKey(a.Id)) t.Inlines.Add(Rn("  ●", on ? Theme.Bg : Theme.UStroke, size: 9));
             var id = a.Id;
             pill.MouseLeftButtonDown += (_, e) => { e.Handled = true; Select(id); };
-            pill.ToolTip = a.Dev == ThermalDevice.Board ? $"{a.Name}{(a.Sub != null ? " · " + a.Sub : "")}" : null;
+            pill.ToolTip = a.Tip;
             pills.Children.Add(pill);
         }
     }
@@ -430,13 +434,13 @@ public sealed class ThermalPanel : DockPanel
         return a.Id switch { ThermalMap.PumpId => ap?.PumpPercent ?? r?.PumpPercent, ThermalMap.RadiatorId => ap?.RadiatorPercent ?? r?.Fans?.DutyPercent, _ => ap?.EmbeddedPercent ?? r?.EmbeddedPercent };
     }
 
-    private string GpuChip() => gpu?.State is { } s ? s.Mode switch { GpuMode.Automatic => "AUTO", GpuMode.Manual => s.RequestedPercent is uint p ? $"{p}%" : "MANUAL", GpuMode.Mixed => "MISTO", _ => "—" } : "—";
+    private string GpuChip() => gpu?.State is { } s ? s.Mode switch { GpuMode.Automatic => "AUTO", GpuMode.Manual => s.RequestedPercent is uint p ? $"{p}%" : "MANUAL", GpuMode.Mixed => "MIXED", _ => "—" } : "—";
 
     private string CoolerChip()
     {
         var c = cooler!.FanConfig;
-        if (!c.Enabled) return "SÓ LEITURA";
-        return CoolerModes.UniformPreset(c) switch { RyujinCurves.Preset.Silent => "SILENT", RyujinCurves.Preset.Standard => "STD", RyujinCurves.Preset.Turbo => "TURBO", RyujinCurves.Preset.FullSpeed => "FULL", _ => "CURVAS" };
+        if (!c.Enabled) return "READ ONLY";
+        return CoolerModes.UniformPreset(c) switch { RyujinCurves.Preset.Silent => "SILENT", RyujinCurves.Preset.Standard => "STD", RyujinCurves.Preset.Turbo => "TURBO", RyujinCurves.Preset.FullSpeed => "FULL", _ => "CURVES" };
     }
 
     private Border Group(ThermalDevice d, string name, string chip, IReadOnlyList<StripItem> items, ThermalDevice? sel)
@@ -453,13 +457,12 @@ public sealed class ThermalPanel : DockPanel
         return g;
     }
 
-    /// <summary>Um fan na faixa: nome (+ apelido), rpm medido, %, mini barra. Selecionado: contorno da cor A; desligado: tracejado.</summary>
+    /// <summary>A fan in the strip: name (the user's, if renamed), measured rpm, %, mini bar. Selected: outline in color A; off: dashed.</summary>
     private FrameworkElement Cell(StripItem it)
     {
         bool sel = it.ActuatorId == selected;
         var name = new TextBlock { FontFamily = AppFonts.Head, FontSize = 10, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 104 };
-        name.Inlines.Add(Rn(it.Name, Theme.Text, 500, 10));
-        if (it.Nick != null) name.Inlines.Add(Rn(" " + it.Nick.ToLowerInvariant(), Theme.Muted, 400, 10));
+        name.Inlines.Add(Rn(it.Nick ?? it.Name, Theme.Text, 500, 10));
         if (it.Off) name.TextDecorations = TextDecorations.Strikethrough;
         var val = new TextBlock { FontFamily = AppFonts.HeadSemiBold, FontSize = 15, VerticalAlignment = VerticalAlignment.Bottom };
         System.Windows.Documents.Typography.SetNumeralAlignment(val, FontNumeralAlignment.Tabular);
@@ -495,12 +498,12 @@ public sealed class ThermalPanel : DockPanel
             b.Cursor = Cursors.Hand;
             b.MouseLeftButtonDown += (_, e) => { e.Handled = true; Select(id); };
         }
-        b.ToolTip = it.Name + (it.Nick != null ? " · " + it.Nick : "") + (it.Off ? "\nDESLIGADO (curva de proteção no chip)" : "")
-            + (it.Rpm == null && !it.Off ? "\nrpm não medido neste conector" : "") + (it.Locked ? "\nCPU e bombas não desligam" : "");
+        b.ToolTip = (it.Nick != null ? it.Nick + " · " + it.Name : it.Name) + (it.Off ? "\nOFF (protection curve on the chip)" : "")
+            + (it.Rpm == null && !it.Off ? "\nrpm not measured on this header" : "") + (it.Locked ? "\nCPU and pumps never turn off" : "");
         return b;
     }
 
-    // ------------------------------------------------------------------ parte estática (botões)
+    // ------------------------------------------------------------------ static part (buttons)
 
     private void RebuildStatic(List<Act> acts)
     {
@@ -508,22 +511,23 @@ public sealed class ThermalPanel : DockPanel
         var v = Build(a);
         lastByDevice[a.Dev] = a.Id;
 
-        // Modo do dispositivo: os mesmos botões do popup.
+        // Device mode: the same buttons as in the popup.
         modes.Children.Clear();
-        modeLabel.Text = a.Dev == ThermalDevice.Gpu ? "FAN SPEED" : a.Dev == ThermalDevice.Board ? "MODO · ARMOURY CRATE" : "MODO · RYUJIN II";
+        modeLabel.Text = a.Dev == ThermalDevice.Gpu ? "FAN SPEED" : a.Dev == ThermalDevice.Board ? "MODE · ARMOURY CRATE" : "MODE · RYUJIN II";
         if (a.Dev == ThermalDevice.Gpu) GpuModes(); else if (a.Dev == ThermalDevice.Board) BoardModes(); else CoolerModesRow();
 
-        // Título grande.
+        // Large title.
         title.Inlines.Clear();
         title.Inlines.Add(Rn(DevName(a.Dev), Theme.Muted, 500, 30));
         title.Inlines.Add(Rn("  ·  ", Theme.Muted, 400, 30));
         title.Inlines.Add(Rn(a.Name, Theme.Text, 600, 30));
         if (a.Sub != null) { title.Inlines.Add(Rn("  ·  ", Theme.Muted, 400, 30)); title.Inlines.Add(Rn(a.Sub, Theme.Muted, 500, 30)); }
+        title.ToolTip = a.Tip;
 
-        // Controle: CURVA/FIXO no cooler; placa e GPU só mostram.
+        // Control: CURVE/FIXED on the cooler; board and GPU only display.
         if (a.Dev == ThermalDevice.Cooler)
         {
-            var seg = new Segmented([((object)false, "CURVA"), ((object)true, "FIXO")]);
+            var seg = new Segmented([((object)false, "CURVE"), ((object)true, "FIXED")]);
             seg.Select(v.Cur.Fixed);
             seg.Changed += x =>
             {
@@ -533,36 +537,36 @@ public sealed class ThermalPanel : DockPanel
                 SetEdit(v, fx ? Flat(CurveEdit.Fixed(v.Cur.Fixed ? v.Cur.Points[0].Percent : CurveEdit.Interpolate(v.Cur.Points, now), v.Limits), v.Axis)
                     : v.Saved.Fixed ? new Edit(CurveEdit.Normalize(CoolerLogic.CurveOf(s with { Mode = CoolerMode.Smart }, fan).Select(n => new CurvePoint(n.TempC, n.Percent)), v.Limits), false) : v.Saved);
             };
-            control.Child = Field("CONTROLE", seg);
+            control.Child = Field("CONTROL", seg);
         }
-        else control.Child = Field("CONTROLE", Chip(a.Dev == ThermalDevice.Board ? (v.Flat ? "FIXO 100%" : "CURVA NO CHIP") : GpuChip() == "AUTO" ? "AUTO · DRIVER" : "FIXO " + GpuChip(), true).With(c => c.Padding = new Thickness(8, 3, 8, 3)));
+        else control.Child = Field("CONTROL", Chip(a.Dev == ThermalDevice.Board ? (v.Flat ? "FIXED 100%" : "CURVE ON CHIP") : GpuChip() == "AUTO" ? "AUTO · DRIVER" : "FIXED " + GpuChip(), true).With(c => c.Padding = new Thickness(8, 3, 8, 3)));
 
         hint.Text = a.Dev switch
         {
-            ThermalDevice.Gpu => "O driver decide a curva no automático; o Marz só fixa o % (30/50/75/100) e devolve ao automático ao sair.",
-            ThermalDevice.Board => (v.Block == null ? $"A curva roda no chip da placa: {v.Limits.MaxPoints} pontos, sem adicionar nem remover. Aplicar grava a curva User pelo Armoury Crate (mesmo caminho do FULL/OFF)."
-                : $"Só leitura — {v.Block}.") + (ThermalMap.BoardSource(ThermalMap.BoardFan(a.Id)!) == ThermalMap.GpuSource ? " Este conector segue a GPU." : ""),
-            _ => a.Id == ThermalMap.EmbeddedId && v.Cur.Fixed ? "Fixo: não segue temperatura. A curva do cooler roda no PC (o Marz manda o % a cada segundo)."
-                : $"A curva roda no PC: o Marz calcula o % a cada segundo e manda para o cooler (até {ThermalMap.CoolerMaxPoints} pontos)." + (v.SourceId == RyujinSensorIds.Water ? " Líquido varia devagar: eixo 20–60 °C." : ""),
+            ThermalDevice.Gpu => "In automatic the driver decides the curve; Marz only sets a fixed % (30/50/75/100) and returns to automatic on exit.",
+            ThermalDevice.Board => (v.Block == null ? $"The curve runs on the board chip: {v.Limits.MaxPoints} points, no adding or removing. Apply writes the User curve via Armoury Crate (same path as FULL/OFF)."
+                : $"Read only — {v.Block}.") + (ThermalMap.BoardSource(ThermalMap.BoardFan(a.Id)!) == ThermalMap.GpuSource ? " This header follows the GPU." : ""),
+            _ => a.Id == ThermalMap.EmbeddedId && v.Cur.Fixed ? "Fixed: does not follow temperature. The cooler curve runs on the PC (Marz sends the % every second)."
+                : $"The curve runs on the PC: Marz computes the % every second and sends it to the cooler (up to {ThermalMap.CoolerMaxPoints} points)." + (v.SourceId == RyujinSensorIds.Water ? " Liquid changes slowly: axis 20–60 °C." : ""),
         };
         legendGhost.Visibility = edits.ContainsKey(a.Id) ? Visibility.Visible : Visibility.Collapsed;
-        legendCurveText.Text = v.Editable ? "editando" : a.Dev == ThermalDevice.Gpu ? "fixo pelo Marz" : "curva do modo ativo";
-        legendRight.Text = v.Editable && !v.Cur.Fixed ? (v.Limits.FixedCount ? "arraste os pontos · setas ajustam 1 °C / 1 %" : "arraste os pontos · duplo clique adiciona · Del remove")
-            : v.Editable ? "arraste a linha para mudar o %" : "só leitura";
+        legendCurveText.Text = v.Editable ? "editing" : a.Dev == ThermalDevice.Gpu ? "fixed by Marz" : "active mode's curve";
+        legendRight.Text = v.Editable && !v.Cur.Fixed ? (v.Limits.FixedCount ? "drag the points · arrows adjust 1 °C / 1 %" : "drag the points · double-click adds · Del removes")
+            : v.Editable ? "drag the line to change the %" : "read only";
 
-        // Faixa de aviso: fan da placa desligado.
+        // Warning banner: board fan turned off.
         banner.Visibility = Visibility.Collapsed;
         if (a.Dev == ThermalDevice.Board && asus!.Off.IsOff(ThermalMap.BoardFan(a.Id)!))
         {
             var fan = ThermalMap.BoardFan(a.Id)!;
-            var relig = SmallButton("RELIGAR", "Religa o fan (curva User de volta + modo atual)", () => { asus.TurnOn([fan], "controle térmico"); Refresh(force: true); });
+            var turnOn = SmallButton("TURN ON", "Turns the fan back on (User curve back + current mode)", () => { asus.TurnOn([fan], "thermal control"); Refresh(force: true); });
             var (pw, _) = Icons.Make(Icons.Power, 14, Theme.Text); pw.VerticalAlignment = VerticalAlignment.Center; pw.Margin = new Thickness(0, 0, 8, 0);
             var row = new DockPanel { LastChildFill = true };
             SetDock(pw, Dock.Left); row.Children.Add(pw);
-            var lbl = Ui.T("DESLIGADO", 13, weight: 600).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 0, 10, 0); });
+            var lbl = Ui.T("OFF", 13, weight: 600).With(t => { t.VerticalAlignment = VerticalAlignment.Center; t.Margin = new Thickness(0, 0, 10, 0); });
             SetDock(lbl, Dock.Left); row.Children.Add(lbl);
-            SetDock(relig, Dock.Right); row.Children.Add(relig);
-            row.Children.Add(Ui.T($"{a.Name} em 0% até {BoardFanOff.CurveOffUntilC} °C e 100% a partir de {BoardFanOff.CurveFullFromC} °C (curva de proteção). A curva User fica guardada e volta ao religar.", 12, Theme.Muted, head: false)
+            SetDock(turnOn, Dock.Right); row.Children.Add(turnOn);
+            row.Children.Add(Ui.T($"{a.Name} at 0% up to {BoardFanOff.CurveOffUntilC} °C and 100% from {BoardFanOff.CurveFullFromC} °C on (protection curve). The User curve is kept and comes back when turned back on.", 12, Theme.Muted, head: false)
                 .With(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; t.VerticalAlignment = VerticalAlignment.Center; }));
             var grid = new Grid { Children = { new Border { Padding = new Thickness(10, 6, 10, 6), Child = row } } };
             var dash = new Rectangle { StrokeThickness = 1, StrokeDashArray = [4, 3], IsHitTestVisible = false };
@@ -573,12 +577,12 @@ public sealed class ThermalPanel : DockPanel
         }
         else if (a.Dev == ThermalDevice.Cooler && cooler!.FanStatus is { Tuning: string tn } ts)
         {
-            var cancel = SmallButton("CANCELAR", "Para o Auto Tuning e volta à curva", () => tuneCts?.Cancel());
+            var cancel = SmallButton("CANCEL", "Stops Auto Tuning and returns to the curve", () => tuneCts?.Cancel());
             var row = new DockPanel { LastChildFill = true };
             SetDock(cancel, Dock.Right); row.Children.Add(cancel);
             row.Children.Add(new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0), Children =
             {
-                new TextBlock { Inlines = { Rn("AUTO TUNING DO RADIADOR  ", Theme.Text, 600, 13), Rn(tn + (ts.TuneSecondsLeft is int sl ? $" · ~{sl} s" : ""), Theme.Muted, 400, 12) } },
+                new TextBlock { Inlines = { Rn("RADIATOR AUTO TUNING  ", Theme.Text, 600, 13), Rn(tn + (ts.TuneSecondsLeft is int sl ? $" · ~{sl} s" : ""), Theme.Muted, 400, 12) } },
                 Progress(ts.TuneProgress ?? 0),
             } });
             banner.Child = new Border { Padding = new Thickness(10, 7, 10, 8), Child = row };
@@ -595,9 +599,9 @@ public sealed class ThermalPanel : DockPanel
         foreach (var val in new uint?[] { null, 30, 50, 75, 100 })
         {
             bool on = val is null ? st.Mode == GpuMode.Automatic : st.Mode == GpuMode.Manual && st.RequestedPercent == val;
-            string? block = val is uint p ? st.BlockFor(p, now) : !st.CanControl ? st.ReadOnlyReason ?? "Controle indisponível." : st.Busy ? "Comando em andamento." : null;
+            string? block = val is uint p ? st.BlockFor(p, now) : !st.CanControl ? st.ReadOnlyReason ?? "Control unavailable." : st.Busy ? "Command in progress." : null;
             var x = val;
-            modes.Children.Add(ModeBtn(val is uint pv ? pv.ToString(CultureInfo.InvariantCulture) : "A", on, val == 100, block ?? (val is null ? "Devolver ao automático do driver" : $"Fixar as fans em {val}%"), block == null,
+            modes.Children.Add(ModeBtn(val is uint pv ? pv.ToString(CultureInfo.InvariantCulture) : "A", on, val == 100, block ?? (val is null ? "Return to driver automatic" : $"Set the fans to {val}%"), block == null,
                 async () => { FanChoices.Update(d => d with { Gpu = x }); try { await gpu.CommandAsync(x); } catch (Exception) { } Dispatcher.Invoke(() => Refresh()); }));
         }
     }
@@ -608,8 +612,8 @@ public sealed class ThermalPanel : DockPanel
         foreach (var mode in MonitorTray.App.AsusFanModes.AllModes)
         {
             var m = mode;
-            var tip = (mode == "curvas" ? "Suas curvas do Armoury Crate (perfil User)" : mode == "full" ? "Ventoinhas em 100% (religa as desligadas)" : $"Perfil {MonitorTray.App.AsusFanModes.Label(mode)} do Armoury Crate")
-                + "\nVentoinhas: " + (fans.Count == 0 ? "nenhuma (escolha nas Configurações do popup)" : string.Join(", ", fans.Select(ThermalMap.BoardHeader)));
+            var tip = (mode == "curves" ? "Your Armoury Crate curves (User profile)" : mode == "full" ? "Fans at 100% (turns the off ones back on)" : $"Armoury Crate {MonitorTray.App.AsusFanModes.Label(mode)} profile")
+                + "\nFans: " + (fans.Count == 0 ? "none (choose them in the popup Settings)" : string.Join(", ", fans.Select(app.Settings.BoardFanName)));
             modes.Children.Add(ModeBtn(MonitorTray.App.AsusFanModes.Label(mode), BoardMode == mode, mode == "full", tip, fans.Count > 0, () =>
             {
                 foreach (var k in edits.Keys.Where(k => ThermalMap.DeviceOf(k) == ThermalDevice.Board).ToList()) edits.Remove(k);
@@ -619,7 +623,7 @@ public sealed class ThermalPanel : DockPanel
     }
 
     private static readonly (RyujinCurves.Preset? P, string Label)[] CoolerPresets =
-        [(null, "CURVAS"), (RyujinCurves.Preset.Silent, "SILENT"), (RyujinCurves.Preset.Standard, "STD"), (RyujinCurves.Preset.Turbo, "TURBO"), (RyujinCurves.Preset.FullSpeed, "FULL")];
+        [(null, "CURVES"), (RyujinCurves.Preset.Silent, "SILENT"), (RyujinCurves.Preset.Standard, "STD"), (RyujinCurves.Preset.Turbo, "TURBO"), (RyujinCurves.Preset.FullSpeed, "FULL")];
 
     private void CoolerModesRow()
     {
@@ -629,7 +633,7 @@ public sealed class ThermalPanel : DockPanel
         {
             var pp = p;
             modes.Children.Add(ModeBtn(lbl, c.Enabled && (p == null ? cur == null : cur == p), p == RyujinCurves.Preset.FullSpeed,
-                (pp is RyujinCurves.Preset ? $"Bomba e radiador em {lbl}" : "Bomba e radiador nas curvas do cooler (as de antes do preset)") + (c.Enabled ? "" : "\n(liga o controle do cooler pelo Marz)"), true, () =>
+                (pp is RyujinCurves.Preset ? $"Pump and radiator on {lbl}" : "Pump and radiator on the cooler's curves (the ones from before the preset)") + (c.Enabled ? "" : "\n(turns on cooler control by Marz)"), true, () =>
             {
                 foreach (var k in edits.Keys.Where(k => ThermalMap.DeviceOf(k) == ThermalDevice.Cooler).ToList()) edits.Remove(k);
                 if (pp is RyujinCurves.Preset preset) cooler.ApplyPreset(preset, enable: true); else cooler.ApplyCurves();
@@ -638,19 +642,19 @@ public sealed class ThermalPanel : DockPanel
         }
     }
 
-    // ------------------------------------------------------------------ painel lateral
+    // ------------------------------------------------------------------ side panel
 
     private void RebuildSide(Act a, View v)
     {
         side.Children.Clear();
-        (nowBox.Parent as Panel)?.Children.Remove(nowBox); // reaproveitado: solta da seção anterior
-        side.Children.Add(Section("COM ESTA CURVA, AGORA", "prévia", nowBox));
+        (nowBox.Parent as Panel)?.Children.Remove(nowBox); // reused: detach it from the previous section
+        side.Children.Add(Section("WITH THIS CURVE, NOW", "preview", nowBox));
 
-        // Fonte da curva (eixo X).
+        // Curve source (X axis).
         var src = new StackPanel();
         if (a.Dev == ThermalDevice.Cooler)
         {
-            var btn = new FlatButton(Theme.Text) { Height = 30, Padding = new Thickness(10, 0, 10, 0), BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Stretch, ToolTip = "Sensor que a curva do cooler segue (vale para bomba, radiador e fan embutido)" };
+            var btn = new FlatButton(Theme.Text) { Height = 30, Padding = new Thickness(10, 0, 10, 0), BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Stretch, ToolTip = "Sensor the cooler curve follows (applies to pump, radiator and embedded fan)" };
             btn.SetResourceReference(Border.BorderBrushProperty, Theme.DStroke);
             btn.Content(new DockPanel { Children =
             {
@@ -660,7 +664,7 @@ public sealed class ThermalPanel : DockPanel
             } });
             btn.Click += () => pickSensor(btn, id => { pendingSource = id == cooler!.FanConfig.SourceId ? null : id; pointsKey = ""; Refresh(force: true); });
             src.Children.Add(btn);
-            src.Children.Add(Note(pendingSource != null ? "Fonte nova: vale ao Aplicar. Vale para as três curvas do cooler." : "Vale para bomba, radiador e fan embutido. Padrão: CPU, como o Armoury Crate."));
+            src.Children.Add(Note(pendingSource != null ? "New source: takes effect on Apply. Applies to all three cooler curves." : "Applies to pump, radiator and embedded fan. Default: CPU, like Armoury Crate."));
         }
         else
         {
@@ -669,12 +673,12 @@ public sealed class ThermalPanel : DockPanel
                 Ui.T(Fmt(v.Temp, "0.0", " °C"), 15, weight: 600, tabular: true).With(t => { SetDock(t, Dock.Right); t.VerticalAlignment = VerticalAlignment.Center; }),
                 Ui.T(SourceName(v.SourceId), 13, head: false, weight: 500).With(t => t.VerticalAlignment = VerticalAlignment.Center),
             } }));
-            src.Children.Add(Note(a.Dev == ThermalDevice.Board ? "Fonte do conector no Armoury Crate (só leitura aqui)." : "Temperatura do core; o driver usa a dele no automático."));
+            src.Children.Add(Note(a.Dev == ThermalDevice.Board ? "Header source in Armoury Crate (read only here)." : "Core temperature; in automatic the driver uses its own."));
         }
-        side.Children.Add(Section("FONTE DA CURVA (EIXO X)", null, src));
+        side.Children.Add(Section("CURVE SOURCE (X AXIS)", null, src));
 
-        if (a.Dev == ThermalDevice.Cooler) side.Children.Add(Section("CONTROLE DO COOLER", null, CoolerControl()));
-        if (a.Dev == ThermalDevice.Board) side.Children.Add(Section("FANS DA PLACA DESLIGADOS", $"{asus!.Off.Off.Count} de {asus.Fans.Count(f => !BoardFanOff.Locked(f))} desligáveis", BoardOffList()));
+        if (a.Dev == ThermalDevice.Cooler) side.Children.Add(Section("COOLER CONTROL", null, CoolerControl()));
+        if (a.Dev == ThermalDevice.Board) side.Children.Add(Section("BOARD FANS OFF", $"{asus!.Off.Off.Count} of {asus.Fans.Count(f => !BoardFanOff.Locked(f))} switchable", BoardOffList()));
 
         side.Children.Add(ProtectionsBox(Protections(a.Dev).ToList()));
     }
@@ -683,30 +687,30 @@ public sealed class ThermalPanel : DockPanel
     {
         ThermalDevice.Cooler =>
         [
-            $"Bomba nunca abaixo de {CoolerSafety.PumpMinPercent}%",
-            $"Líquido ≥ {CoolerSafety.WaterPanicC:0} °C → bomba e radiador em 100%",
-            $"Sem leitura da fonte → {CoolerSafety.NoSourcePercent}%",
-            $"Ao fechar o Marz → deixa ≥ {CoolerSafety.ExitRadiatorPercent}% (o cooler mantém o último valor)",
-            "Outro programa escrevendo no cooler → o Marz para e avisa",
-            "Sobe até 10 %/s e desce 3 %/s (suavização)",
+            $"Pump never below {CoolerSafety.PumpMinPercent}%",
+            $"Liquid ≥ {CoolerSafety.WaterPanicC:0} °C → pump and radiator at 100%",
+            $"No source reading → {CoolerSafety.NoSourcePercent}%",
+            $"On closing Marz → leaves ≥ {CoolerSafety.ExitRadiatorPercent}% (the cooler keeps the last value)",
+            "Another program writing to the cooler → Marz stops and warns",
+            "Rises up to 10 %/s and falls 3 %/s (smoothing)",
         ],
         ThermalDevice.Board =>
         [
-            "A curva roda no chip: segue valendo sem o Marz",
-            $"CPU_FAN e bombas: nunca abaixo de {ThermalMap.BoardLockedMinPercent}% e não desligam",
-            "Gravação conferida ponto a ponto; se não conferir, a curva anterior volta",
-            "SILENT, STD e TURBO são do Armoury Crate: só leitura",
+            "The curve runs on the chip: still in effect without Marz",
+            $"CPU_FAN and pumps: never below {ThermalMap.BoardLockedMinPercent}% and never turn off",
+            "Write verified point by point; if it doesn't match, the previous curve comes back",
+            "SILENT, STD and TURBO belong to Armoury Crate: read only",
         ],
         _ =>
         [
-            $"Core ≥ {TempLimits.GpuC:0} °C (ou limite do driver − 3) ou limitação térmica → 100%",
-            "Abaixo de 30% só com core < 50 °C",
+            $"Core ≥ {TempLimits.GpuC:0} °C (or driver limit − 3) or thermal throttling → 100%",
+            "Below 30% only with core < 50 °C",
             "VRAM ≥ 95 °C → 100%",
-            "Ao sair do Marz → volta ao automático do driver",
+            "On quitting Marz → back to driver automatic",
         ],
     };
 
-    /// <summary>Proteções recolhidas: só o título com ícone de informação (tooltip com as regras); clique mostra a lista.</summary>
+    /// <summary>Collapsed protections: just the title with an info icon (tooltip with the rules); a click shows the list.</summary>
     private Border ProtectionsBox(IReadOnlyList<string> rules)
     {
         var list = new StackPanel { Margin = new Thickness(0, 7, 0, 0), Visibility = protOpen ? Visibility.Visible : Visibility.Collapsed };
@@ -717,7 +721,7 @@ public sealed class ThermalPanel : DockPanel
         var right = new StackPanel { Orientation = Orientation.Horizontal, Children = { ic, chev } };
         var head = new DockPanel { Background = Brushes.Transparent, Cursor = Cursors.Hand, ToolTip = string.Join("\n", rules) };
         SetDock(right, Dock.Right); head.Children.Add(right);
-        head.Children.Add(Ui.T($"PROTEÇÕES ({rules.Count})", 11, Theme.Muted).With(t => t.VerticalAlignment = VerticalAlignment.Center));
+        head.Children.Add(Ui.T($"PROTECTIONS ({rules.Count})", 11, Theme.Muted).With(t => t.VerticalAlignment = VerticalAlignment.Center));
         head.MouseLeftButtonDown += (_, e) =>
         {
             e.Handled = true; protOpen = !protOpen;
@@ -743,21 +747,21 @@ public sealed class ThermalPanel : DockPanel
         var on = new Check15 { Value = c.Enabled, VerticalAlignment = VerticalAlignment.Center };
         on.Changed += x => { cooler.SaveFans(cooler.FanConfig with { Enabled = x }); if (x) cooler.ResumeControl(); Refresh(force: true); };
         var p = new StackPanel();
-        p.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Background = Brushes.Transparent, ToolTip = "Desligado: o Marz só lê o cooler (deixe o Armoury Crate controlar)", Children =
+        p.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Background = Brushes.Transparent, ToolTip = "Off: Marz only reads the cooler (let Armoury Crate control it)", Children =
         {
-            on, Ui.T("MARZ CONTROLA BOMBA E FANS", 11, weight: 600).With(t => { t.Margin = new Thickness(8, 0, 0, 0); t.VerticalAlignment = VerticalAlignment.Center; }),
+            on, Ui.T("MARZ CONTROLS PUMP AND FANS", 11, weight: 600).With(t => { t.Margin = new Thickness(8, 0, 0, 0); t.VerticalAlignment = VerticalAlignment.Center; }),
         } });
         if (st.Tuning != null)
         {
-            p.Children.Add(Ui.T("AUTO TUNING EM ANDAMENTO", 13, weight: 600).With(t => t.Margin = new Thickness(0, 8, 0, 0)));
+            p.Children.Add(Ui.T("AUTO TUNING IN PROGRESS", 13, weight: 600).With(t => t.Margin = new Thickness(0, 8, 0, 0)));
             p.Children.Add(Ui.T(st.Tuning + (st.TuneSecondsLeft is int sl ? $" · ~{sl} s" : ""), 11.5, Theme.Muted, head: false).With(t => t.Margin = new Thickness(0, 2, 0, 0)));
             p.Children.Add(Progress(st.TuneProgress ?? 0));
-            p.Children.Add(Note("Medindo a rpm do radiador de 0 a 100%. A curva fica pausada; o radiador muda de velocidade sozinho. A bomba não muda."));
+            p.Children.Add(Note("Measuring radiator rpm from 0 to 100%. The curve is paused; the radiator changes speed on its own. The pump does not change."));
         }
-        else p.Children.Add(Note((!c.Enabled ? "Só leitura. Aplicar uma curva ou um modo liga o controle (o Armoury Crate não pode estar controlando o cooler)."
-            : st.Notice is { } n ? "⚠ " + n : st.Applied is { } ap ? $"Aplicando: bomba {ap.PumpPercent}% · radiador {ap.RadiatorPercent}% · embutido {ap.EmbeddedPercent}%" : "Iniciando…")));
-        var tuneLbl = cooler.Tuning ? "CANCELAR" : "AUTO TUNING";
-        var tune = SmallButton(tuneLbl, "Mede a rpm do radiador de 0 a 100% (~1 min, barulhento perto de 100%). A bomba não muda.", () =>
+        else p.Children.Add(Note((!c.Enabled ? "Read only. Applying a curve or a mode turns control on (Armoury Crate must not be controlling the cooler)."
+            : st.Notice is { } n ? "⚠ " + n : st.Applied is { } ap ? $"Applying: pump {ap.PumpPercent}% · radiator {ap.RadiatorPercent}% · embedded {ap.EmbeddedPercent}%" : "Starting…")));
+        var tuneLbl = cooler.Tuning ? "CANCEL" : "AUTO TUNING";
+        var tune = SmallButton(tuneLbl, "Measures radiator rpm from 0 to 100% (~1 min, loud near 100%). The pump does not change.", () =>
         {
             if (cooler.Tuning) { tuneCts?.Cancel(); return; }
             tuneCts = new CancellationTokenSource();
@@ -767,7 +771,7 @@ public sealed class ThermalPanel : DockPanel
         p.Children.Add(new DockPanel { Margin = new Thickness(0, 6, 0, 0), Children =
         {
             tune.With(b => SetDock(b, Dock.Right)),
-            Ui.T(c.RadiatorTunedAt is { } at ? $"radiador medido em {at:dd/MM HH:mm}" : "tabela rpm do radiador: padrão", 11, Theme.Muted).With(t => t.VerticalAlignment = VerticalAlignment.Center),
+            Ui.T(c.RadiatorTunedAt is { } at ? $"radiator measured {at:MMM d, HH:mm}" : "radiator rpm table: default", 11, Theme.Muted).With(t => t.VerticalAlignment = VerticalAlignment.Center),
         } });
         return p;
     }
@@ -776,18 +780,18 @@ public sealed class ThermalPanel : DockPanel
     {
         var p = new StackPanel();
         var off = asus!.Off.Off;
-        if (off.Count == 0) p.Children.Add(Note("Nenhum. O OFF é pelo clique no card do fan no popup (opção experimental nas Configurações)."));
+        if (off.Count == 0) p.Children.Add(Note("None. OFF is set by clicking the fan card in the popup (experimental option in Settings)."));
         foreach (var f in off)
         {
             var fan = f;
             var (pw, _) = Icons.Make(Icons.Power, 12, Theme.Text); pw.VerticalAlignment = VerticalAlignment.Center; pw.Margin = new Thickness(0, 0, 8, 0);
             var row = new DockPanel { LastChildFill = true };
             SetDock(pw, Dock.Left); row.Children.Add(pw);
-            var b = SmallButton("RELIGAR", "Religa este fan", () => { asus.TurnOn([fan], "controle térmico"); Refresh(force: true); });
+            var b = SmallButton("TURN ON", "Turns this fan back on", () => { asus.TurnOn([fan], "thermal control"); Refresh(force: true); });
             SetDock(b, Dock.Right); row.Children.Add(b);
             var t = new TextBlock { FontFamily = AppFonts.Head, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center };
-            t.Inlines.Add(Rn(ThermalMap.BoardHeader(f), Theme.Text, 600, 12.5));
-            if (Nick(f) is string nk) t.Inlines.Add(Rn(" · " + nk, Theme.Muted, 400, 12.5));
+            t.Inlines.Add(Rn(app.Settings.BoardFanName(f), Theme.Text, 600, 12.5));
+            if (Nick(f) != null) { t.Inlines.Add(Rn(" · " + ThermalMap.BoardHeader(f), Theme.Muted, 400, 12.5)); t.ToolTip = app.Settings.BoardFanTip(f); }
             row.Children.Add(t);
             var g = new Grid { Margin = new Thickness(0, 0, 0, 4), Children = { new Border { Padding = new Thickness(6, 4, 6, 4), Child = row } } };
             var dash = new Rectangle { StrokeThickness = 1, StrokeDashArray = [4, 3], IsHitTestVisible = false };
@@ -798,15 +802,15 @@ public sealed class ThermalPanel : DockPanel
         p.Children.Add(new Border { Height = 6 });
         foreach (var r in new[]
         {
-            $"Religa sozinho se CPU > {BoardFanOff.CpuLimitC:0} °C ou GPU > {BoardFanOff.GpuLimitC:0} °C",
-            "FULL e modo game religam todos",
-            "Não persiste: ao sair ou reiniciar o Marz, volta ligado",
-            $"No chip: 0% até {BoardFanOff.CurveOffUntilC} °C e 100% a partir de {BoardFanOff.CurveFullFromC} °C, mesmo se o Marz travar",
+            $"Turns back on by itself if CPU > {BoardFanOff.CpuLimitC:0} °C or GPU > {BoardFanOff.GpuLimitC:0} °C",
+            "FULL and game mode turn them all back on",
+            "Not persisted: quitting or restarting Marz turns it back on",
+            $"On the chip: 0% up to {BoardFanOff.CurveOffUntilC} °C and 100% from {BoardFanOff.CurveFullFromC} °C on, even if Marz hangs",
         }) p.Children.Add(Rule(Icons.Power, r));
         return p;
     }
 
-    // ------------------------------------------------------------------ edição (gráfico, pontos, comparação)
+    // ------------------------------------------------------------------ editing (chart, points, comparison)
 
     private void RefreshEdit(bool fromChart = false)
     {
@@ -818,26 +822,26 @@ public sealed class ThermalPanel : DockPanel
             {
                 Axis = v.Axis, Points = pts, Ghost = edits.ContainsKey(a.Id) ? v.Saved.Points : null,
                 Editable = v.Editable, FixedLine = v.Cur.Fixed || v.Flat, Limits = v.Limits, Now = v.Temp, NowPercent = v.NowPercent, Guards = v.Guards, Overlay = v.Overlay,
-                XLabel = SourceName(v.SourceId).ToUpper(CultureInfo.GetCultureInfo("pt-BR")) + " °C",
-                YLabel = $"{DevName(a.Dev)} · {a.Name.ToUpper(CultureInfo.GetCultureInfo("pt-BR"))}{(a.Sub != null && a.Dev == ThermalDevice.Board ? " · " + a.Sub.ToUpper(CultureInfo.GetCultureInfo("pt-BR")) : "")} · SAÍDA %",
+                XLabel = SourceName(v.SourceId).ToUpperInvariant() + " °C",
+                YLabel = $"{DevName(a.Dev)} · {a.Name.ToUpperInvariant()} · OUTPUT %",
             }, selPoint);
         selPoint = chart.Selected >= 0 ? chart.Selected : selPoint;
 
-        // Subtítulo: modo, fonte e fans do atuador.
-        string what = a.Dev == ThermalDevice.Gpu ? (v.Flat ? $"FIXO {v.Cur.Points[0].Percent:0}%" : "AUTO") : v.Cur.Fixed || v.Flat ? $"FIXO {v.Cur.Points[0].Percent:0}%" : "CURVA";
-        var owner = a.Dev switch { ThermalDevice.Gpu => "driver", ThermalDevice.Board => "chip da placa", _ => "Marz (no PC)" };
+        // Subtitle: mode, source and fans of the actuator.
+        string what = a.Dev == ThermalDevice.Gpu ? (v.Flat ? $"FIXED {v.Cur.Points[0].Percent:0}%" : "AUTO") : v.Cur.Fixed || v.Flat ? $"FIXED {v.Cur.Points[0].Percent:0}%" : "CURVE";
+        var owner = a.Dev switch { ThermalDevice.Gpu => "driver", ThermalDevice.Board => "board chip", _ => "Marz (on the PC)" };
         sub.Inlines.Clear();
-        _ = owner; // sem "dono": o botão de modo selecionado já diz quem controla
+        _ = owner; // no "owner": the selected mode button already says who is in control
         sub.Inlines.Add(Rn(what, Theme.Text, 600, 12));
-        if (!(v.Cur.Fixed && a.Dev == ThermalDevice.Cooler)) { sub.Inlines.Add(Rn($" ← {SourceName(v.SourceId)} ", Theme.Muted, 400, 12)); sub.Inlines.Add(Rn(Fmt(v.Temp, "0.0", " °C"), Theme.Text, 600, 12)); sub.Inlines.Add(Rn(" (média 5 s)", Theme.Muted, 400, 11)); }
+        if (!(v.Cur.Fixed && a.Dev == ThermalDevice.Cooler)) { sub.Inlines.Add(Rn($" ← {SourceName(v.SourceId)} ", Theme.Muted, 400, 12)); sub.Inlines.Add(Rn(Fmt(v.Temp, "0.0", " °C"), Theme.Text, 600, 12)); sub.Inlines.Add(Rn(" (5 s avg)", Theme.Muted, 400, 11)); }
         var fans = FansOf(a);
         if (fans.Count > 0) sub.Inlines.Add(Rn("  ·  " + string.Join(", ", fans.Select(f => f.Name)), Theme.Muted, 400, 12));
 
-        // Linha dos pontos (refaz só quando os pontos mudam).
+        // Points row (rebuilt only when the points change).
         var pk = $"{a.Id}|{v.Editable}|{v.Cur.Fixed}|{v.Flat}|{selPoint}|{string.Join(";", pts.Select(p => $"{p.TempC:0},{p.Percent:0}"))}";
         if (pk != pointsKey) { pointsKey = pk; BuildPoints(a, v); }
 
-        // "Com esta curva, agora" e comparação com a salva.
+        // "With this curve, now" and comparison with the saved one.
         double? op = v.NowPercent ?? (pts.Count > 0 && (v.Temp != null || v.Cur.Fixed || v.Flat) ? CurveEdit.Interpolate(pts, v.Temp ?? v.Axis.Min) : null);
         double? before = v.Saved.Points.Count > 0 && (v.Temp != null || v.Saved.Fixed || v.Flat) ? CurveEdit.Interpolate(v.Saved.Points, v.Temp ?? v.Axis.Min) : null;
         var applied = PercentNow(a);
@@ -852,7 +856,7 @@ public sealed class ThermalPanel : DockPanel
             Ui.T(Fmt(v.Temp, "0.0", " °C"), 18, weight: 600, tabular: true).With(t => t.HorizontalAlignment = HorizontalAlignment.Right),
         } };
         nowBox.Children.Add(new DockPanel { Children = { right.With(r => SetDock(r, Dock.Right)), big } });
-        nowBox.Children.Add(Ui.T($"APLICADO DE FATO · {(applied is int ap ? ap + "%" : "—")} · {(fans.Count > 1 ? fans.Count + " fans" : "1 fan")}", 10, Theme.Muted).With(t => t.Margin = new Thickness(0, 10, 0, 4)));
+        nowBox.Children.Add(Ui.T($"ACTUALLY APPLIED · {(applied is int ap ? ap + "%" : "—")} · {(fans.Count > 1 ? fans.Count + " fans" : "1 fan")}", 10, Theme.Muted).With(t => t.Margin = new Thickness(0, 10, 0, 4)));
         var fg = new UniformGrid { Columns = Math.Clamp(fans.Count, 1, 3) };
         foreach (var f in fans)
             fg.Children.Add(Ui.Box(new Thickness(1), new Thickness(6, 2, 6, 3), new StackPanel { Children =
@@ -861,36 +865,36 @@ public sealed class ThermalPanel : DockPanel
                 Ui.T(f.Off ? "OFF" : f.Rpm is int r ? r + " rpm" : "— rpm", 13, weight: 600, tabular: true),
             } }).With(b => b.Margin = new Thickness(0, 0, 3, 3)));
         nowBox.Children.Add(fg);
-        if (fans.Any(f => f.Rpm == null && !f.Off)) nowBox.Children.Add(Note("rpm só quando medido (conector sem leitura confirmada mostra —)."));
+        if (fans.Any(f => f.Rpm == null && !f.Off)) nowBox.Children.Add(Note("rpm only when measured (a header without a confirmed reading shows —)."));
 
         var cmp = new DockPanel { LastChildFill = true };
-        cmp.Children.Add(Cmp(v.Temp is double tt ? $"A {tt:0.0} °C (AGORA)" : v.Cur.Fixed ? "FIXO" : "SEM LEITURA DA FONTE",
-            (op is double o2 ? $"{o2:0}%" : "—"), before is double b0 && edits.ContainsKey(a.Id) ? $"antes {b0:0}%" : applied is int ap2 ? $"aplicado {ap2}%" : "").With(x => SetDock(x, Dock.Left)));
+        cmp.Children.Add(Cmp(v.Temp is double tt ? $"AT {tt:0.0} °C (NOW)" : v.Cur.Fixed ? "FIXED" : "NO SOURCE READING",
+            (op is double o2 ? $"{o2:0}%" : "—"), before is double b0 && edits.ContainsKey(a.Id) ? $"before {b0:0}%" : applied is int ap2 ? $"applied {ap2}%" : "").With(x => SetDock(x, Dock.Left)));
         if (edits.ContainsKey(a.Id) && op is double o3 && before is double b1)
         {
             var d = Math.Round(o3) - Math.Round(b1);
-            cmp.Children.Add(Cmp("DIFERENÇA", $"{(d > 0 ? "+" : d < 0 ? "−" : "")}{Math.Abs(d):0}", "pp").With(x => SetDock(x, Dock.Left)));
+            cmp.Children.Add(Cmp("DIFF", $"{(d > 0 ? "+" : d < 0 ? "−" : "")}{Math.Abs(d):0}", "pp").With(x => SetDock(x, Dock.Left)));
         }
         cmp.Children.Add(Ui.T(CompareText(a, v), 11.5, Theme.Muted, head: false).With(t => { t.Margin = new Thickness(12, 0, 12, 0); t.VerticalAlignment = VerticalAlignment.Center; t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; }));
         compare.Child = cmp;
 
-        // Barra de ações.
+        // Action bar.
         var pending = acts.Where(x => edits.ContainsKey(x.Id)).Select(x => (x, Build(x))).ToList();
         bool any = pending.Count > 0 || pendingSource != null;
-        changes.Text = any ? string.Join(" · ", pending.Select(p => $"{(p.x.Dev == ThermalDevice.Board ? p.x.Sub ?? p.x.Name : p.x.Name)}: {ChangeText(p.Item2.Saved, p.Item2.Cur)}").Concat(pendingSource != null ? [$"fonte: {SourceName(pendingSource)}"] : [])) : "Nenhuma alteração";
+        changes.Text = any ? string.Join(" · ", pending.Select(p => $"{p.x.Name}: {ChangeText(p.Item2.Saved, p.Item2.Cur)}").Concat(pendingSource != null ? [$"source: {SourceName(pendingSource)}"] : [])) : "No changes";
         var devs = pending.Select(p => p.x.Dev).Concat(pendingSource != null ? [ThermalDevice.Cooler] : []).Distinct().ToList();
-        changesNote.Text = devs.Count == 0 ? "" : "· " + string.Join(" · ", devs.Select(d => d == ThermalDevice.Cooler ? "RYUJIN II: salva como CURVAS e liga o controle pelo Marz" : "placa: grava a curva User no Armoury Crate")) + " · os outros dispositivos não mudam";
+        changesNote.Text = devs.Count == 0 ? "" : "· " + string.Join(" · ", devs.Select(d => d == ThermalDevice.Cooler ? "RYUJIN II: saved as CURVES, turns on control by Marz" : "board: writes the User curve to Armoury Crate")) + " · other devices don't change";
         changesDot.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
         apply.IsEnabled = any; apply.Opacity = any ? 1 : 0.45; apply.Active = true;
         discard.IsEnabled = any; discard.Opacity = any ? 1 : 0.45;
-        apply.ToolTip = any ? "Grava as alterações (só agora o hardware muda)" : "Nada para aplicar";
+        apply.ToolTip = any ? "Writes the changes (only now does the hardware change)" : "Nothing to apply";
     }
 
     private string CompareText(Act a, View v)
     {
-        if (a.Dev == ThermalDevice.Gpu) return v.Flat ? "Fixo pelo Marz; o driver volta a decidir no A (automático)." : "Automático do driver.";
-        if (!edits.ContainsKey(a.Id)) return v.Editable ? "Sem alterações em relação à curva salva." : "Curva do modo ativo (só leitura).";
-        if (v.Cur.Fixed || v.Saved.Fixed) return "Aplicar troca o modo do atuador.";
+        if (a.Dev == ThermalDevice.Gpu) return v.Flat ? "Fixed by Marz; the driver decides again on A (automatic)." : "Driver automatic.";
+        if (!edits.ContainsKey(a.Id)) return v.Editable ? "No changes from the saved curve." : "Active mode's curve (read only).";
+        if (v.Cur.Fixed || v.Saved.Fixed) return "Apply switches the actuator's mode.";
         double? lo = null, eq = null;
         for (double t = v.Axis.Min; t <= v.Axis.Max; t++)
         {
@@ -899,8 +903,8 @@ public sealed class ThermalPanel : DockPanel
             if (Math.Abs(x - y) < 0.5 && lo != null && eq == null && t > lo) eq = t;
         }
         bool higher = Enumerable.Range((int)v.Axis.Min, (int)(v.Axis.Max - v.Axis.Min) + 1).Any(t => CurveEdit.Interpolate(v.Cur.Points, t) > CurveEdit.Interpolate(v.Saved.Points, t) + 0.5);
-        return lo == null ? "Igual ou mais forte que a anterior em toda a faixa."
-            : $"Mais silenciosa até {lo:0} °C" + (eq != null ? $"; igual à anterior a partir de {eq:0} °C." : ".") + (higher ? " Mais forte em outro trecho." : "");
+        return lo == null ? "Same as or stronger than the previous one across the whole range."
+            : $"Quieter up to {lo:0} °C" + (eq != null ? $"; same as the previous one from {eq:0} °C on." : ".") + (higher ? " Stronger in another range." : "");
     }
 
     private void BuildPoints(Act a, View v)
@@ -909,13 +913,13 @@ public sealed class ThermalPanel : DockPanel
         var pts = v.Cur.Points;
         if (a.Dev == ThermalDevice.Gpu || pts.Count == 0)
         {
-            pointsRow.Children.Add(Ui.T(a.Dev == ThermalDevice.Gpu ? "Sem pontos: o driver não expõe a curva. O Marz só fixa o % pelo modo acima." : "Sem curva para mostrar.", 11, Theme.Muted));
+            pointsRow.Children.Add(Ui.T(a.Dev == ThermalDevice.Gpu ? "No points: the driver does not expose the curve. Marz only sets a fixed % via the mode above." : "No curve to show.", 11, Theme.Muted));
             return;
         }
         if (v.Cur.Fixed || v.Flat)
         {
-            pointsRow.Children.Add(PointCard("FIXO", $"{pts[0].Percent:0}", "%", a.Dev == ThermalDevice.Cooler ? "sem fonte" : "todas as temps.", true, null));
-            pointsRow.Children.Add(Ui.T(v.Editable ? "arraste a linha no gráfico" : "", 10.5, Theme.Muted).With(t => { SetDock(t, Dock.Right); t.VerticalAlignment = VerticalAlignment.Center; }));
+            pointsRow.Children.Add(PointCard("FIXED", $"{pts[0].Percent:0}", "%", a.Dev == ThermalDevice.Cooler ? "no source" : "all temps", true, null));
+            pointsRow.Children.Add(Ui.T(v.Editable ? "drag the line on the chart" : "", 10.5, Theme.Muted).With(t => { SetDock(t, Dock.Right); t.VerticalAlignment = VerticalAlignment.Center; }));
             return;
         }
         for (int i = 0; i < pts.Count; i++)
@@ -926,21 +930,21 @@ public sealed class ThermalPanel : DockPanel
         if (v.Editable && !v.Limits.FixedCount)
         {
             if (pts.Count < v.Limits.MaxPoints)
-                pointsRow.Children.Add(Chip("+ PONTO", false, 11).With(c => { c.Padding = new Thickness(10, 9, 10, 9); c.Cursor = Cursors.Hand; c.VerticalAlignment = VerticalAlignment.Stretch; c.ToolTip = "Novo ponto no meio do trecho seguinte ao selecionado (ou duplo clique no gráfico)";
+                pointsRow.Children.Add(Chip("+ POINT", false, 11).With(c => { c.Padding = new Thickness(10, 9, 10, 9); c.Cursor = Cursors.Hand; c.VerticalAlignment = VerticalAlignment.Stretch; c.ToolTip = "New point in the middle of the segment after the selected one (or double-click the chart)";
                     c.MouseLeftButtonDown += (_, e) => { e.Handled = true; if (CurveEdit.AddAfter(pts, selPoint, v.Limits) is { } add) { selPoint = add.Index; SetEdit(v, new Edit(add.Points, false)); } }; }));
             if (pts.Count > v.Limits.MinPoints)
-                pointsRow.Children.Add(Chip("− REMOVER", false, 11).With(c => { c.Padding = new Thickness(10, 9, 10, 9); c.Margin = new Thickness(4, 0, 0, 0); c.Cursor = Cursors.Hand; c.ToolTip = "Remove o ponto selecionado (Del)";
+                pointsRow.Children.Add(Chip("− REMOVE", false, 11).With(c => { c.Padding = new Thickness(10, 9, 10, 9); c.Margin = new Thickness(4, 0, 0, 0); c.Cursor = Cursors.Hand; c.ToolTip = "Removes the selected point (Del)";
                     c.MouseLeftButtonDown += (_, e) => { e.Handled = true; if (CurveEdit.Remove(pts, selPoint, v.Limits) is { } r) { selPoint = Math.Min(selPoint, r.Count - 1); SetEdit(v, new Edit(r, false)); } }; }));
         }
         if (v.Editable && a.Dev == ThermalDevice.Cooler)
         {
             var (_, fan) = Setting(cooler!.FanConfig, a.Id);
             var def = CurveEdit.Normalize(RyujinCurves.CurveFor(fan, RyujinCurves.Preset.Standard).Select(n => new CurvePoint(n.TempC, n.Percent)), v.Limits);
-            pointsRow.Children.Add(Chip("↺ RESTAURAR", false, 11).With(c => { c.Padding = new Thickness(10, 9, 10, 9); c.Margin = new Thickness(4, 0, 0, 0); c.Cursor = Cursors.Hand;
-                c.ToolTip = "Volta esta curva à padrão (pontos do STD). Só grava ao Aplicar.";
+            pointsRow.Children.Add(Chip("↺ RESTORE", false, 11).With(c => { c.Padding = new Thickness(10, 9, 10, 9); c.Margin = new Thickness(4, 0, 0, 0); c.Cursor = Cursors.Hand;
+                c.ToolTip = "Resets this curve to the default (STD points). Only written on Apply.";
                 c.MouseLeftButtonDown += (_, e) => { e.Handled = true; selPoint = 0; SetEdit(v, new Edit(def, false)); }; }));
         }
-        var cap = Ui.T($"{pts.Count}/{v.Limits.MaxPoints} pontos" + (v.Limits.FixedCount ? "\nlimite do chip da placa" : ""), 10.5, Theme.Muted).With(t => { t.TextAlignment = TextAlignment.Right; t.VerticalAlignment = VerticalAlignment.Center; t.TextTrimming = TextTrimming.None; });
+        var cap = Ui.T($"{pts.Count}/{v.Limits.MaxPoints} points" + (v.Limits.FixedCount ? "\nboard chip limit" : ""), 10.5, Theme.Muted).With(t => { t.TextAlignment = TextAlignment.Right; t.VerticalAlignment = VerticalAlignment.Center; t.TextTrimming = TextTrimming.None; });
         SetDock(cap, Dock.Right); pointsRow.Children.Add(cap);
     }
 
@@ -953,7 +957,7 @@ public sealed class ThermalPanel : DockPanel
         {
             ThermalDevice.Gpu => ThermalMap.GpuStrip(gpu!.State.Reading!.Fans.Select(f => (f.SpeedPercent, f.SpeedRpm))),
             ThermalDevice.Board => ThermalMap.BoardStrip([ThermalMap.BoardFan(a.Id)!], Nick, snap?.MbFanRpm ?? new Dictionary<int, float>(), snap?.MbFanControl ?? new Dictionary<int, float>(), asus!.Off.IsOff),
-            _ => ThermalMap.CoolerStrip(cooler!.Latest?.Pump?.PumpRpm, null, cooler.Latest?.Fans?.Rpm ?? [], null, cooler.Latest?.Pump?.EmbeddedFanRpm, null).Where(i => i.ActuatorId == a.Id),
+            _ => ThermalMap.CoolerStrip(cooler!.Latest?.Pump?.PumpRpm, null, cooler.Latest?.Fans?.Rpm ?? [], null, cooler.Latest?.Pump?.EmbeddedFanRpm, null, CoolerNick).Where(i => i.ActuatorId == a.Id),
         };
         return items.Select(i => new FanNow(i.Name, i.Rpm, i.Off)).ToList();
     }
@@ -976,7 +980,7 @@ public sealed class ThermalPanel : DockPanel
         }
         if (asus != null)
         {
-            // Confere antes de gravar: o primeiro SaveUserCurve já marca a placa como "aplicando".
+            // Check before writing: the first SaveUserCurve already marks the board as "applying".
             var board = edits.ToList().Where(k => ThermalMap.DeviceOf(k.Key) == ThermalDevice.Board && acts.FirstOrDefault(x => x.Id == k.Key) is { } a && Build(a).Editable).ToList();
             foreach (var (id, e) in board) asus.SaveUserCurve(ThermalMap.BoardFan(id)!, CurveEdit.ToChip(e.Points));
         }
@@ -984,7 +988,7 @@ public sealed class ThermalPanel : DockPanel
         Refresh(force: true);
     }
 
-    // ------------------------------------------------------------------ peças visuais
+    // ------------------------------------------------------------------ visual pieces
 
     private static Run Rn(string text, string brush, int weight = 600, double? size = null)
     {
@@ -1007,7 +1011,7 @@ public sealed class ThermalPanel : DockPanel
 
     private static Border Dot() { var d = new Border { Width = 6, Height = 6, VerticalAlignment = VerticalAlignment.Center }; d.SetResourceReference(Border.BackgroundProperty, Theme.UStroke); return d; }
 
-    /// <summary>Botão de modo (placa/cooler/GPU): como no popup, um pouco maior; FULL/100 acende na cor B.</summary>
+    /// <summary>Mode button (board/cooler/GPU): like in the popup, a bit larger; FULL/100 lights up in color B.</summary>
     private static FlatButton ModeBtn(string label, bool on, bool full, string tip, bool enabled, Action click)
     {
         var t = Ui.T(label, 11, on ? Theme.Bg : Theme.Muted, weight: 600, tabular: true).With(x => { x.VerticalAlignment = VerticalAlignment.Center; x.TextTrimming = TextTrimming.None; });

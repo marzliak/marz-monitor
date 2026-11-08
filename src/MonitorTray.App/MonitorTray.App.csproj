@@ -11,7 +11,7 @@
     <SelfContained>true</SelfContained>
     <AssemblyTitle>Marz Monitor</AssemblyTitle>
     <Description>Marz Monitor</Description>
-    <!-- Memória: app de bandeja, alocação baixa (~1 MB/s). GC de estação sem thread de fundo e compactando mais cedo. -->
+    <!-- Memory: tray app, low allocation (~1 MB/s). Workstation GC without a background thread, compacting earlier. -->
     <ServerGarbageCollection>false</ServerGarbageCollection>
     <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
     <TieredPGO>false</TieredPGO>
@@ -35,6 +35,6 @@
     <Resource Include="Assets\app-256.png" />
     <Resource Include="Assets\tray_dark.ico" />
     <Resource Include="Assets\tray_light.ico" />
-    <None Include="..\..\kit\prototype\data\sensores.json" Link="sim\sensores.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\kit\prototype\data\sensors.json" Link="sim\sensors.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

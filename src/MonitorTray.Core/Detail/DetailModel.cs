@@ -30,7 +30,7 @@ public sealed record DevicePanel(Device Device, string Meta, IReadOnlyList<CardM
 
 public sealed record DetailView(IReadOnlyList<DeviceListItem> Devices, int DeviceCount, int Visible, int HiddenZero, int HiddenLimits, DevicePanel? Panel);
 
-/// <summary>Reproduz detail()/devices() do protótipo (docs/04 §C, docs/06).</summary>
+/// <summary>Reproduces the prototype's detail()/devices() (docs/04 §C, docs/06).</summary>
 public static class DetailModel
 {
     public const double Emphasis = 0.85;
@@ -92,10 +92,10 @@ public static class DetailModel
 
     private static string Meta(Device d, int count)
     {
-        var parts = new List<string> { $"{count} sensores" };
+        var parts = new List<string> { $"{count} sensors" };
         if (d.Family == "Memory" && d.Modules.Count > 0)
-            parts.Add($"{d.Modules.Count} módulos · " + string.Join(", ", d.Modules.Select(m => $"módulo {m.Index} no slot {m.Slot}")));
-        else parts.Add(d.SourceIds.Count > 1 ? d.SourceIds.Count + " fontes" : d.Id);
+            parts.Add($"{d.Modules.Count} modules · " + string.Join(", ", d.Modules.Select(m => $"module {m.Index} in slot {m.Slot}")));
+        else parts.Add(d.SourceIds.Count > 1 ? d.SourceIds.Count + " sources" : d.Id);
         return string.Join(" · ", parts);
     }
 
@@ -105,7 +105,7 @@ public static class DetailModel
 
     public const string PickAvg = "avg", PickMax = "max";
 
-    /// <summary>Média/máximo por tick entre vários históricos alinhados pela direita (null onde todos são null).</summary>
+    /// <summary>Per-tick average/maximum across several right-aligned histories (null where all are null).</summary>
     public static float?[] Aggregate(IReadOnlyList<float?[]> series, bool max)
     {
         var n = series.Count == 0 ? 0 : series.Max(s => s.Length);
@@ -125,10 +125,10 @@ public static class DetailModel
         return r;
     }
 
-    private static readonly string[] TrafficOrder = ["Total", "Rede local", "Internet"];
+    private static readonly string[] TrafficOrder = ["Total", "Local network", "Internet"];
     private static (string Src, string Name) SplitSrc(string n) { var i = n.IndexOf(" · ", StringComparison.Ordinal); return i < 0 ? ("", n) : (n[..i], n[(i + 3)..]); }
 
-    /// <summary>Rede numa aba só: cartões e seções por tipo de tráfego (Total, Rede local, Internet) e depois por placa.</summary>
+    /// <summary>Network in a single tab: cards and sections per traffic type (Total, Local network, Internet), then per adapter.</summary>
     private static DevicePanel NetworkPanel(Device d, IReadOnlyList<SensorReading> visible, SensorTracker tracker, IReadOnlyDictionary<string, string>? picks)
     {
         var cards = new List<CardModel>(); var sections = new List<SectionModel>();
@@ -150,7 +150,7 @@ public static class DetailModel
                     var hist = tracker.Get(sel.Id)?.History.ToArray() ?? [];
                     var hv = hist.Where(v => v != null).Select(v => (double)v!.Value).ToList();
                     string lo = "", hi = "";
-                    if (hv.Count > 0) { var a = Fmt(hv.Min(), "B/s"); var b = Fmt(hv.Max(), "B/s"); if (a != b) { lo = "mín " + a; hi = "máx " + b; } else lo = "estável " + a; }
+                    if (hv.Count > 0) { var a = Fmt(hv.Min(), "B/s"); var b = Fmt(hv.Max(), "B/s"); if (a != b) { lo = "min " + a; hi = "max " + b; } else lo = "steady " + a; }
                     var gmax = Math.Max(rates.Max(x => (double)(x.Value ?? 0)), 1e-9);
                     double fr = sel.Value is float vv ? Math.Clamp(vv / (gmax * 1.1), 0, 1) : double.NaN;
                     cards.Add(new CardModel(pickKey, pick, options, g.Key, sel.Name, Formatter.Format(sel.Value, "B/s"), sel.Value, "B/s", false, fr, cards.Count % 2 == 1, hist, null, true, lo, hi));
@@ -177,7 +177,7 @@ public static class DetailModel
             var gmax = Math.Max(live.Select(x => (double)(x.Value ?? 0)).DefaultIfEmpty(0).Max(), 1e-9);
             double Frac(SensorReading x)
             {
-                if (x.Value is not float v) return double.NaN; // UI mantém a barra anterior; texto mostra o traço
+                if (x.Value is not float v) return double.NaN; // UI keeps the previous bar; text shows the dash
                 var (lo, hi) = Units.IsFixedRange(x.Unit) ? (0d, 100d) : (0d, gmax * 1.1);
                 return Math.Clamp((v - lo) / (hi - lo), 0, 1);
             }
@@ -187,7 +187,7 @@ public static class DetailModel
                 var same = live.Where(x => x.Unit == p.Unit).ToList();
                 var pickKey = d.Id + "|" + g.Key;
                 var options = new List<CardOption>();
-                if (same.Count >= 2) { options.Add(new(PickAvg, $"Média ({same.Count})")); options.Add(new(PickMax, $"Máximo ({same.Count})")); }
+                if (same.Count >= 2) { options.Add(new(PickAvg, $"Average ({same.Count})")); options.Add(new(PickMax, $"Maximum ({same.Count})")); }
                 options.AddRange(same.Select(x => new CardOption(x.Id, x.Name)));
                 var pick = picks != null && picks.TryGetValue(pickKey, out var pv) && options.Any(o => o.Key == pv) ? pv : p.Id;
                 var fixedR = Units.IsFixedRange(p.Unit);
@@ -214,7 +214,7 @@ public static class DetailModel
                     if (hv.Count > 0)
                     {
                         var a2 = Fmt(hv.Min(), p.Unit); var b2 = Fmt(hv.Max(), p.Unit);
-                        if (a2 != b2) { lo = "mín " + a2; hi = "máx " + b2; } else lo = "estável " + a2;
+                        if (a2 != b2) { lo = "min " + a2; hi = "max " + b2; } else lo = "steady " + a2;
                     }
                     double fr = value is double vv ? Math.Clamp(fixedR ? vv / 100 : vv / (gmax * 1.1), 0, 1) : double.NaN;
                     cards.Add(new CardModel(pickKey, pick, options, label, name, Formatter.Format(value, p.Unit), value, p.Unit, fixedR, fr, cards.Count % 2 == 1, hist,
@@ -227,7 +227,7 @@ public static class DetailModel
                 var u = list[0].Unit;
                 var vs = list.Where(x => x.Value != null).Select(x => (double)x.Value!.Value).ToList();
                 var meta = vs.Count == 0 ? list.Count.ToString(CultureInfo.InvariantCulture)
-                    : $"{list.Count} · mín {Fmt(vs.Min(), u)} · méd {Fmt(vs.Average(), u)} · máx {Fmt(vs.Max(), u)}";
+                    : $"{list.Count} · min {Fmt(vs.Min(), u)} · avg {Fmt(vs.Average(), u)} · max {Fmt(vs.Max(), u)}";
                 var cells = list.Select(x => { var fr = Frac(x); return new CellModel(fr, fr >= Emphasis, Formatter.Short(x.Value, u), x.Name + " · " + Fmt(x.Value, u), x.Value, u); }).ToList();
                 sections.Add(new SectionModel(g.Key, label, meta, true, cells, []));
                 continue;
@@ -255,9 +255,9 @@ public static class DetailModel
 
     public static string Footer(DetailView v)
     {
-        var parts = new List<string> { $"{v.Visible} sensores visíveis" };
-        if (v.HiddenZero > 0) parts.Add($"{v.HiddenZero} zerados ocultos");
-        if (v.HiddenLimits > 0) parts.Add($"{v.HiddenLimits} limites/SPD ocultos");
+        var parts = new List<string> { $"{v.Visible} sensors visible" };
+        if (v.HiddenZero > 0) parts.Add($"{v.HiddenZero} all-zero hidden");
+        if (v.HiddenLimits > 0) parts.Add($"{v.HiddenLimits} limits/SPD hidden");
         return string.Join(" · ", parts);
     }
 }

@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace MonitorTray.Core.Keyboard;
 
-/// <summary>Uma linha do OLED: sensor (id do LHM ou "calc:..."), prefixo, sufixo e casas decimais.</summary>
+/// <summary>One OLED line: sensor (LHM id or "calc:..."), prefix, suffix and decimal places.</summary>
 public sealed record OledLine
 {
     public string SensorId { get; init; } = "";
@@ -13,7 +13,7 @@ public sealed record OledLine
     public int Decimals { get; init; }
 }
 
-/// <summary>Uma tela do teclado: até 2 linhas, tempo na tela e ícone GameSense (0–255).</summary>
+/// <summary>One keyboard screen: up to 2 lines, time on screen and GameSense icon (0–255).</summary>
 public sealed record OledPage
 {
     public int DurationMs { get; init; } = 5000;
@@ -21,7 +21,7 @@ public sealed record OledPage
     public IReadOnlyList<OledLine> Lines { get; init; } = [new(), new()];
 }
 
-/// <summary>Configuração do teclado (%APPDATA%\MonitorTray\keyboard.json).</summary>
+/// <summary>Keyboard settings (%APPDATA%\MonitorTray\keyboard.json).</summary>
 public sealed record KeyboardConfig
 {
     public const int MaxPages = 20, LineWidth = 20;
@@ -33,19 +33,25 @@ public sealed record KeyboardConfig
 
     public static IReadOnlyList<OledPage> DefaultPages { get; } =
     [
-        new() { Lines = [L("calc:cpu-load", "CPU uso ", "%", 0), L("calc:cpu-temp", "CPU temp ", " C", 0)] },
-        new() { Lines = [L("calc:cpu-clock-max", "Clock max ", " GHz", 2), L("calc:cpu-power", "CPU pacote ", " W", 0)] },
-        new() { Lines = [L("calc:gpu-temp", "GPU temp ", " C", 0), L("calc:gpu-load", "GPU uso ", "%", 0)] },
+        new() { Lines = [L("calc:cpu-load", "CPU load ", "%", 0), L("calc:cpu-temp", "CPU temp ", " C", 0)] },
+        new() { Lines = [L("calc:cpu-clock-max", "Clock max ", " GHz", 2), L("calc:cpu-power", "CPU pkg ", " W", 0)] },
+        new() { Lines = [L("calc:gpu-temp", "GPU temp ", " C", 0), L("calc:gpu-load", "GPU load ", "%", 0)] },
         new() { Lines = [L("calc:mem-used", "RAM ", " GB", 1), L("calc:mem-load", "RAM ", "%", 0)] },
     ];
 
     public static OledLine L(string id, string prefix, string suffix, int decimals) => new() { SensorId = id, Prefix = prefix, Suffix = suffix, Decimals = decimals };
 
+    /// <summary>Old default prefixes (up to 0.1.33, compared without trailing spaces) → new defaults. Prefixes the user typed are kept.</summary>
+    private static readonly Dictionary<string, string> LegacyPrefixes = new(StringComparer.Ordinal)
+    { ["CPU uso"] = "CPU load ", ["GPU uso"] = "GPU load ", ["CPU pacote"] = "CPU pkg " };
+
+    private static string MigratePrefix(string p) => LegacyPrefixes.TryGetValue(p.TrimEnd(), out var n) ? n : p;
+
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase, DefaultIgnoreCondition = JsonIgnoreCondition.Never };
 
     public string ToJson() => JsonSerializer.Serialize(this, Json);
 
-    /// <summary>Inválido ou corrompido → padrão. Valores fora da faixa são limitados, nunca rejeitam o arquivo inteiro.</summary>
+    /// <summary>Invalid or corrupt → default. Out-of-range values are clamped and never reject the whole file.</summary>
     public static KeyboardConfig Parse(string json)
     {
         KeyboardConfig? c;
@@ -61,7 +67,7 @@ public sealed record KeyboardConfig
             DurationMs = Math.Clamp(p.DurationMs, 1000, 60000),
             IconId = Math.Clamp(p.IconId, 0, 255),
             Lines = Enumerable.Range(0, 2).Select(i => (p.Lines ?? []).ElementAtOrDefault(i) is { } l
-                ? l with { SensorId = l.SensorId ?? "", Prefix = Cut(l.Prefix), Suffix = Cut(l.Suffix), Decimals = Math.Clamp(l.Decimals, 0, 3) }
+                ? l with { SensorId = l.SensorId ?? "", Prefix = Cut(MigratePrefix(l.Prefix ?? "")), Suffix = Cut(l.Suffix), Decimals = Math.Clamp(l.Decimals, 0, 3) }
                 : new OledLine()).ToList(),
         }).ToList();
         if (pages.Count == 0) pages = DefaultPages.ToList();
@@ -71,7 +77,7 @@ public sealed record KeyboardConfig
     private static string Cut(string? s) => (s ?? "").Length > LineWidth ? s![..LineWidth] : s ?? "";
 }
 
-/// <summary>Monta as 2 linhas de 20 colunas (mesma regra do GPU by MarzOps: prefixos e valores alinhados).</summary>
+/// <summary>Builds the 2 lines of 20 columns (same rule as GPU by MarzOps: prefixes and values aligned).</summary>
 public static class OledComposer
 {
     public static string[] Compose(OledPage page, Func<string, double?> value, Func<string, string> fallbackName)
@@ -91,7 +97,7 @@ public static class OledComposer
         }).ToArray();
     }
 
-    /// <summary>Página fixada ganha "* " na 1ª linha só se couber sem cortar número/unidade.</summary>
+    /// <summary>A pinned page gets "* " on the 1st line only if it fits without cutting the number/unit.</summary>
     public static string[] DecoratePinned(string[] lines, bool pinned)
     {
         if (!pinned || lines.Length == 0) return lines;
@@ -103,29 +109,29 @@ public static class OledComposer
     }
 }
 
-/// <summary>Valores calculados, genéricos (nenhum modelo fixo): disponíveis para qualquer hardware.</summary>
+/// <summary>Calculated, generic values (no hardcoded model): available for any hardware.</summary>
 public static class CalculatedSensors
 {
     public static readonly IReadOnlyList<(string Id, string Name, string Unit)> All =
     [
-        ("calc:cpu-load", "CPU · uso total", "%"),
-        ("calc:cpu-temp", "CPU · temperatura (package)", "°C"),
-        ("calc:cpu-power", "CPU · potência (package)", "W"),
-        ("calc:cpu-clock-max", "CPU · clock máximo dos núcleos", "GHz"),
-        ("calc:cpu-clock-avg", "CPU · clock médio dos núcleos", "GHz"),
-        ("calc:gpu-load", "GPU · uso", "%"),
-        ("calc:gpu-temp", "GPU · temperatura do core", "°C"),
-        ("calc:gpu-power", "GPU · potência", "W"),
-        ("calc:gpu-fan", "GPU · fans (maior %)", "%"),
-        ("calc:mem-used", "Memória · usada", "GB"),
-        ("calc:mem-load", "Memória · uso", "%"),
-        ("calc:disk-read", "Disco · leitura", "MB/s"),
-        ("calc:disk-write", "Disco · escrita", "MB/s"),
-        ("calc:net-down", "Rede · download", "MB/s"),
-        ("calc:net-up", "Rede · upload", "MB/s"),
+        ("calc:cpu-load", "CPU · load (total)", "%"),
+        ("calc:cpu-temp", "CPU · temperature (package)", "°C"),
+        ("calc:cpu-power", "CPU · power (package)", "W"),
+        ("calc:cpu-clock-max", "CPU · clock max (cores)", "GHz"),
+        ("calc:cpu-clock-avg", "CPU · clock avg (cores)", "GHz"),
+        ("calc:gpu-load", "GPU · load", "%"),
+        ("calc:gpu-temp", "GPU · temperature (core)", "°C"),
+        ("calc:gpu-power", "GPU · power", "W"),
+        ("calc:gpu-fan", "GPU · fans (highest %)", "%"),
+        ("calc:mem-used", "Memory · used", "GB"),
+        ("calc:mem-load", "Memory · load", "%"),
+        ("calc:disk-read", "Disk · read", "MB/s"),
+        ("calc:disk-write", "Disk · write", "MB/s"),
+        ("calc:net-down", "Network · download", "MB/s"),
+        ("calc:net-up", "Network · upload", "MB/s"),
     ];
 
-    /// <summary>Clocks de núcleo da 1ª CPU (exclui Bus Speed). Genérico: P/E-core, CCD, "Core #n".</summary>
+    /// <summary>Core clocks of the 1st CPU (excludes Bus Speed). Generic: P/E-core, CCD, "Core #n".</summary>
     public static (double? Max, double? Avg) CoreClocksGHz(IReadOnlyList<Model.RawSensor> raw)
     {
         var dev = raw.Where(r => r.Family == "Cpu").Select(r => r.DeviceId).Order(StringComparer.Ordinal).FirstOrDefault();
@@ -134,7 +140,7 @@ public static class CalculatedSensors
         return v.Count == 0 ? (null, null) : (v.Max(), v.Average());
     }
 
-    /// <summary>Converte identificadores sintéticos do GPU by MarzOps.</summary>
+    /// <summary>Converts synthetic identifiers from GPU by MarzOps.</summary>
     public static string MapLegacy(string id) => id switch
     {
         _ when id.EndsWith("/clock/max-ghz", StringComparison.Ordinal) => "calc:cpu-clock-max",

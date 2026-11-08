@@ -6,7 +6,7 @@ using MonitorTray.Core.Normalize;
 
 namespace MonitorTray.Sensors;
 
-/// <summary>Orquestra a coleta numa thread própria e publica snapshots imutáveis.</summary>
+/// <summary>Orchestrates collection on its own thread and publishes immutable snapshots.</summary>
 public sealed class SensorService : IDisposable
 {
     private readonly IHardwareSource hardware;
@@ -17,7 +17,7 @@ public sealed class SensorService : IDisposable
     private readonly SensorTracker tracker = new();
     private readonly RateHistory netDown = new(), netUp = new();
     private volatile int historySeconds = 60;
-    /// <summary>Janela do gráfico de rede (s), até 2 h.</summary>
+    /// <summary>Network chart window (s), up to 2 h.</summary>
     public int HistorySeconds { get => historySeconds; set => historySeconds = Math.Clamp(value, 10, RateHistory.MaxSeconds); }
     private static long NowSec => Environment.TickCount64 / 1000;
     private readonly RingBuffer<float?> cpuHist = new(SensorTracker.HistoryLength + 1), gpuHist = new(SensorTracker.HistoryLength + 1), memHist = new(SensorTracker.HistoryLength + 1);
@@ -32,7 +32,7 @@ public sealed class SensorService : IDisposable
         memHist.Push(s.MemTotal > 0 ? (float)(100.0 * s.MemUsed / s.MemTotal) : null);
     }
     private readonly object trackerGate = new();
-    private readonly object readGate = new(); // a fonte de hardware nunca é lida por duas threads ao mesmo tempo
+    private readonly object readGate = new(); // the hardware source is never read by two threads at the same time
     private Thread? thread;
     private readonly AutoResetEvent wake = new(false);
     private volatile bool stop;
@@ -48,7 +48,7 @@ public sealed class SensorService : IDisposable
     public event Action<Snapshot>? Published;
     public Snapshot? Latest { get; private set; }
 
-    /// <summary>Acesso de leitura ao histórico por sensor (somente na UI thread via snapshot; o tracker é protegido por lock).</summary>
+    /// <summary>Read access to the per-sensor history (UI thread only via snapshot; the tracker is lock-protected).</summary>
     public T WithTracker<T>(Func<SensorTracker, T> f) { lock (trackerGate) return f(tracker); }
 
     public SensorService(IHardwareSource hardware, ISummarySource? summary, KnownDevices known, bool isAdmin)
@@ -60,11 +60,13 @@ public sealed class SensorService : IDisposable
 
     public int RefreshMs { get => refreshMs; set { refreshMs = value; wake.Set(); } }
 
-    /// <summary>Popup ou Detalhes aberto → coleta completa (LHM). Fechados → só o Resumo barato.</summary>
-    /// <summary>Mantém o LHM ativo mesmo com popup/Detalhes fechados (telas do teclado precisam de sensores).</summary>
-    public bool KeepHardware { get => keepHardware; set { keepHardware = value; if (value) wake.Set(); } }
+    /// <summary>Popup or Details open → full collection (LHM). Closed → only the cheap Summary.</summary>
+    /// <summary>Keeps LHM active even with popup/Details closed (keyboard screens need sensors).</summary>
+    /// <remarks>Wakes the loop only on the off→on edge. Callers set it on every service event (keyboard sends, cooler
+    /// status ~1 s); waking on each set made the loop tick back-to-back (keyboard send → set → tick → send…) at 100%+ CPU.</remarks>
+    public bool KeepHardware { get => keepHardware; set { var was = keepHardware; keepHardware = value; if (value && !was) wake.Set(); } }
     private volatile bool keepHardware;
-    /// <summary>Última leitura crua (imutável); para o teclado consultar qualquer sensor por id.</summary>
+    /// <summary>Last raw reading (immutable); lets the keyboard query any sensor by id.</summary>
     public IReadOnlyList<RawSensor> LastRaw => lastRaw;
 
     public bool FullCollection { get => fullCollection; set { var was = fullCollection; fullCollection = value; if (value && !was) wake.Set(); } }
@@ -85,7 +87,7 @@ public sealed class SensorService : IDisposable
         try { summarySource?.Open(); } catch (Exception) { }
         if (simSummary != null)
         {
-            // Simulado: rede já com 2 h de passado (nesta thread, antes do primeiro tick).
+            // Simulated: network already with 2 h of past (on this thread, before the first tick).
             var now = NowSec;
             for (int i = RateHistory.MaxSeconds; i > 0; i--) { var q = simSummary.Next(); netDown.Add(q.NetDownBps, now - i); netUp.Add(q.NetUpBps, now - i); }
         }
@@ -93,7 +95,7 @@ public sealed class SensorService : IDisposable
         {
             try { hardware.Open(); } catch (Exception) { }
             if (hardware.IsSimulated) Prefill();
-            hardwareReady = true; // só depois do prefill: nenhum outro leitor concorre com ele
+            hardwareReady = true; // only after the prefill: no other reader competes with it
             wake.Set();
         }) { IsBackground = true, Name = "HardwareOpen" };
         openThread.Start();
@@ -109,7 +111,7 @@ public sealed class SensorService : IDisposable
 
     private void Prefill()
     {
-        // Simulado: rede com 2 h de passado e 120 ticks de sensores, para os gráficos já nascerem cheios.
+        // Simulated: network with 2 h of past and 120 sensor ticks, so the charts start out full.
         for (int i = 0; i < SensorTracker.HistoryLength; i++)
         {
             IReadOnlyList<RawSensor> raw;
@@ -137,7 +139,7 @@ public sealed class SensorService : IDisposable
             if (hardware.IsSimulated) CollectHardware();
             else if (!lhmBusy)
             {
-                // LHM lento (Storage/Motherboard): roda fora desta thread; tick atrasado é pulado, não enfileirado.
+                // LHM is slow (Storage/Motherboard): runs off this thread; a late tick is skipped, not queued.
                 lhmBusy = true;
                 ThreadPool.UnsafeQueueUserWorkItem(_ => { try { CollectHardware(); } finally { lhmBusy = false; } }, null);
             }
@@ -152,7 +154,7 @@ public sealed class SensorService : IDisposable
         }
         var status = new SourceStatus(isAdmin, hardwareReady, hardware.IsSimulated, hardware.Notice);
         PushUsage(summary);
-        // Espaço das unidades: só com popup/Detalhes aberto, a cada 5 s.
+        // Drive space: only with popup/Details open, every 5 s.
         if (fullCollection && DateTime.UtcNow - volumesAt > TimeSpan.FromSeconds(5))
         {
             volumesAt = DateTime.UtcNow;
@@ -203,7 +205,7 @@ public sealed class SensorService : IDisposable
 
     public void SaveKnownDevices() => known.Save();
 
-    /// <summary>Resume da hibernação: contadores PDH e LHM invalidam.</summary>
+    /// <summary>Resume from hibernation: PDH and LHM counters become invalid.</summary>
     public void OnResume()
     {
         if (summarySource is SystemSummarySource s) s.Reset();

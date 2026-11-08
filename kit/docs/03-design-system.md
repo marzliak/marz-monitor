@@ -1,66 +1,66 @@
 # 03 · Design system ("Industry")
 
-Estética: **wireframe técnico / blueprint**. Cantos retos, linhas de 1 px, marcas de registro "+" nos cantos, tipografia condensada, números tabulares. A cor vem da **paleta escolhida** pelo usuário (duas cores: A = download/primária, B = upload/secundária).
+Aesthetic: **technical wireframe / blueprint**. Square corners, 1 px lines, "+" registration marks at the corners, condensed typography, tabular numbers. Color comes from the **palette chosen** by the user (two colors: A = download/primary, B = upload/secondary).
 
-Valores completos e legíveis por máquina em `spec/tokens.json`.
+Complete, machine-readable values in `spec/tokens.json`.
 
-## Tipografia
-| Uso | Fonte | Peso |
+## Typography
+| Use | Font | Weight |
 |---|---|---|
-| Todos os números, rótulos, títulos, botões | **Barlow Condensed** | 400 / 500 / 600 |
-| Nomes de sensores/dispositivos, campos de texto | **Barlow** | 400 / 500 |
-- Empacote os TTF (Google Fonts, licença OFL) como `Resource` e referencie com `pack://application:,,,/Fonts/#Barlow Condensed`.
-- **Números sempre tabulares**: `Typography.NumeralAlignment="Tabular"` no WPF. Valores não podem "pular" a cada tick.
-- Rótulos de seção: CAIXA ALTA, letter-spacing 0.08–0.12 em (no WPF, ~`CharacterSpacing` não existe; use `TextBlock` com `FontStretch` normal e um espaçamento aplicado por um `Run` com glyphs, ou aceite o espaçamento padrão do Barlow Condensed, que já é legível; prioridade baixa).
+| All numbers, labels, titles, buttons | **Barlow Condensed** | 400 / 500 / 600 |
+| Sensor/device names, text fields | **Barlow** | 400 / 500 |
+- Bundle the TTFs (Google Fonts, OFL license) as `Resource` and reference them with `pack://application:,,,/Fonts/#Barlow Condensed`.
+- **Numbers always tabular**: `Typography.NumeralAlignment="Tabular"` in WPF. Values must not "jump" on every tick.
+- Section labels: UPPERCASE, letter-spacing 0.08–0.12 em (in WPF, ~`CharacterSpacing` does not exist; use a `TextBlock` with normal `FontStretch` and spacing applied through a `Run` with glyphs, or accept Barlow Condensed's default spacing, which is already legible; low priority).
 
-## Temas (base neutra)
-| Papel | Claro | Escuro |
+## Themes (neutral base)
+| Role | Light | Dark |
 |---|---|---|
-| `bg` (fundo da janela) | #F2F2F3 | #18191B |
+| `bg` (window background) | #F2F2F3 | #18191B |
 | `text` | #1D1F20 | #F5F5F8 |
-| `muted` (rótulos, unidades) | #5D5D60 | #A3A3A8 |
-| `line` (bordas/divisórias 1 px) | #1D1F20 @ 15% | #F5F5F8 @ 13% |
-| `track` (trilho de barras/gauges) | #1D1F20 @ 9% | #F5F5F8 @ 9% |
+| `muted` (labels, units) | #5D5D60 | #A3A3A8 |
+| `line` (1 px borders/dividers) | #1D1F20 @ 15% | #F5F5F8 @ 13% |
+| `track` (bar/gauge track) | #1D1F20 @ 9% | #F5F5F8 @ 9% |
 
-## Paletas (A, B)
-| id | Nome | A (↓, primária) | B (↑, secundária) |
+## Palettes (A, B)
+| id | Name | A (↓, primary) | B (↑, secondary) |
 |---|---|---|---|
-| `eletrico` (padrão) | Elétrico | #2E7DFF | #00E5C3 |
+| `electric` (default) | Electric | #2E7DFF | #00E5C3 |
 | `neon` | Neon | #00C8FF | #FF4FD8 |
-| `lima` | Lima | #2FE07A | #E8FF3A |
-| `brasa` | Brasa | #FF5A1F | #FFC531 |
-| `violeta` | Violeta | #8B5CFF | #FF5C93 |
-| `aco` | Aço | #5980A6 | #94BCE3 |
+| `lime` | Lime | #2FE07A | #E8FF3A |
+| `ember` | Ember | #FF5A1F | #FFC531 |
+| `violet` | Violet | #8B5CFF | #FF5C93 |
+| `steel` | Steel | #5980A6 | #94BCE3 |
 
-## Papéis derivados (calcular em runtime a partir de A, B e tema)
-| Papel | Escuro | Claro | Uso |
+## Derived roles (computed at runtime from A, B and the theme)
+| Role | Dark | Light | Use |
 |---|---|---|---|
-| `fill` / `dstroke` | A | A misturado 12% com preto (OKLCH) | barras, linha ↓, seleção de segmentado, chips ativos |
-| `ustroke` | B | B misturado 30% com preto (OKLCH) | linha ↑, ênfase ≥85% |
-| `dfill` | A @ 30% | A @ 24% | área ↓ / área dos cartões |
-| `ufill` | B @ 26% | B @ 30% | área ↑ / área dos tiles |
-| `hover` | A @ 14% | A @ 10% | hover de botões/linhas |
-| `sel` | A @ 24% | A @ 18% | item selecionado na lista de dispositivos |
+| `fill` / `dstroke` | A | A mixed 12% with black (OKLCH) | bars, ↓ line, segmented selection, active chips |
+| `ustroke` | B | B mixed 30% with black (OKLCH) | ↑ line, ≥85% emphasis |
+| `dfill` | A @ 30% | A @ 24% | ↓ area / card area |
+| `ufill` | B @ 26% | B @ 30% | ↑ area / tile area |
+| `hover` | A @ 14% | A @ 10% | button/row hover |
+| `sel` | A @ 24% | A @ 18% | selected item in the device list |
 
-Escurecer em OKLCH: converta para OKLCH, multiplique L por (1 − fração) e mantenha C e h. Uma alternativa aceitável é o mix sRGB linear com preto. Os valores pré-calculados das 6 paletas estão em `spec/tokens.json`.
+Darkening in OKLCH: convert to OKLCH, multiply L by (1 − fraction) and keep C and h. An acceptable alternative is a linear sRGB mix with black. The precomputed values for the 6 palettes are in `spec/tokens.json`.
 
-**Ênfase de carga alta**: barras e células com fração ≥ 0,85 da escala usam `ustroke` em vez de `fill`. Não existe vermelho de alerta (ver não-escopo).
+**High-load emphasis**: bars and cells with a fraction ≥ 0.85 of the scale use `ustroke` instead of `fill`. There is no alert red (see non-scope).
 
-## Fundo e transparência
-- Fundo da janela = `bg` com alpha = opacidade (40–100%, padrão 90%).
-- Atrás dele, **acrílico/blur** do sistema (Win11 `DWMSBT_TRANSIENTWINDOW`; Win10 `ACCENT_ENABLE_ACRYLICBLURBEHIND`). Ver `07-windows.md`.
-- Sombra: `0 12px 32px rgba(0,0,0,.22)`. No WPF, use `DropShadowEffect` em uma Border interna com margem para a sombra caber (janela transparente), ou a sombra nativa do DWM no Win11.
+## Background and transparency
+- Window background = `bg` with alpha = opacity (40–100%, default 90%).
+- Behind it, the system **acrylic/blur** (Win11 `DWMSBT_TRANSIENTWINDOW`; Win10 `ACCENT_ENABLE_ACRYLICBLURBEHIND`). See `07-windows.md`.
+- Shadow: `0 12px 32px rgba(0,0,0,.22)`. In WPF, use a `DropShadowEffect` on an inner Border with a margin so the shadow fits (transparent window), or the native DWM shadow on Win11.
 
-## Moldura "blueprint" (obrigatória em popup e Detalhes)
-- Borda de 1 px na cor `line`, **raio 0**.
-- **4 marcas "+"** de 11×11 px centradas exatamente em cada vértice (deslocadas −6 px para fora), traço de 1 px na cor `text` @ 55%. Implementar como `Adorner` ou 4 `Path` posicionados num `Grid` com `ClipToBounds=False`.
+## "Blueprint" frame (mandatory on the popup and Details)
+- 1 px border in the `line` color, **radius 0**.
+- **4 "+" marks** of 11×11 px centered exactly on each vertex (offset −6 px outward), 1 px stroke in `text` @ 55%. Implement as an `Adorner` or 4 `Path`s positioned in a `Grid` with `ClipToBounds=False`.
 
-## Ícones
-**Lucide**, stroke 1.5, linecap/linejoin round. Tamanhos de 10 a 13 px. Exporte como `Geometry` (path data) em `Icons.xaml`:
+## Icons
+**Lucide**, stroke 1.5, round linecap/linejoin. Sizes from 10 to 13 px. Export as `Geometry` (path data) in `Icons.xaml`:
 `settings`, `x`, `chevron-left`, `chevron-right`, `arrow-down`, `arrow-up`, `external-link`, `search`, `maximize`, `minimize`.
 
-## Interação
-- Hover: fundo `hover` e ícone/texto em `text`.
-- Foco de teclado: contorno de 2 px em `fill`, offset de 2 px. Nunca o foco tracejado padrão.
-- Desabilitado: opacidade 45%.
-- Transições: largura de barras e altura de células com 400 ms ease-out; troca de tema/paleta instantânea.
+## Interaction
+- Hover: `hover` background and icon/text in `text`.
+- Keyboard focus: 2 px outline in `fill`, 2 px offset. Never the default dashed focus.
+- Disabled: 45% opacity.
+- Transitions: bar width and cell height with 400 ms ease-out; theme/palette changes are instant.

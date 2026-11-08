@@ -3,7 +3,7 @@ using Microsoft.Win32;
 
 namespace MonitorTray.App.Tray;
 
-/// <summary>Ícone fixo da bandeja (pulso): branco na barra escura, quase preto na clara. Troca junto com o tema do Windows.</summary>
+/// <summary>Static tray icon (pulse): white on a dark taskbar, near-black on a light one. Switches along with the Windows theme.</summary>
 public static class TrayIcons
 {
     private static readonly Dictionary<(bool Light, int Px), Icon> cache = new();
@@ -26,7 +26,7 @@ public static class TrayIcons
 
     public static Icon Current() => For(TaskbarIsLight());
 
-    /// <summary>Ícone fixo no tamanho pedido (16 = o da bandeja; 24/32 para recolorir em DPI alto sem borrar).</summary>
+    /// <summary>Static icon at the requested size (16 = the tray one; 24/32 to recolor at high DPI without blurring).</summary>
     public static Icon For(bool lightTaskbar, int px = 16)
     {
         lock (cache)

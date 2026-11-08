@@ -3,19 +3,19 @@ namespace MonitorTray.Core.Fans;
 public enum AutoGameAction { None, TurnOn, TurnOff }
 
 /// <summary>
-/// Modo game automático por jogo (lógica pura; o app consulta os processos a cada ~3 s e chama <see cref="Step"/>).
-/// Um executável da lista rodando liga o modo game; quando todos fecham, desliga — só se foi o automático que ligou.
-/// Ligado na mão nunca é desligado pelo automático. Desligado na mão com o jogo aberto: não religa até todos fecharem.
+/// Automatic per-game game mode (pure logic; the app polls processes every ~3 s and calls <see cref="Step"/>).
+/// A listed executable running turns game mode on; when all of them close, it turns off — only if automatic turned it on.
+/// Turned on by hand is never turned off by automatic. Turned off by hand with the game open: not turned back on until all close.
 /// </summary>
 public sealed class AutoGame
 {
-    /// <summary>O modo game atual foi ligado pelo automático.</summary>
+    /// <summary>The current game mode was turned on by automatic.</summary>
     public bool Owned { get; private set; }
-    /// <summary>Executável que ligou (para a faixa do popup).</summary>
+    /// <summary>Executable that turned it on (for the popup strip).</summary>
     public string? Game { get; private set; }
     private bool suppressed;
 
-    /// <summary>"C:\Games\CS2.EXE", "cs2.exe" ou "cs2" → "cs2" (como Process.ProcessName, sem caixa).</summary>
+    /// <summary>"C:\Games\CS2.EXE", "cs2.exe" or "cs2" → "cs2" (like Process.ProcessName, lowercased).</summary>
     public static string Normalize(string exe)
     {
         var s = exe.Trim().Trim('"');
@@ -24,7 +24,7 @@ public sealed class AutoGame
         return s.Trim().ToLowerInvariant();
     }
 
-    /// <summary>Texto digitado nas Configurações → "nome.exe" (minúsculo) ou null se não for um nome de executável.</summary>
+    /// <summary>Text typed in Settings → "name.exe" (lowercase) or null if it is not an executable name.</summary>
     public static string? Clean(string input)
     {
         var n = Normalize(input);
@@ -32,7 +32,7 @@ public sealed class AutoGame
         return n + ".exe";
     }
 
-    /// <summary>Primeiro executável da lista que está rodando (nome como na lista), ou null.</summary>
+    /// <summary>First listed executable that is running (name as in the list), or null.</summary>
     public static string? Match(IEnumerable<string> running, IReadOnlyList<string> exes)
     {
         if (exes.Count == 0) return null;
@@ -40,9 +40,9 @@ public sealed class AutoGame
         return exes.FirstOrDefault(e => set.Contains(Normalize(e)));
     }
 
-    /// <param name="running">Nomes dos processos rodando agora.</param>
-    /// <param name="exes">Lista das Configurações.</param>
-    /// <param name="gameOn">Modo game ligado agora (por qualquer caminho).</param>
+    /// <param name="running">Names of the processes running now.</param>
+    /// <param name="exes">List from Settings.</param>
+    /// <param name="gameOn">Game mode on right now (by any path).</param>
     public AutoGameAction Step(IEnumerable<string> running, IReadOnlyList<string> exes, bool gameOn)
     {
         var match = Match(running, exes);
@@ -53,20 +53,20 @@ public sealed class AutoGame
             Owned = false; Game = null;
             return gameOn ? AutoGameAction.TurnOff : AutoGameAction.None;
         }
-        if (Owned && !gameOn) { Owned = false; Game = null; suppressed = true; return AutoGameAction.None; } // desligado por fora durante o jogo
+        if (Owned && !gameOn) { Owned = false; Game = null; suppressed = true; return AutoGameAction.None; } // turned off externally during the game
         if (Owned) { Game = match; return AutoGameAction.None; }
-        if (gameOn || suppressed) return AutoGameAction.None; // ligado na mão: não é nosso
+        if (gameOn || suppressed) return AutoGameAction.None; // turned on by hand: not ours
         Owned = true; Game = match;
         return AutoGameAction.TurnOn;
     }
 
-    /// <summary>O usuário clicou no modo game: daqui em diante o estado é dele.</summary>
+    /// <summary>The user clicked game mode: from here on the state is theirs.</summary>
     public void ManualToggle(bool nowOn, bool gameRunning)
     {
         Owned = false; Game = null;
         suppressed = !nowOn && gameRunning;
     }
 
-    /// <summary>Modo game restaurado do disco ao abrir o app (ligado pelo automático antes de fechar).</summary>
+    /// <summary>Game mode restored from disk when the app starts (turned on by automatic before it closed).</summary>
     public void Restore(bool owned, string? game) { Owned = owned; Game = owned ? game : null; }
 }

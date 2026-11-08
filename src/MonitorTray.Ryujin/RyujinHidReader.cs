@@ -5,9 +5,9 @@ using Microsoft.Win32.SafeHandles;
 namespace MonitorTray.Ryujin;
 
 /// <summary>
-/// Leitor HID SOMENTE LEITURA do RYUJIN II (VID 0B05, PID 1988, UsagePage FF72). Convive com o Armoury Crate
-/// (share READ|WRITE) mas compartilha o canal: filtra a resposta pelo comando e repete se vier a de outro.
-/// Nunca envia comando fora de <see cref="RyujinProtocol.IsReadCommand"/>.
+/// READ-ONLY HID reader for the RYUJIN II (VID 0B05, PID 1988, UsagePage FF72). Coexists with Armoury Crate
+/// (share READ|WRITE) but shares the channel: filters the response by command and retries if another one arrives.
+/// Never sends a command outside <see cref="RyujinProtocol.IsReadCommand"/>.
 /// </summary>
 public sealed class RyujinHidReader : IDisposable
 {
@@ -30,10 +30,10 @@ public sealed class RyujinHidReader : IDisposable
         }
     }
 
-    /// <summary>Envia um comando de leitura e devolve a resposta correspondente, ou null (timeout/falha).</summary>
+    /// <summary>Sends a read command and returns the matching response, or null (timeout/failure).</summary>
     public byte[]? Query(byte cmd, int timeoutMs = 600, int attempts = 4)
     {
-        var req = RyujinProtocol.BuildRequest(cmd); // lança se não for leitura
+        var req = RyujinProtocol.BuildRequest(cmd); // throws if it is not a read
         lock (_gate)
         {
             if (!IsOpen) return null;
@@ -53,21 +53,21 @@ public sealed class RyujinHidReader : IDisposable
     }
 
     /// <summary>
-    /// Escreve um quadro do LCD (só <see cref="RyujinProtocol.IsDisplayCommand"/>). true = cooler respondeu OK,
-    /// false = falhou, null = escrito sem eco (o canal é compartilhado; a resposta pode ter ido a outro leitor).
+    /// Writes an LCD frame (only <see cref="RyujinProtocol.IsDisplayCommand"/>). true = cooler replied OK,
+    /// false = failed, null = written without echo (the channel is shared; the response may have gone to another reader).
     /// </summary>
     public bool? SendDisplay(byte[] frame, int ackTimeoutMs = 250)
     {
         if (frame.Length != RyujinProtocol.FrameLength || frame[0] != RyujinProtocol.ReportId || !RyujinProtocol.IsDisplayCommand(frame[1]))
-            throw new ArgumentException("só quadros de texto/layout do LCD", nameof(frame));
+            throw new ArgumentException("LCD text/layout frames only", nameof(frame));
         return Send(frame, ackTimeoutMs);
     }
 
-    /// <summary>Escreve bomba/fan embutido (0x1A) ou radiador (0x21). Mesmo retorno de <see cref="SendDisplay"/>.</summary>
+    /// <summary>Writes pump/embedded fan (0x1A) or radiator (0x21). Same return as <see cref="SendDisplay"/>.</summary>
     public bool? SendFan(byte[] frame, int ackTimeoutMs = 250)
     {
         if (frame.Length != RyujinProtocol.FrameLength || frame[0] != RyujinProtocol.ReportId || !RyujinProtocol.IsFanCommand(frame[1]))
-            throw new ArgumentException("só quadros de fan (0x1A/0x21)", nameof(frame));
+            throw new ArgumentException("fan frames only (0x1A/0x21)", nameof(frame));
         return Send(frame, ackTimeoutMs);
     }
 

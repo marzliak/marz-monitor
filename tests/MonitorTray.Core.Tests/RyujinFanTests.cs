@@ -7,7 +7,7 @@ public class RyujinFanTests
 {
     static string Hex(byte[] b) => Convert.ToHexString(b).ToLowerInvariant();
 
-    // Quadros do Armoury Crate capturados (hook8, 2026-11-02): bomba 62 %/embedded 60 %, radiador 0x9e.
+    // Captured Armoury Crate frames (hook8, 2026-11-02): pump 62 %/embedded 60 %, radiator 0x9e.
     [Fact] public void PumpFrameMatchesArmouryCrate() => Assert.StartsWith("ec1a003e3c00", Hex(RyujinProtocol.BuildPump(62, 60)));
     [Fact] public void RadiatorFrameMatchesArmouryCrate() => Assert.StartsWith("ec2100009e00", Hex(RyujinProtocol.BuildRadiator(0x9E)));
     [Fact] public void PumpFrameClamps() { var f = RyujinProtocol.BuildPump(150, -5); Assert.Equal(100, f[3]); Assert.Equal(0, f[4]); }
@@ -19,7 +19,7 @@ public class RyujinFanTests
         Assert.False(RyujinProtocol.IsFanCommand(0x53)); Assert.False(RyujinProtocol.IsDisplayCommand(0x21));
     }
 
-    // Capturado: CPU ~48 °C → Standard 51 %, Turbo 60 %, Silent 48 %.
+    // Captured: CPU ~48 °C → Standard 51 %, Turbo 60 %, Silent 48 %.
     [Theory]
     [InlineData(RyujinCurves.Preset.Silent, 48)] [InlineData(RyujinCurves.Preset.Standard, 51)] [InlineData(RyujinCurves.Preset.Turbo, 60)]
     public void SmartMatchesArmouryCrate(RyujinCurves.Preset p, int pct)
@@ -51,7 +51,7 @@ public class RyujinFanTests
         var c = new CoolerConfig { Pump = new() { Mode = FanMode.Fixed, FixedPercent = 40 }, Radiator = new() { Mode = FanMode.Fixed, FixedPercent = 20 } };
         var t = CoolerLogic.Compute(c, 40, CoolerSafety.WaterPanicC + 0.5);
         Assert.Equal(100, t.PumpPercent); Assert.Equal(100, t.RadiatorPercent);
-        Assert.StartsWith("água", t.Reason);
+        Assert.StartsWith("water", t.Reason);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class RyujinFanTests
         var c = new CoolerConfig { Enabled = true, Radiator = new() { Preset = RyujinCurves.Preset.Turbo }, RadiatorTable = [new(0, 0), new(100, 1890)] };
         var r = CoolerConfig.Parse(c.ToJson());
         Assert.True(r.Enabled); Assert.Equal(RyujinCurves.Preset.Turbo, r.Radiator.Preset); Assert.Equal(2, r.RadiatorTable.Count);
-        Assert.False(CoolerConfig.Parse("{lixo").Enabled);
+        Assert.False(CoolerConfig.Parse("{junk").Enabled);
     }
 }
 
@@ -112,14 +112,14 @@ public class CoolerModesTests
         var c = CoolerModes.Curves(silent, Own);
         Assert.True(c.Enabled);
         Assert.Equal(Own.Pump, c.Pump); Assert.Equal(Own.Radiator.Custom, c.Radiator.Custom);
-        Assert.Equal(Own.Embedded, c.Embedded); // fan embutido volta à config própria guardada
-        Assert.Null(CoolerModes.UniformPreset(c)); // CURVAS acende
+        Assert.Equal(Own.Embedded, c.Embedded); // embedded fan goes back to the kept own config
+        Assert.Null(CoolerModes.UniformPreset(c)); // CURVES lights up
     }
 
     [Fact]
     public void CurvesWithoutKeptConfigUseDefaultCurvesNeverAPreset()
     {
-        // Caso do usuário: bomba e radiador em SILENT, nada guardado → curvas padrão (pontos do STD), sem abrir janela.
+        // User's case: pump and radiator on SILENT, nothing kept → default curves (STD points), without opening a window.
         foreach (var kept in new CoolerConfig?[] { null, Preset(RyujinCurves.Preset.Turbo) })
         {
             var c = CoolerModes.Curves(Preset(RyujinCurves.Preset.Silent), kept);
@@ -128,7 +128,7 @@ public class CoolerModesTests
             Assert.Equal(FanMode.Smart, c.Pump.Mode);
             Assert.Equal(RyujinCurves.CurveFor(RyujinCurves.Fan.Pump, RyujinCurves.Preset.Standard), c.Pump.Custom);
             Assert.Equal(RyujinCurves.CurveFor(RyujinCurves.Fan.Radiator, RyujinCurves.Preset.Standard), c.Radiator.Custom);
-            // Mesmo % do STD: a curva padrão é a do Armoury Crate.
+            // Same % as STD: the default curve is the Armoury Crate one.
             Assert.Equal(CoolerLogic.Compute(Preset(RyujinCurves.Preset.Standard), 48, 35), CoolerLogic.Compute(c, 48, 35));
         }
     }
@@ -144,10 +144,10 @@ public class CoolerModesTests
     public void KeepOnlyTheOwnConfigBeforeAPreset()
     {
         Assert.Equal(Own, CoolerModes.ToKeep(Own));
-        Assert.Null(CoolerModes.ToKeep(Preset(RyujinCurves.Preset.FullSpeed))); // preset → mantém a guardada
+        Assert.Null(CoolerModes.ToKeep(Preset(RyujinCurves.Preset.FullSpeed))); // preset → keeps the stored one
         var p = CoolerModes.WithPreset(Own, RyujinCurves.Preset.Turbo);
         Assert.Equal(RyujinCurves.Preset.Turbo, CoolerModes.UniformPreset(p));
-        Assert.Equal(RyujinCurves.Preset.Turbo, p.Embedded.Preset); Assert.Equal(FanMode.Smart, p.Embedded.Mode); // preset vale para o embutido
+        Assert.Equal(RyujinCurves.Preset.Turbo, p.Embedded.Preset); Assert.Equal(FanMode.Smart, p.Embedded.Mode); // preset applies to the embedded fan too
         Assert.Equal(Own.Enabled, p.Enabled);
     }
 
@@ -158,7 +158,7 @@ public class CoolerModesTests
         var keep = CoolerModes.ToKeep(silent, Own)!;
         Assert.Equal(35, keep.Embedded.FixedPercent);
         Assert.Equal(Own.Pump, keep.Pump);
-        Assert.Null(CoolerModes.ToKeep(Preset(RyujinCurves.Preset.Silent), Own)); // embutido no preset: nada novo
+        Assert.Null(CoolerModes.ToKeep(Preset(RyujinCurves.Preset.Silent), Own)); // embedded on the preset: nothing new
     }
 
     [Fact]
@@ -169,7 +169,7 @@ public class CoolerModesTests
         var userChanged = game with { Radiator = new() { Mode = FanMode.Fixed, FixedPercent = 40 } };
         var r = CoolerModes.UndoGame(userChanged, before, 100);
         Assert.Equal(before.Pump, r.Pump); Assert.Equal(before.Embedded, r.Embedded);
-        Assert.Equal(40, r.Radiator.FixedPercent); // mudado pelo usuário durante o game: fica
+        Assert.Equal(40, r.Radiator.FixedPercent); // changed by the user during game mode: stays
         var g85 = Own with { Pump = new() { Mode = FanMode.Fixed, FixedPercent = 85 }, Embedded = new() { Mode = FanMode.Fixed, FixedPercent = 85 } };
         Assert.Equal(before.Embedded, CoolerModes.UndoGame(g85, before, 85).Embedded);
     }
@@ -181,7 +181,7 @@ public class CoolerModesTests
         var fixedUp = CoolerModes.UnstickEmbedded(stuck)!;
         Assert.Equal(RyujinCurves.Preset.Standard, fixedUp.Embedded.Preset);
         Assert.Null(CoolerModes.UnstickEmbedded(Own));
-        // Caso do usuário: curva própria com preset FULL por baixo → curva mantida, sai do FULL.
+        // User's case: own curve with a FULL preset underneath → curve kept, leaves FULL.
         var withCurve = stuck with { Embedded = stuck.Embedded with { Custom = [new(68, 34), new(80, 60), new(100, 100)] } };
         var r = CoolerModes.UnstickEmbedded(withCurve)!;
         Assert.Equal(3, r.Embedded.Custom.Count);

@@ -3,77 +3,77 @@ using MonitorTray.Core.Model;
 namespace MonitorTray.Core.Normalize;
 
 /// <summary>
-/// Limites de alerta dos cards de temperatura (°C). CPU, GPU, VRAM e líquido são os das proteções reais do app;
-/// os demais não têm proteção no app e usam limites conservadores documentados aqui.
+/// Alert limits of the temperature cards (°C). CPU, GPU, VRAM and liquid match the app's real protections;
+/// the others have no protection in the app and use conservative limits documented here.
 /// </summary>
 public static class TempLimits
 {
-    /// <summary>CPU (Package, núcleo mais quente, soquete): acima disto o OFF dos fans da placa religa tudo (BoardFanOff).</summary>
+    /// <summary>CPU (Package, hottest core, socket): above this, the board fans' OFF turns everything back on (BoardFanOff).</summary>
     public const float CpuC = 85;
-    /// <summary>GPU Core: GpuSafety bloqueia reduzir a fan a partir de 80 °C (ou slowdown − 3, o menor).</summary>
+    /// <summary>GPU Core: GpuSafety blocks lowering the fan from 80 °C (or slowdown − 3, whichever is lower).</summary>
     public const float GpuC = 80;
-    /// <summary>VRAM (Memory Junction): GpuSafety bloqueia reduzir a fan a partir de 95 °C.</summary>
+    /// <summary>VRAM (Memory Junction): GpuSafety blocks lowering the fan from 95 °C.</summary>
     public const float VramC = 95;
-    /// <summary>Líquido do water cooler: bomba e radiador vão a 100% a partir de 50 °C (CoolerSafety.WaterPanicC); o Auto Tuning aborta acima de 45 °C.</summary>
+    /// <summary>Water cooler liquid: pump and radiator go to 100% from 50 °C (CoolerSafety.WaterPanicC); Auto Tuning aborts above 45 °C.</summary>
     public const float LiquidC = 50;
-    /// <summary>GPU Hot Spot: sem proteção própria no app; 15 °C acima do limite do core, abaixo do limite de throttle do driver.</summary>
+    /// <summary>GPU Hot Spot: no dedicated protection in the app; 15 °C above the core limit, below the driver's throttle limit.</summary>
     public const float HotSpotC = 95;
-    /// <summary>VRM da placa: componentes suportam ~125 °C; 100 °C deixa folga para avisar antes do throttle da BIOS.</summary>
+    /// <summary>Board VRM: components handle ~125 °C; 100 °C leaves room to warn before the BIOS throttles.</summary>
     public const float VrmC = 100;
-    /// <summary>Chipset: junção suporta ~100 °C; 90 °C já é anormal em uso contínuo.</summary>
+    /// <summary>Chipset: the junction handles ~100 °C; 90 °C is already abnormal under sustained load.</summary>
     public const float ChipsetC = 90;
-    /// <summary>Sensor "Motherboard" (ar dentro do gabinete, perto da placa): acima de 70 °C o fluxo de ar está ruim.</summary>
+    /// <summary>"Motherboard" sensor (air inside the case, near the board): above 70 °C airflow is poor.</summary>
     public const float MotherboardC = 70;
-    /// <summary>RAM (DIMM): 85 °C é o limite JEDEC de operação normal (acima a memória dobra o refresh).</summary>
+    /// <summary>RAM (DIMM): 85 °C is the JEDEC normal operating limit (above it the memory doubles the refresh rate).</summary>
     public const float RamC = 85;
-    /// <summary>"Perto do limite": a partir de limite − 5 °C (cor de alerta no card e no ícone da bandeja).</summary>
+    /// <summary>"Near the limit": from limit − 5 °C (alert color on the card and on the tray icon).</summary>
     public const float NearMarginC = 5;
 }
 
-/// <summary>Nível de alerta de uma temperatura em relação ao limite do papel.</summary>
+/// <summary>Alert level of a temperature relative to the role's limit.</summary>
 public enum TempLevel { Normal, Near, Over }
 
-/// <summary>Temperatura escolhida para o ícone da bandeja: a maior entre os cards habilitados e o pior nível entre eles.</summary>
+/// <summary>Temperature chosen for the tray icon: the highest among the enabled cards and the worst level among them.</summary>
 public sealed record TrayTemp(string Id, float Value, TempLevel Worst);
 
 /// <summary>
-/// Cards de temperatura do popup: catálogo fixo de papéis e resolução por família + nome do sensor do LHM
-/// (nunca por modelo de hardware). Papel sem leitura não entra no dicionário: o card é omitido.
+/// Popup temperature cards: fixed catalog of roles, resolved by family + LHM sensor name
+/// (never by hardware model). A role without a reading is not in the dictionary: the card is omitted.
 /// </summary>
 public static class TempCards
 {
-    /// <param name="LimitC">Limite de alerta (TempLimits): perto a partir de limite − 5 °C; a barra enche no limite.</param>
+    /// <param name="LimitC">Alert limit (TempLimits): near from limit − 5 °C; the bar is full at the limit.</param>
     public sealed record Def(string Id, string Label, string Tip, float LimitC);
 
     public static readonly IReadOnlyList<Def> All =
     [
         new("cpu", "CPU", "CPU Package", TempLimits.CpuC),
-        new("coremax", "CMAX", "CPU · núcleo mais quente (Core Max)", TempLimits.CpuC),
+        new("coremax", "CMAX", "CPU · hottest core (Core Max)", TempLimits.CpuC),
         new("gpu", "GPU", "GPU Core", TempLimits.GpuC),
         new("hot", "HOT", "GPU Hot Spot", TempLimits.HotSpotC),
         new("vram", "VRAM", "GPU Memory Junction (VRAM)", TempLimits.VramC),
-        new("socket", "SOCK", "Placa · soquete da CPU", TempLimits.CpuC),
-        new("mobo", "MOBO", "Placa · Motherboard", TempLimits.MotherboardC),
-        new("chip", "CHIP", "Placa · Chipset", TempLimits.ChipsetC),
-        new("vrm", "VRM", "Placa · VRM", TempLimits.VrmC),
-        new("liq", "LÍQ", "Líquido do water cooler", TempLimits.LiquidC),
-        new("ram", "RAM", "Memória · DIMM mais quente", TempLimits.RamC),
+        new("socket", "SOCK", "Board · CPU socket", TempLimits.CpuC),
+        new("mobo", "MOBO", "Board · Motherboard", TempLimits.MotherboardC),
+        new("chip", "CHIP", "Board · Chipset", TempLimits.ChipsetC),
+        new("vrm", "VRM", "Board · VRM", TempLimits.VrmC),
+        new("liq", "LIQ", "Water cooler liquid", TempLimits.LiquidC),
+        new("ram", "RAM", "Memory · hottest DIMM", TempLimits.RamC),
     ];
 
     public static readonly IReadOnlyList<string> DefaultIds = ["cpu", "gpu", "hot", "vram", "vrm", "chip", "liq", "ram"];
-    /// <summary>Cabem 8 cards na largura do popup (344 px).</summary>
+    /// <summary>8 cards fit in the popup width (344 px).</summary>
     public const int MaxCards = 8;
     public static readonly IReadOnlyList<string> Ids = All.Select(d => d.Id).ToList();
 
     public static Def? Find(string id) => All.FirstOrDefault(d => d.Id == id);
 
-    /// <summary>Normal, perto (≥ limite − 5 °C) ou no limite (≥ limite).</summary>
+    /// <summary>Normal, near (≥ limit − 5 °C) or at the limit (≥ limit).</summary>
     public static TempLevel Level(Def d, double value) =>
         value >= d.LimitC ? TempLevel.Over : value >= d.LimitC - TempLimits.NearMarginC ? TempLevel.Near : TempLevel.Normal;
 
     /// <summary>
-    /// Maior temperatura entre os cards habilitados que têm leitura, e o pior nível entre eles (um card perto do limite
-    /// pode não ser o mais quente: VRAM 70 °C normal e GPU 77 °C perto). null = nenhum card habilitado com leitura.
+    /// Highest temperature among the enabled cards that have a reading, and the worst level among them (a card near its limit
+    /// may not be the hottest: VRAM 70 °C normal and GPU 77 °C near). null = no enabled card with a reading.
     /// </summary>
     public static TrayTemp? Hottest(IEnumerable<string> enabled, IReadOnlyDictionary<string, float> values)
     {
@@ -90,9 +90,9 @@ public static class TempCards
     }
 
     /// <summary>
-    /// Temperatura do ícone da bandeja. Sem escolha: a mais quente entre os cards. Com escolha: as que têm leitura, em
-    /// rodízio a cada <paramref name="rotateSec"/> segundos (relógio <paramref name="nowMs"/>). O nível (cor de alerta) é o pior
-    /// entre os cards e as escolhidas, mesmo que o número mostrado no momento seja outro.
+    /// Tray icon temperature. No choice: the hottest among the cards. With a choice: the ones that have a reading, rotating
+    /// every <paramref name="rotateSec"/> seconds (clock <paramref name="nowMs"/>). The level (alert color) is the worst
+    /// among the cards and the chosen ones, even if the number shown at the moment is a different one.
     /// </summary>
     public static TrayTemp? ForTray(IReadOnlyList<string> chosen, IEnumerable<string> cards, IReadOnlyDictionary<string, float> values, long nowMs, int rotateSec)
     {
@@ -105,8 +105,8 @@ public static class TempCards
     }
 
     /// <summary>
-    /// Junta as fontes: LHM primeiro; GPU/Hot Spot/VRAM pela NVML quando o LHM não tem; líquido pelo cooler.
-    /// Valores fora de 1..150 °C (ou 0 da NVML) ficam de fora.
+    /// Merges the sources: LHM first; GPU/Hot Spot/VRAM from NVML when LHM lacks them; liquid from the cooler.
+    /// Values outside 1..150 °C (or 0 from NVML) are left out.
     /// </summary>
     public static Dictionary<string, float> Merge(IReadOnlyDictionary<string, float> lhm, double? liquidC, uint? gpuC, uint? hotC, uint? vramC)
     {
@@ -118,10 +118,10 @@ public static class TempCards
         return d;
     }
 
-    /// <summary>Lê os papéis disponíveis nas leituras cruas (°C). "liq" vem do cooler, não do LHM.</summary>
+    /// <summary>Reads the roles available in the raw readings (°C). "liq" comes from the cooler, not from LHM.</summary>
     public static Dictionary<string, float> Resolve(IReadOnlyList<RawSensor> raw) => Resolve(raw, null);
 
-    /// <param name="sources">Recebe o id do sensor do LHM de cada papel (abrir o Detalhes nele).</param>
+    /// <param name="sources">Receives the LHM sensor id of each role (to open Details on it).</param>
     public static Dictionary<string, float> Resolve(IReadOnlyList<RawSensor> raw, Dictionary<string, string>? sources)
     {
         var d = new Dictionary<string, float>();
@@ -156,7 +156,7 @@ public static class TempCards
     }
 }
 
-/// <summary>Mínimo e máximo de cada papel de temperatura desde que o app abriu (tooltip dos cards).</summary>
+/// <summary>Minimum and maximum of each temperature role since the app started (card tooltip).</summary>
 public sealed class TempSession
 {
     private readonly Dictionary<string, (float Min, float Max)> range = new();
@@ -171,14 +171,14 @@ public sealed class TempSession
     public (float Min, float Max)? Range(string id) { lock (range) return range.TryGetValue(id, out var r) ? r : null; }
 }
 
-/// <summary>Listas de escolha das Configurações (o que aparece no popup e em que ordem).</summary>
+/// <summary>Settings pick lists (what shows in the popup and in which order).</summary>
 public static class PickList
 {
-    /// <summary>Só ids conhecidos, sem repetição, no máximo <paramref name="max"/>; mantém a ordem.</summary>
+    /// <summary>Known ids only, no repeats, at most <paramref name="max"/>; keeps the order.</summary>
     public static IReadOnlyList<string> Clean(IEnumerable<string> list, IReadOnlyCollection<string> known, int max = int.MaxValue) =>
         list.Where(known.Contains).Distinct().Take(max).ToList();
 
-    /// <summary>Liga (vai para o fim) ou desliga um id. Ligar além de <paramref name="max"/> não muda nada.</summary>
+    /// <summary>Turns an id on (goes to the end) or off. Turning on beyond <paramref name="max"/> changes nothing.</summary>
     public static IReadOnlyList<string> Toggle(IReadOnlyList<string> list, string id, bool on, int max = int.MaxValue)
     {
         if (!on) return list.Where(x => x != id).ToList();
@@ -186,7 +186,7 @@ public static class PickList
         return [.. list, id];
     }
 
-    /// <summary>Move um id ligado uma posição para cima (-1) ou para baixo (+1); nas pontas não muda.</summary>
+    /// <summary>Moves an enabled id one position up (-1) or down (+1); at the ends nothing changes.</summary>
     public static IReadOnlyList<string> Move(IReadOnlyList<string> list, string id, int delta)
     {
         var l = list.ToList();
@@ -196,7 +196,7 @@ public static class PickList
         return l;
     }
 
-    /// <summary>Ordem da lista das Configurações: ligados na ordem escolhida, depois os desligados na ordem do catálogo.</summary>
+    /// <summary>Settings list order: enabled ones in the chosen order, then the disabled ones in catalog order.</summary>
     public static IReadOnlyList<string> Display(IReadOnlyList<string> on, IEnumerable<string> catalog) =>
         [.. on, .. catalog.Where(x => !on.Contains(x))];
 }

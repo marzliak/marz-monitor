@@ -10,8 +10,8 @@ public enum SensorRole { Reading, Limit, Metadata, Accumulated, Estimate }
 
 public enum SensorQuality { Ok, Partial, Unavailable }
 
-/// <summary>Leitura crua de um provedor, antes de qualquer normalização.</summary>
-/// <param name="Family">Nome do HardwareType do LHM (Cpu, GpuNvidia, Memory, SuperIO, ...).</param>
+/// <summary>Raw reading from a provider, before any normalization.</summary>
+/// <param name="Family">LHM HardwareType name (Cpu, GpuNvidia, Memory, SuperIO, ...).</param>
 public sealed record RawSensor(
     string Id, string DeviceId, string DeviceName, string Family,
     string Name, string KindRaw, string Unit, float? Value);
@@ -43,10 +43,10 @@ public sealed record SourceStatus(bool IsAdmin, bool HardwareReady, bool Simulat
     public static SourceStatus Starting { get; } = new(false, false, false, null);
 }
 
-/// <summary>Unidade lógica (C:, D:...) com o disco físico que a contém. Bytes nativos (DriveInfo), nunca o "Total Space" do LHM.</summary>
+/// <summary>Logical drive (C:, D:...) with the physical disk that holds it. Native bytes (DriveInfo), never LHM's "Total Space".</summary>
 public sealed record VolumeInfo(string Letter, string Label, string Hardware, ulong Total, ulong Free)
 {
-    /// <summary>Leitura/escrita da unidade (bytes/s, contador LogicalDisk do Windows); null sem leitura.</summary>
+    /// <summary>Drive read/write (bytes/s, Windows LogicalDisk counter); null when there is no reading.</summary>
     public double? ReadBps { get; init; }
     public double? WriteBps { get; init; }
     public ulong Used => Total > Free ? Total - Free : 0;
@@ -58,18 +58,18 @@ public sealed record Snapshot(
     IReadOnlyList<double> NetDownHistory, IReadOnlyList<double> NetUpHistory,
     IReadOnlyList<Device> Devices, int EntryCount, SourceStatus Status)
 {
-    /// <summary>Histórico de uso (%) dos três cards do Resumo; null = sem leitura naquele tick (lacuna).</summary>
-    /// <summary>Pontos visíveis do gráfico de rede para a janela escolhida (NetDown/UpHistory traz Points+1 valores).</summary>
+    /// <summary>Load (%) history of the three Summary cards; null = no reading on that tick (gap).</summary>
+    /// <summary>Visible points of the network chart for the chosen window (NetDown/UpHistory carries Points+1 values).</summary>
     public int HistoryPoints { get; init; } = 60;
-    /// <summary>RPM das saídas de fan da placa (Super I/O), por índice da saída. Vazio sem leitura.</summary>
+    /// <summary>RPM of the board fan outputs (Super I/O), by output index. Empty when there is no reading.</summary>
     public IReadOnlyDictionary<int, float> MbFanRpm { get; init; } = new Dictionary<int, float>();
-    /// <summary>Temperaturas da placa (nome do sensor → °C): Motherboard, Chipset, VRM... (zeros/ausentes fora).</summary>
+    /// <summary>Board temperatures (sensor name → °C): Motherboard, Chipset, VRM... (zeros/missing left out).</summary>
     public IReadOnlyDictionary<string, float> MbTemps { get; init; } = new Dictionary<string, float>();
-    /// <summary>% de controle (PWM) das saídas de fan da placa, mesmo índice de MbFanRpm.</summary>
+    /// <summary>Control % (PWM) of the board fan outputs, same index as MbFanRpm.</summary>
     public IReadOnlyDictionary<int, float> MbFanControl { get; init; } = new Dictionary<int, float>();
-    /// <summary>Temperaturas por papel dos cards do popup (id de TempCards → °C); papel sem leitura fica de fora.</summary>
+    /// <summary>Temperatures per role of the popup cards (TempCards id → °C); roles without a reading are left out.</summary>
     public IReadOnlyDictionary<string, float> Temps { get; init; } = new Dictionary<string, float>();
-    /// <summary>Id do sensor do LHM de cada papel de Temps (clique no card abre o Detalhes nele).</summary>
+    /// <summary>LHM sensor id of each Temps role (clicking the card opens Details on it).</summary>
     public IReadOnlyDictionary<string, string> TempSources { get; init; } = new Dictionary<string, string>();
     public IReadOnlyList<float?> CpuHistory { get; init; } = [];
     public IReadOnlyList<float?> GpuHistory { get; init; } = [];

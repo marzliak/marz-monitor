@@ -1,9 +1,9 @@
 namespace MonitorTray.Gpu;
 
-/// <summary>GPU falsa para --simulate/--preview: 2 fans, faixa 30–100%, sem hardware.</summary>
+/// <summary>Fake GPU for --simulate/--preview: 2 fans, range 30–100%, no hardware.</summary>
 public sealed class SimulatedGpuApi : IGpuApi
 {
-    private readonly GpuIdentity id = new("GPU-simulada-0000", "GPU simulada", 2);
+    private readonly GpuIdentity id = new("GPU-simulated-0000", "Simulated GPU", 2);
     private readonly FanReading[] fans = [new(0, 0, 0, 0) { SpeedRpm = 0 }, new(1, 0, 0, 0) { SpeedRpm = 0 }];
     private readonly Random rng = new(7);
     public IReadOnlyList<GpuIdentity> Discover() => [id];

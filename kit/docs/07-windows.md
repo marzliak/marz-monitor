@@ -1,54 +1,54 @@
-# 07 · Integração com o Windows
+# 07 · Windows integration
 
-## Janelas
-| Propriedade | Popup | Detalhes |
+## Windows
+| Property | Popup | Details |
 |---|---|---|
 | WindowStyle | None | None |
 | AllowsTransparency | True | True |
-| Background | Transparent (o fundo é uma Border com `bg` e alpha) | idem |
-| ShowInTaskbar | False | **True** (aparece na barra e no Alt+Tab) |
+| Background | Transparent (the background is a Border with `bg` and alpha) | same |
+| ShowInTaskbar | False | **True** (shows in the taskbar and in Alt+Tab) |
 | Topmost | True | False |
 | ResizeMode | NoResize | CanResize (WindowChrome) |
-| Ativa ao abrir | sim (`Activate()`) | sim |
-| Some ao perder foco | se "Fechar ao perder foco" = on | não |
-| WS_EX_TOOLWINDOW | sim (fica fora do Alt+Tab) | não |
+| Activated on open | yes (`Activate()`) | yes |
+| Hides on focus loss | if "Close on focus loss" = on | no |
+| WS_EX_TOOLWINDOW | yes (stays out of Alt+Tab) | no |
 
-## Posicionamento do popup
-1. Obter o retângulo da taskbar: `SHAppBarMessage(ABM_GETTASKBARPOS)` → `uEdge` + `rc`.
-2. Obter o monitor do ícone: `Shell_NotifyIconGetRect` (via H.NotifyIcon) → `MonitorFromPoint` → `GetMonitorInfo().rcWork`.
-3. Converter px físicos para DIP com o DPI do monitor (`GetDpiForMonitor`).
-4. Calcular, conforme a borda da taskbar:
-   - Inferior: x = work.Right − 12 − W; y = work.Bottom − 12 − H
-   - Superior: y = work.Top + 12
-   - Direita: x = work.Right − 12 − W; y = work.Bottom − 12 − H
-   - Esquerda: x = work.Left + 12
-5. Recalcular ao trocar de tela (Resumo ↔ Configurações) mantendo a âncora no canto inferior direito (a altura muda).
+## Popup positioning
+1. Get the taskbar rectangle: `SHAppBarMessage(ABM_GETTASKBARPOS)` → `uEdge` + `rc`.
+2. Get the icon's monitor: `Shell_NotifyIconGetRect` (via H.NotifyIcon) → `MonitorFromPoint` → `GetMonitorInfo().rcWork`.
+3. Convert physical px to DIP using the monitor DPI (`GetDpiForMonitor`).
+4. Compute, according to the taskbar edge:
+   - Bottom: x = work.Right − 12 − W; y = work.Bottom − 12 − H
+   - Top: y = work.Top + 12
+   - Right: x = work.Right − 12 − W; y = work.Bottom − 12 − H
+   - Left: x = work.Left + 12
+5. Recompute when switching screens (Summary ↔ Settings), keeping the anchor at the bottom-right corner (the height changes).
 - App manifest: `<dpiAwareness>PerMonitorV2</dpiAwareness>`.
 
-## Acrílico / blur
-- **Win11 22H2+**: `DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE=38, DWMSBT_TRANSIENTWINDOW=3)` + `DwmExtendFrameIntoClientArea(-1)`, com o Background da janela transparente. Também `DWMWA_WINDOW_CORNER_PREFERENCE=33 → DWMWCP_DONOTROUND=1` (cantos retos são obrigatórios).
-- **Win10**: `SetWindowCompositionAttribute` com `ACCENT_ENABLE_ACRYLICBLURBEHIND=4` e `GradientColor = 0x01000000` (a cor fica na nossa Border).
-- Com opacidade 100%, desligar o blur (economia).
-- "Efeitos de transparência" do Windows desligado → sem blur, só a cor com alpha.
+## Acrylic / blur
+- **Win11 22H2+**: `DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE=38, DWMSBT_TRANSIENTWINDOW=3)` + `DwmExtendFrameIntoClientArea(-1)`, with a transparent window Background. Also `DWMWA_WINDOW_CORNER_PREFERENCE=33 → DWMWCP_DONOTROUND=1` (square corners are mandatory).
+- **Win10**: `SetWindowCompositionAttribute` with `ACCENT_ENABLE_ACRYLICBLURBEHIND=4` and `GradientColor = 0x01000000` (the color lives in our Border).
+- At 100% opacity, turn the blur off (saves resources).
+- Windows "Transparency effects" turned off → no blur, only the color with alpha.
 
-## Tema do sistema
-`HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme` (DWORD 0 = escuro). Ouvir `WM_SETTINGCHANGE` com lParam "ImmersiveColorSet" e reaplicar se o tema for "sistema".
+## System theme
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\AppsUseLightTheme` (DWORD 0 = dark). Listen for `WM_SETTINGCHANGE` with lParam "ImmersiveColorSet" and reapply if the theme is "system".
 
 ## Autostart
-- Não admin: `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` → `MonitorTray = "<exe>" --tray`.
-- Admin (recomendado para ter todos os sensores): Tarefa Agendada ONLOGON com RL HIGHEST (ver 02). Ao alternar a opção, criar/remover a tarefa e remover a chave Run correspondente.
-- `--tray` inicia sem abrir o popup.
+- Non-admin: `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` → `MonitorTray = "<exe>" --tray`.
+- Admin (recommended to get all sensors): ONLOGON Scheduled Task with RL HIGHEST (see 02). When toggling the option, create/remove the task and remove the corresponding Run key.
+- `--tray` starts without opening the popup.
 
-## Instância única
-Um `Mutex` nomeado. A segunda instância envia `WM_COPYDATA`/pipe nomeado "show" para a primeira e sai.
+## Single instance
+A named `Mutex`. The second instance sends "show" via `WM_COPYDATA`/named pipe to the first one and exits.
 
-## Hot-plug / energia
-- `HardwareAdded/Removed` do LHM + `WM_DEVICECHANGE` → reconstruir a lista de dispositivos.
-- `PowerModeChanged` (Resume) → `Computer.Reset()` e reabrir os provedores PDH (os contadores invalidam após hibernação).
-- Troca de monitor/DPI (`WM_DPICHANGED`, `DisplaySettingsChanged`) → reposicionar o popup e validar a posição do Detalhes.
+## Hot-plug / power
+- LHM `HardwareAdded/Removed` + `WM_DEVICECHANGE` → rebuild the device list.
+- `PowerModeChanged` (Resume) → `Computer.Reset()` and reopen the PDH providers (the counters become invalid after hibernation).
+- Monitor/DPI change (`WM_DPICHANGED`, `DisplaySettingsChanged`) → reposition the popup and validate the Details position.
 
-## Empacotamento
+## Packaging
 - `dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true`
-- O LHM extrai o driver `WinRing0`/`PawnIO` em runtime. Alguns antivírus sinalizam WinRing0: documentar no README do app e preferir LHM ≥ 0.9.5 (PawnIO).
-- Ícone do app: o mesmo desenho do ícone da tray em .ico multi-resolução (16, 24, 32, 48, 256).
-- Instalador opcional: Inno Setup ou MSIX (MSIX complica o admin/WinRing0; preferir Inno).
+- LHM extracts the `WinRing0`/`PawnIO` driver at runtime. Some antivirus products flag WinRing0: document it in the app README and prefer LHM ≥ 0.9.5 (PawnIO).
+- App icon: the same drawing as the tray icon, as a multi-resolution .ico (16, 24, 32, 48, 256).
+- Optional installer: Inno Setup or MSIX (MSIX complicates admin/WinRing0; prefer Inno).

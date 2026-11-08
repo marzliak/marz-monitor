@@ -15,8 +15,8 @@ using MonitorTray.Sensors;
 namespace MonitorTray.App.Views;
 
 /// <summary>
-/// Telas do teclado (OLED do Apex): lista de telas à esquerda, edição à direita com prévia ao vivo das 2 linhas de 20 colunas.
-/// Cada linha escolhe um sensor (calculados ou qualquer sensor do LHM), prefixo, sufixo e casas. Salva em keyboard.json na hora.
+/// Keyboard screens (Apex OLED): screen list on the left, editor on the right with a live preview of the 2 lines of 20 columns.
+/// Each line picks a sensor (calculated or any LHM sensor), prefix, suffix and decimals. Saved to keyboard.json immediately.
 /// </summary>
 public sealed class KeyboardWindow : Window
 {
@@ -34,53 +34,53 @@ public sealed class KeyboardWindow : Window
     {
         this.kb = kb; this.values = values; this.sensors = sensors;
         WindowStyle = WindowStyle.None; AllowsTransparency = true; Background = Brushes.Transparent;
-        ResizeMode = ResizeMode.CanResize; ShowInTaskbar = true; Title = "Marz Monitor · Teclado"; UseLayoutRounding = true;
+        ResizeMode = ResizeMode.CanResize; ShowInTaskbar = true; Title = "Marz Monitor · Keyboard"; UseLayoutRounding = true;
         Width = 760 + 2 * M; Height = 560 + 2 * M; MinWidth = 640; MinHeight = 440; WindowStartupLocation = WindowStartupLocation.CenterScreen;
         System.Windows.Shell.WindowChrome.SetWindowChrome(this, new System.Windows.Shell.WindowChrome { CaptionHeight = 0, ResizeBorderThickness = new Thickness(M + 6), GlassFrameThickness = new Thickness(0) });
         try { Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/MonitorTray;component/Assets/app.ico")); } catch (Exception) { }
 
         var root = new DockPanel();
-        // Título
-        var close = FlatButton.Icon(Icons.X, 24, 12, "Fechar"); close.Click += Close;
+        // Title
+        var close = FlatButton.Icon(Icons.X, 24, 12, "Close"); close.Click += Close;
         var tb = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(close, Dock.Right); tb.Children.Add(close);
         tb.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children =
         {
             Ui.Glyph(7).With(g => { g.Margin = new Thickness(0, 0, 8, 0); g.VerticalAlignment = VerticalAlignment.Center; }),
-            Ui.T("TELAS DO TECLADO", 13, weight: 600).With(t => t.Margin = new Thickness(0, 0, 10, 0)),
+            Ui.T("KEYBOARD SCREENS", 13, weight: 600).With(t => t.Margin = new Thickness(0, 0, 10, 0)),
             (status = Ui.T("", 11, Theme.Muted)),
         } });
         var title = Ui.Box(new Thickness(0, 0, 0, 1), new Thickness(12, 6, 6, 6), tb); title.Background = Brushes.Transparent;
         title.MouseLeftButtonDown += (_, e) => { if (e.OriginalSource is DependencyObject d && IsButton(d)) return; try { DragMove(); } catch (InvalidOperationException) { } };
         DockPanel.SetDock(title, Dock.Top); root.Children.Add(title);
 
-        // Opções
+        // Options
         enabled.Value = kb.Config.Enabled; wheel.Value = kb.Config.WheelEnabled; mute.Value = kb.Config.MuteCompensation;
         enabled.Changed += v => kb.Save(kb.Config with { Enabled = v });
         wheel.Changed += v => kb.Save(kb.Config with { WheelEnabled = v });
         mute.Changed += v => kb.Save(kb.Config with { MuteCompensation = v });
         var opts = new WrapPanel { Margin = new Thickness(12, 8, 12, 8) };
-        opts.Children.Add(Opt(enabled, "MOSTRAR NO TECLADO", "Desligado: o OLED volta à tela do SteelSeries GG"));
-        opts.Children.Add(Opt(wheel, "RODINHA TROCA DE TELA", "1 clique: próxima tela · 2 cliques: fixar/soltar"));
-        opts.Children.Add(Opt(mute, "COMPENSAR MUDO", "Desfaz o mudo que o clique da rodinha liga no Windows (experimental)"));
+        opts.Children.Add(Opt(enabled, "SHOW ON KEYBOARD", "Off: the OLED goes back to the SteelSeries GG screen"));
+        opts.Children.Add(Opt(wheel, "WHEEL SWITCHES SCREEN", "1 click: next screen · 2 clicks: pin/unpin"));
+        opts.Children.Add(Opt(mute, "UNDO WHEEL MUTE", "Undoes the mute that the wheel click turns on in Windows (experimental)"));
         var optBox = Ui.Box(new Thickness(0, 0, 0, 1), new Thickness(0), opts); DockPanel.SetDock(optBox, Dock.Top); root.Children.Add(optBox);
 
-        // Prévia
+        // Preview
         preview1 = Mono(); preview2 = Mono();
         var screen = new Border { Background = new SolidColorBrush(Color.FromRgb(8, 8, 9)), Padding = new Thickness(10, 6, 10, 6), Width = 20 * 9.6 + 20, HorizontalAlignment = HorizontalAlignment.Left,
             Child = new StackPanel { Children = { preview1, preview2 } } };
         var prevBox = Ui.Box(new Thickness(0, 0, 0, 1), new Thickness(12, 8, 12, 10), new StackPanel { Children =
         {
-            Ui.T("NO TECLADO AGORA", 11, Theme.Muted).With(t => t.Margin = new Thickness(0, 0, 0, 4)), screen,
+            Ui.T("ON KEYBOARD NOW", 11, Theme.Muted).With(t => t.Margin = new Thickness(0, 0, 0, 4)), screen,
         } });
         DockPanel.SetDock(prevBox, Dock.Top); root.Children.Add(prevBox);
 
-        // Corpo
+        // Body
         var body = new Grid();
         body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
         body.ColumnDefinitions.Add(new ColumnDefinition());
         var left = new DockPanel();
-        var add = new FlatButton(Theme.Text) { Height = 26, Padding = new Thickness(8, 0, 8, 0), Margin = new Thickness(8), BorderThickness = new Thickness(1) }.Content(Ui.T("+ NOVA TELA", 11));
+        var add = new FlatButton(Theme.Text) { Height = 26, Padding = new Thickness(8, 0, 8, 0), Margin = new Thickness(8), BorderThickness = new Thickness(1) }.Content(Ui.T("+ NEW SCREEN", 11));
         add.SetResourceReference(Border.BorderBrushProperty, Theme.Line);
         add.Click += () =>
         {
@@ -123,8 +123,8 @@ public sealed class KeyboardWindow : Window
     {
         var s = kb.State;
         var d = s.Delivery;
-        status.Text = s.GgStatus ?? (d.Error != null ? "erro: " + d.Error : !s.Enabled ? "desligado" : $"tela {s.Page + 1}/{s.PageCount}{(s.Pinned ? " · fixada" : "")} · {(s.WheelReady ? "rodinha ok" : "rodinha indisponível")}");
-        var lines = d.Lines.Length > 0 ? d.Lines : (s.Enabled ? ["…", ""] : ["(GG mostra a tela dele)", ""]);
+        status.Text = s.GgStatus ?? (d.Error != null ? "error: " + d.Error : !s.Enabled ? "off" : $"screen {s.Page + 1}/{s.PageCount}{(s.Pinned ? " · pinned" : "")} · {(s.WheelReady ? "wheel ok" : "wheel unavailable")}");
+        var lines = d.Lines.Length > 0 ? d.Lines : (s.Enabled ? ["…", ""] : ["(GG shows its own screen)", ""]);
         preview1.Text = Pad(lines.ElementAtOrDefault(0)); preview2.Text = Pad(lines.ElementAtOrDefault(1));
         foreach (var (row, i) in pageList.Children.OfType<FlatButton>().Select((r, i) => (r, i))) row.Active = i == selected;
         foreach (var (pv, line) in livePreviews) pv.Text = Fmt(line);
@@ -145,8 +145,8 @@ public sealed class KeyboardWindow : Window
             var name = string.Join(" / ", p.Lines.Where(l => l.SensorId.Length > 0).Select(l => (l.Prefix.Length > 0 ? l.Prefix : values.Name(l.SensorId)).Trim()));
             var col = new StackPanel { Children =
             {
-                Ui.T($"TELA {i + 1} · {p.DurationMs / 1000.0:0.#}s", 10, Theme.Muted),
-                Ui.T(name.Length == 0 ? "(vazia)" : name, 12, head: false),
+                Ui.T($"SCREEN {i + 1} · {p.DurationMs / 1000.0:0.#}s", 10, Theme.Muted),
+                Ui.T(name.Length == 0 ? "(empty)" : name, 12, head: false),
             } };
             var idx = i;
             var b = new FlatButton(Theme.Text) { Padding = new Thickness(12, 6, 8, 6), BorderThickness = new Thickness(0, 0, 0, 1), ActiveBg = Theme.Sel }.Content(col);
@@ -176,32 +176,32 @@ public sealed class KeyboardWindow : Window
             var b = new FlatButton { Padding = new Thickness(6, 2, 6, 2), ToolTip = tip, IsEnabled = enabled, Opacity = enabled ? 1 : 0.4 }.Content(Ui.T(text, 11, Theme.Muted));
             b.Click += a; return b;
         }
-        actions.Children.Add(Act("↑", "Mover para cima", () => Move(-1), selected > 0));
-        actions.Children.Add(Act("↓", "Mover para baixo", () => Move(1), selected < cfg.Pages.Count - 1));
-        actions.Children.Add(Act("DUPLICAR", "Duplicar tela", () =>
+        actions.Children.Add(Act("↑", "Move up", () => Move(-1), selected > 0));
+        actions.Children.Add(Act("↓", "Move down", () => Move(1), selected < cfg.Pages.Count - 1));
+        actions.Children.Add(Act("DUPLICATE", "Duplicate screen", () =>
         {
             if (cfg.Pages.Count >= KeyboardConfig.MaxPages) return;
             var ps = cfg.Pages.ToList(); ps.Insert(selected + 1, ps[selected]); kb.Save(cfg with { Pages = ps }); selected++; Render();
         }));
-        actions.Children.Add(Act("REMOVER", "Remover tela", () =>
+        actions.Children.Add(Act("REMOVE", "Remove screen", () =>
         {
             if (cfg.Pages.Count <= 1) return;
             var ps = cfg.Pages.ToList(); ps.RemoveAt(selected); kb.Save(cfg with { Pages = ps }); selected = Math.Max(0, selected - 1); Render();
         }, cfg.Pages.Count > 1));
-        actions.Children.Add(Act("MOSTRAR AGORA", "Exibir esta tela no teclado", () => kb.Select(selected)));
+        actions.Children.Add(Act("SHOW NOW", "Show this screen on the keyboard", () => kb.Select(selected)));
         DockPanel.SetDock(actions, Dock.Right); head.Children.Add(actions);
-        head.Children.Add(Ui.T($"TELA {selected + 1}", 16, weight: 600));
+        head.Children.Add(Ui.T($"SCREEN {selected + 1}", 16, weight: 600));
         editor.Children.Add(head);
 
-        // Duração e ícone
+        // Duration and icon
         var timing = new WrapPanel { Margin = new Thickness(0, 10, 0, 4) };
         var dur = new Segmented([(2000, "2s"), (3000, "3s"), (5000, "5s"), (8000, "8s"), (15000, "15s")]);
         dur.Select(new[] { 2000, 3000, 5000, 8000, 15000 }.OrderBy(x => Math.Abs(x - page.DurationMs)).First());
         dur.Changed += v => { Update(p => p with { DurationMs = (int)v }); Render(); };
-        timing.Children.Add(Field("TEMPO NA TELA", dur));
+        timing.Children.Add(Field("TIME ON SCREEN", dur));
         var icon = Box(page.IconId.ToString(CultureInfo.InvariantCulture), 48);
         icon.LostFocus += (_, _) => { if (int.TryParse(icon.Text, out var n)) Update(p => p with { IconId = Math.Clamp(n, 0, 255) }); };
-        timing.Children.Add(Field("ÍCONE GG (0–255)", icon));
+        timing.Children.Add(Field("GG ICON (0–255)", icon));
         editor.Children.Add(timing);
 
         for (int li = 0; li < 2; li++)
@@ -209,8 +209,8 @@ public sealed class KeyboardWindow : Window
             var line = page.Lines.ElementAtOrDefault(li) ?? new OledLine();
             int idx = li;
             var box = new StackPanel();
-            box.Children.Add(Ui.Box(new Thickness(0, 0, 0, 1), new Thickness(0, 0, 0, 4), Ui.T($"LINHA {li + 1}", 13, weight: 600)).With(b => b.Margin = new Thickness(0, 16, 0, 6)));
-            var pick = new FlatButton(Theme.Text) { Height = 26, Padding = new Thickness(8, 0, 8, 0), BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Left, ToolTip = "Escolher o que esta linha mostra" }
+            box.Children.Add(Ui.Box(new Thickness(0, 0, 0, 1), new Thickness(0, 0, 0, 4), Ui.T($"LINE {li + 1}", 13, weight: 600)).With(b => b.Margin = new Thickness(0, 16, 0, 6)));
+            var pick = new FlatButton(Theme.Text) { Height = 26, Padding = new Thickness(8, 0, 8, 0), BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Left, ToolTip = "Choose what this line shows" }
                 .Content(new StackPanel { Orientation = Orientation.Horizontal, Children = { Ui.T(values.Label(line.SensorId), 12, head: false), Ui.T("  ▾", 11, Theme.Muted) } });
             pick.SetResourceReference(Border.BorderBrushProperty, Theme.Line);
             pick.Click += () => OpenSensorMenu(pick, id => { SetLine(idx, l => l with { SensorId = id, Prefix = l.SensorId.Length == 0 ? Short(id) : l.Prefix, Suffix = l.SensorId.Length == 0 ? UnitOf(id) : l.Suffix }); Render(); });
@@ -222,17 +222,17 @@ public sealed class KeyboardWindow : Window
             dec.Changed += v => SetLine(idx, l => l with { Decimals = (int)v });
             var live = Ui.T(Fmt(line), 12, Theme.Muted, tabular: true).With(t => t.VerticalAlignment = VerticalAlignment.Center);
             livePreviews.Add((live, line));
-            row.Children.Add(Field("PREFIXO", pre)); row.Children.Add(Field("SUFIXO", suf)); row.Children.Add(Field("CASAS", dec)); row.Children.Add(Field("VALOR AGORA", live));
+            row.Children.Add(Field("PREFIX", pre)); row.Children.Add(Field("SUFFIX", suf)); row.Children.Add(Field("DECIMALS", dec)); row.Children.Add(Field("VALUE NOW", live));
             box.Children.Add(row);
             if (line.SensorId.Length > 0)
             {
-                var clear = new FlatButton { Padding = new Thickness(0, 4, 0, 0), HorizontalAlignment = HorizontalAlignment.Left }.Content(Ui.T("deixar linha vazia", 11, Theme.Muted));
+                var clear = new FlatButton { Padding = new Thickness(0, 4, 0, 0), HorizontalAlignment = HorizontalAlignment.Left }.Content(Ui.T("clear line", 11, Theme.Muted));
                 clear.Click += () => { SetLine(idx, _ => new OledLine()); Render(); };
                 box.Children.Add(clear);
             }
             editor.Children.Add(box);
         }
-        editor.Children.Add(Ui.T("Cada linha tem 20 colunas no teclado; texto maior é cortado. Prefixos e valores das duas linhas são alinhados.", 11, Theme.Muted, head: false)
+        editor.Children.Add(Ui.T("Each line has 20 columns on the keyboard; longer text is cut off. Prefixes and values of both lines are aligned.", 11, Theme.Muted, head: false)
             .With(t => { t.TextWrapping = TextWrapping.Wrap; t.TextTrimming = TextTrimming.None; t.Margin = new Thickness(0, 16, 0, 0); }));
     }
 
@@ -273,11 +273,11 @@ public sealed class KeyboardWindow : Window
         Children = { Ui.T(label, 10, Theme.Muted).With(t => t.Margin = new Thickness(0, 0, 0, 3)), control },
     };
 
-    /// <summary>Menu com os calculados e todos os sensores do LHM agrupados por dispositivo e tipo.</summary>
+    /// <summary>Menu with the calculated sensors and every LHM sensor grouped by device and type.</summary>
     private void OpenSensorMenu(FrameworkElement anchor, Action<string> pick)
     {
         var m = new ContextMenu { PlacementTarget = anchor, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom, MaxHeight = 520 };
-        var calc = new MenuItem { Header = "Calculados (qualquer PC)" };
+        var calc = new MenuItem { Header = "Calculated (any PC)" };
         foreach (var c in CalculatedSensors.All) { var id = c.Id; var it = new MenuItem { Header = c.Name }; it.Click += (_, _) => pick(id); calc.Items.Add(it); }
         m.Items.Add(calc);
         m.Items.Add(new Separator());
@@ -297,7 +297,7 @@ public sealed class KeyboardWindow : Window
             }
             m.Items.Add(di);
         }
-        if (sensors.LastRaw.Count == 0) m.Items.Add(new MenuItem { Header = "(sensores ainda carregando…)", IsEnabled = false });
+        if (sensors.LastRaw.Count == 0) m.Items.Add(new MenuItem { Header = "(sensors still loading…)", IsEnabled = false });
         m.IsOpen = true;
     }
 }

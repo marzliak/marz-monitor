@@ -11,7 +11,7 @@ using MonitorTray.Gpu;
 
 namespace MonitorTray.App.Views;
 
-/// <summary>Sobre: identidade, versão/build, sistema detectado, créditos e licenças. Copiar informações para suporte.</summary>
+/// <summary>About: identity, version/build, detected system, credits and licenses. Copy info for support.</summary>
 public sealed class AboutWindow : Window
 {
     private const double M = 6;
@@ -19,13 +19,13 @@ public sealed class AboutWindow : Window
     public AboutWindow(AppState app, GpuFanService? fans, int devices, int entries)
     {
         WindowStyle = WindowStyle.None; AllowsTransparency = true; Background = Brushes.Transparent;
-        ResizeMode = ResizeMode.NoResize; ShowInTaskbar = true; Title = "Sobre o Marz Monitor"; UseLayoutRounding = true;
+        ResizeMode = ResizeMode.NoResize; ShowInTaskbar = true; Title = "About Marz Monitor"; UseLayoutRounding = true;
         SizeToContent = SizeToContent.WidthAndHeight; WindowStartupLocation = WindowStartupLocation.CenterScreen;
         try { Icon = BitmapFrame.Create(new Uri("pack://application:,,,/MonitorTray;component/Assets/app.ico")); } catch (Exception) { }
 
         var root = new StackPanel { Width = 420 };
-        // Cabeçalho com ícone, nome, versão
-        var close = FlatButton.Icon(Icons.X, 24, 12, "Fechar");
+        // Header with icon, name, version
+        var close = FlatButton.Icon(Icons.X, 24, 12, "Close");
         close.Click += Close;
         close.HorizontalAlignment = HorizontalAlignment.Right; close.VerticalAlignment = VerticalAlignment.Top;
         var logo = new Image { Width = 64, Height = 64, Source = new BitmapImage(new Uri("pack://application:,,,/MonitorTray;component/Assets/app-256.png")), Margin = new Thickness(0, 0, 16, 0) };
@@ -34,49 +34,49 @@ public sealed class AboutWindow : Window
         {
             Ui.T("MARZ MONITOR", 24, weight: 600),
             Ui.T("by " + AppInfo.Publisher, 12, Theme.Muted),
-            Ui.T($"Versão {AppInfo.Version}  ·  build {AppInfo.Commit}  ·  {AppInfo.BuildDate} UTC", 11, Theme.Muted, tabular: true).With(t => t.Margin = new Thickness(0, 6, 0, 0)),
+            Ui.T($"Version {AppInfo.Version}  ·  build {AppInfo.Commit}  ·  {AppInfo.BuildDate} UTC", 11, Theme.Muted, tabular: true).With(t => t.Margin = new Thickness(0, 6, 0, 0)),
         } };
         var head = new Grid { Margin = new Thickness(20, 18, 8, 16) };
         head.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { logo, titles } });
         head.Children.Add(close);
         root.Children.Add(Ui.Box(new Thickness(0, 0, 0, 1), new Thickness(0), head).With(b => b.Background = Brushes.Transparent));
 
-        root.Children.Add(Para("Monitor de hardware na bandeja do Windows: CPU, GPU, memória, armazenamento e rede num relance, todos os sensores no Detalhes e controle seguro das fans da GPU NVIDIA."));
+        root.Children.Add(Para("Hardware monitor in the Windows tray: CPU, GPU, memory, storage and network at a glance, every sensor in Details and safe control of the NVIDIA GPU fans."));
 
-        // Sistema
+        // System
         var st = fans?.State;
         var gpu = st?.Reading?.Identity.Name ?? "—";
         var driver = st?.Reading?.Telemetry.Driver ?? "—";
-        var control = st == null ? "—" : st.CanControl ? "este app controla as fans" : (st.ReadOnlyReason ?? "somente leitura");
-        root.Children.Add(Section("SISTEMA", [
+        var control = st == null ? "—" : st.CanControl ? "this app controls the fans" : (st.ReadOnlyReason ?? "read-only");
+        root.Children.Add(Section("SYSTEM", [
             ("GPU", gpu), ("Driver NVIDIA", driver), ("Fans", control),
-            ("Sensores", $"{devices} dispositivos · {entries} entradas"),
-            ("Privilégio", Autostart.IsAdmin() ? "administrador (todos os sensores)" : "usuário (alguns sensores ocultos)"),
+            ("Sensors", $"{devices} devices · {entries} entries"),
+            ("Privilege", Autostart.IsAdmin() ? "administrator (all sensors)" : "user (some sensors hidden)"),
             ("Runtime", AppInfo.Runtime), ("Windows", AppInfo.Os),
         ]));
-        root.Children.Add(Section("BOM SABER", [
-            ("•", "Sair pela bandeja devolve as fans ao automático antes de fechar."),
-            ("•", "Encerrar à força (Gerenciador de Tarefas, queda de energia) não garante essa devolução."),
-            ("•", "Os valores são os informados pelos sensores; o app não conclui \"saúde\" do hardware."),
+        root.Children.Add(Section("GOOD TO KNOW", [
+            ("•", "Quitting from the tray returns the fans to automatic before closing."),
+            ("•", "Killing the app (Task Manager, power loss) does not guarantee that hand-back."),
+            ("•", "Values are as reported by the sensors; the app does not judge hardware \"health\"."),
         ], bullets: true));
-        root.Children.Add(Section("CRÉDITOS", [
-            ("Sensores", "LibreHardwareMonitorLib (MPL-2.0)"),
-            ("Bandeja", "H.NotifyIcon (MIT)"),
-            ("Fontes", "Barlow / Barlow Condensed (SIL OFL 1.1)"),
-            ("Ícones", "Lucide (ISC)"),
-            ("Fans", "lógica de segurança herdada do GPU by MarzOps"),
+        root.Children.Add(Section("CREDITS", [
+            ("Sensors", "LibreHardwareMonitorLib (MPL-2.0)"),
+            ("Tray", "H.NotifyIcon (MIT)"),
+            ("Fonts", "Barlow / Barlow Condensed (SIL OFL 1.1)"),
+            ("Icons", "Lucide (ISC)"),
+            ("Fans", "safety logic inherited from GPU by MarzOps"),
         ]));
 
-        // Rodapé com ações
-        var copy = Link("Copiar informações");
+        // Footer with actions
+        var copy = Link("Copy info");
         copy.Click += () =>
         {
-            var text = $"{AppInfo.Name} {AppInfo.Version} ({AppInfo.Commit}, {AppInfo.BuildDate} UTC)\nGPU: {gpu} · driver {driver}\nFans: {control}\nSensores: {devices}/{entries}\nAdmin: {Autostart.IsAdmin()}\n{AppInfo.Runtime} · {AppInfo.Os}";
-            try { Clipboard.SetText(text); ((TextBlock)copy.Child).Text = "Copiado ✓"; } catch (Exception) { }
+            var text = $"{AppInfo.Name} {AppInfo.Version} ({AppInfo.Commit}, {AppInfo.BuildDate} UTC)\nGPU: {gpu} · driver {driver}\nFans: {control}\nSensors: {devices}/{entries}\nAdmin: {Autostart.IsAdmin()}\n{AppInfo.Runtime} · {AppInfo.Os}";
+            try { Clipboard.SetText(text); ((TextBlock)copy.Child).Text = "Copied ✓"; } catch (Exception) { }
         };
-        var logs = Link("Abrir pasta de dados");
+        var logs = Link("Open data folder");
         logs.Click += () => { try { Process.Start(new ProcessStartInfo("explorer.exe", AppState.DataDir) { UseShellExecute = true }); } catch (Exception) { } };
-        var repo = Link("Repositório");
+        var repo = Link("Repository");
         repo.Click += () => { try { Process.Start(new ProcessStartInfo(AppInfo.Repository) { UseShellExecute = true }); } catch (Exception) { } };
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Children = { copy, logs, repo } };
         var foot = new DockPanel { Margin = new Thickness(20, 10, 20, 14) };

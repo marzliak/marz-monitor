@@ -6,7 +6,7 @@ using MonitorTray.Sensors;
 
 namespace MonitorTray.App;
 
-/// <summary>Valores para as telas do teclado: calculados (calc:*) e qualquer sensor do LHM pelo id. Thread-safe (só lê snapshots imutáveis).</summary>
+/// <summary>Values for the keyboard screens: calculated (calc:*) and any LHM sensor by id. Thread-safe (only reads immutable snapshots).</summary>
 public sealed class KeyboardValues(SensorService service, Func<FanState?> fans)
 {
     private IReadOnlyList<RawSensor>? indexedFrom;
@@ -60,9 +60,9 @@ public sealed class KeyboardValues(SensorService service, Func<FanState?> fans)
 
     public string Label(string id)
     {
-        if (id.Length == 0) return "(vazia)";
+        if (id.Length == 0) return "(empty)";
         var c = CalculatedSensors.All.FirstOrDefault(x => x.Id == id);
         if (c.Id != null) return c.Name;
-        return Index().TryGetValue(id, out var r) ? $"{r.DeviceName} · {r.Name} ({r.KindRaw})" : id + " (não encontrado)";
+        return Index().TryGetValue(id, out var r) ? $"{r.DeviceName} · {r.Name} ({r.KindRaw})" : id + " (not found)";
     }
 }

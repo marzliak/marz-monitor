@@ -6,7 +6,7 @@ public static class Units
 {
     public static SensorKind Kind(string raw) => Enum.TryParse<SensorKind>(raw, ignoreCase: false, out var k) && k != SensorKind.Unknown ? k : SensorKind.Unknown;
 
-    /// <summary>Unidade nativa do LHM por SensorType.</summary>
+    /// <summary>Native LHM unit per SensorType.</summary>
     public static string ForLhmType(string raw) => raw switch
     {
         "Temperature" => "degC",
@@ -31,24 +31,24 @@ public static class Units
     public static readonly IReadOnlySet<string> BarUnits = new HashSet<string> { "%", "degC", "RPM" };
     public static bool IsFixedRange(string unit) => unit is "%" or "degC";
 
-    /// <summary>Ordem e rótulo pt-BR dos tipos (docs/05 §5). Desconhecidos vão para o fim com o nome cru.</summary>
+    /// <summary>Order and English label of the types (docs/05 §5). Unknown ones go to the end with the raw name.</summary>
     public static (int Order, string Label) TypeInfo(string kindRaw) => kindRaw switch
     {
-        "Temperature" => (0, "Temperatura"),
-        "Load" => (1, "Carga"),
-        "Power" => (2, "Potência"),
+        "Temperature" => (0, "Temperature"),
+        "Load" => (1, "Load"),
+        "Power" => (2, "Power"),
         "Clock" => (3, "Clock"),
-        "Voltage" => (4, "Tensão"),
-        "Current" => (5, "Corrente"),
-        "Fan" => (6, "Ventoinhas"),
-        "Control" => (7, "Controle de ventoinha"),
-        "Flow" => (8, "Fluxo"),
-        "SmallData" => (9, "Memória"),
-        "Data" => (10, "Dados"),
-        "Throughput" => (11, "Taxa"),
-        "Level" => (12, "Nível"),
-        "Factor" => (13, "Contadores"),
-        "Timing" => (14, "Tempos SPD"),
+        "Voltage" => (4, "Voltage"),
+        "Current" => (5, "Current"),
+        "Fan" => (6, "Fans"),
+        "Control" => (7, "Fan control"),
+        "Flow" => (8, "Flow"),
+        "SmallData" => (9, "Memory"),
+        "Data" => (10, "Data"),
+        "Throughput" => (11, "Throughput"),
+        "Level" => (12, "Level"),
+        "Factor" => (13, "Counters"),
+        "Timing" => (14, "SPD timings"),
         _ => (99, kindRaw),
     };
 }

@@ -12,13 +12,13 @@ internal static class FanText
 {
     public static string Mode(FanState s) => s.Mode switch
     {
-        FanMode.Automatic => "AUTO", FanMode.Manual => s.RequestedPercent is uint p ? $"MANUAL {p}%" : "MANUAL", FanMode.Mixed => "MISTO", _ => "—",
+        FanMode.Automatic => "AUTO", FanMode.Manual => s.RequestedPercent is uint p ? $"MANUAL {p}%" : "MANUAL", FanMode.Mixed => "MIXED", _ => "—",
     };
     public static string Speeds(FanState s) => s.Reading == null ? "—"
         : string.Join("  ", s.Reading.Fans.Select(f => $"{f.Index + 1}: {(f.SpeedPercent is uint v ? v.ToString(CultureInfo.InvariantCulture) + "%" : "—")}"));
 }
 
-/// <summary>Seção "Controle das fans" no painel da GPU (Detalhes). Clique aplica, sem diálogo; presets inseguros ficam desabilitados.</summary>
+/// <summary>"Fan control" section in the GPU panel (Details). A click applies, no dialog; unsafe presets are disabled.</summary>
 public sealed class FanPanel : StackPanel
 {
     public static readonly uint[] Presets = [0, 10, 15, 25, 30, 50, 75, 100];
@@ -32,7 +32,7 @@ public sealed class FanPanel : StackPanel
     {
         this.service = service;
         var head = new DockPanel();
-        var title = Ui.T("CONTROLE DAS FANS", 13, weight: 600);
+        var title = Ui.T("FAN CONTROL", 13, weight: 600);
         meta = Ui.T("", 11, Theme.Muted, tabular: true).With(t => t.VerticalAlignment = VerticalAlignment.Bottom);
         DockPanel.SetDock(meta, Dock.Right);
         head.Children.Add(meta); head.Children.Add(title);
@@ -61,7 +61,7 @@ public sealed class FanPanel : StackPanel
             if (!b.IsEnabled) return;
             MonitorTray.App.FanChoices.Update(d => d with { Gpu = value });
             try { await service.CommandAsync(value); }
-            catch (Exception) { /* o erro já está em State.Error e aparece na linha de aviso */ }
+            catch (Exception) { /* the error is already in State.Error and shows on the notice line */ }
         };
         buttons.Add((value, b, t));
         bar.Children.Add(b);
@@ -79,15 +79,15 @@ public sealed class FanPanel : StackPanel
         bool manual = s.Mode == FanMode.Manual;
         foreach (var (v, b, t) in buttons)
         {
-            string? block = v is uint p ? s.BlockFor(p, now) : (!s.CanControl ? s.ReadOnlyReason ?? "Controle indisponível." : s.Busy ? "Comando em andamento." : s.Reading == null ? "Sem leitura." : null);
+            string? block = v is uint p ? s.BlockFor(p, now) : (!s.CanControl ? s.ReadOnlyReason ?? "Control unavailable." : s.Busy ? "Command in progress." : s.Reading == null ? "No reading." : null);
             bool enabled = block == null;
-            b.IsEnabled = enabled; b.Opacity = enabled ? 1 : 0.45; b.ToolTip = block ?? (v is null ? "Devolver ao automático do driver" : $"Fixar todas as fans em {v}%");
+            b.IsEnabled = enabled; b.Opacity = enabled ? 1 : 0.45; b.ToolTip = block ?? (v is null ? "Return to driver automatic" : $"Set all fans to {v}%");
             bool active = v is null ? s.Mode == FanMode.Automatic : manual && s.RequestedPercent == v;
             b.Active = active;
             t.SetResourceReference(TextBlock.ForegroundProperty, active ? Theme.Bg : Theme.Text);
         }
         var msg = s.Error ?? s.SafetyNotice ?? (!s.CanControl ? s.ReadOnlyReason : null);
-        if (msg == null && s.Reading?.Telemetry is { HasFanRange: true } tel) msg = $"Faixa do driver: {tel.MinFanPercent}–{tel.MaxFanPercent}%. Ao sair, as fans voltam ao automático.";
+        if (msg == null && s.Reading?.Telemetry is { HasFanRange: true } tel) msg = $"Driver range: {tel.MinFanPercent}–{tel.MaxFanPercent}%. On exit, the fans go back to automatic.";
         notice.Text = msg ?? "";
         notice.SetResourceReference(TextBlock.ForegroundProperty, s.Error != null || s.SafetyNotice != null ? Theme.UStroke : Theme.Muted);
     }
@@ -112,7 +112,7 @@ public sealed class FanPanel : StackPanel
             name.Text = $"Fan {f.Index + 1}";
             value.Text = f.SpeedPercent is uint s ? s + "%" : "—";
             rpm.Text = f.SpeedRpm is uint r ? r + " RPM" : "— RPM";
-            target.Text = f.Policy switch { 0 => "automático", 1 => $"alvo {f.TargetPercent?.ToString(CultureInfo.InvariantCulture) ?? "—"}%", _ => "política —" };
+            target.Text = f.Policy switch { 0 => "automatic", 1 => $"target {f.TargetPercent?.ToString(CultureInfo.InvariantCulture) ?? "—"}%", _ => "policy —" };
             bar.SetFraction((f.SpeedPercent ?? 0) / 100.0, (f.SpeedPercent ?? 0) >= 85);
         }
     }

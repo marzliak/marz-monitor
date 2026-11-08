@@ -7,10 +7,10 @@ using MonitorTray.Core.Normalize;
 namespace MonitorTray.Sensors;
 
 /// <summary>
-/// Tráfego separado em rede local × internet, somente leitura, via ETW (provedor Microsoft-Windows-Kernel-Network:
-/// eventos TCP/UDP de envio e recebimento, IPv4 e IPv6, com tamanho e endereços). Exige administrador.
-/// Conta bytes de dados TCP/UDP (sem cabeçalhos/ICMP), então o total pode diferir um pouco do contador da placa.
-/// A sessão "MarzMonitor-Net" é parada ao sair e reaproveitada se ficou aberta.
+/// Traffic split into local network × internet, read-only, via ETW (Microsoft-Windows-Kernel-Network provider:
+/// TCP/UDP send and receive events, IPv4 and IPv6, with size and addresses). Requires administrator.
+/// Counts TCP/UDP payload bytes (no headers/ICMP), so the total may differ slightly from the adapter counter.
+/// The "MarzMonitor-Net" session is stopped on exit and reused if it was left open.
 /// </summary>
 public sealed unsafe class NetTraffic : IDisposable
 {
@@ -55,11 +55,11 @@ public sealed unsafe class NetTraffic : IDisposable
         if (Running) return;
         try
         {
-            if (!new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator)) { Error = "requer administrador"; return; }
+            if (!new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator)) { Error = "requires administrator"; return; }
             var p = Props();
             try
             {
-                ControlTraceW(0, SessionName, p, 1); // para sessão órfã de uma execução anterior
+                ControlTraceW(0, SessionName, p, 1); // stops an orphan session from a previous run
                 Marshal.FreeHGlobal(p); p = Props();
                 int rc = StartTraceW(out session, SessionName, p);
                 if (rc != 0) { Error = "StartTrace " + rc; return; }
@@ -117,7 +117,7 @@ public sealed unsafe class NetTraffic : IDisposable
         catch (Exception) { }
     }
 
-    /// <summary>B/s desde a última leitura: (↓local, ↑local, ↓internet, ↑internet).</summary>
+    /// <summary>B/s since the last read: (↓local, ↑local, ↓internet, ↑internet).</summary>
     public (double DownLocal, double UpLocal, double DownNet, double UpNet) Rates()
     {
         long[] now = [Interlocked.Read(ref downLocal), Interlocked.Read(ref upLocal), Interlocked.Read(ref downNet), Interlocked.Read(ref upNet)];
@@ -137,9 +137,9 @@ public sealed unsafe class NetTraffic : IDisposable
             list.Add(new($"{dev}/throughput/0", dev, name, "Network", "Download", "Throughput", "B/s", (float)down));
             list.Add(new($"{dev}/throughput/1", dev, name, "Network", "Upload", "Throughput", "B/s", (float)up));
         }
-        Add(MonitorTray.Core.Normalize.NetTrafficIds.Total, "Tráfego total", dl + dn, ul + un);
-        Add(MonitorTray.Core.Normalize.NetTrafficIds.Local, "Tráfego rede local", dl, ul);
-        Add(MonitorTray.Core.Normalize.NetTrafficIds.Internet, "Tráfego internet", dn, un);
+        Add(MonitorTray.Core.Normalize.NetTrafficIds.Total, "Total traffic", dl + dn, ul + un);
+        Add(MonitorTray.Core.Normalize.NetTrafficIds.Local, "Local network traffic", dl, ul);
+        Add(MonitorTray.Core.Normalize.NetTrafficIds.Internet, "Internet traffic", dn, un);
     }
 
     private void Stop()

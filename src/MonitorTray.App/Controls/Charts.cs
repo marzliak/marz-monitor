@@ -13,10 +13,10 @@ internal static class Res
 }
 
 /// <summary>
-/// Gráficos que "rolam": a geometria é refeita só quando chega amostra nova; o deslocamento de um passo
-/// para a esquerda é uma animação de TranslateTransform (composição do WPF, sem OnRender por quadro).
-/// A duração se adapta ao intervalo real entre amostras, então o movimento é contínuo mesmo quando a coleta
-/// do LHM atrasa. A curva é monotônica (sem picos inventados) e null continua quebrando a linha.
+/// Charts that "scroll": the geometry is rebuilt only when a new sample arrives; the one-step shift
+/// to the left is a TranslateTransform animation (WPF composition, no OnRender per frame).
+/// The duration adapts to the real interval between samples, so the motion stays continuous even when the LHM
+/// poll is late. The curve is monotonic (no invented peaks) and null still breaks the line.
 /// </summary>
 public abstract class ScrollChart : FrameworkElement
 {
@@ -25,7 +25,7 @@ public abstract class ScrollChart : FrameworkElement
     private DateTime lastShift = DateTime.MinValue;
     private double interval = 1000;
 
-    /// <summary>Quantos pontos cabem na largura (o ponto extra mais antigo fica fora, à esquerda).</summary>
+    /// <summary>How many points fit in the width (the extra, oldest point stays outside, on the left).</summary>
     public int Slots { get; set; }
 
     protected double StepFor(int count) { var n = Slots > 1 ? Slots : count; return n > 1 ? ActualWidth / (n - 1) : 0; }
@@ -63,7 +63,7 @@ public abstract class ScrollChart : FrameworkElement
     protected abstract void Rebuild();
 }
 
-/// <summary>Gráfico espelhado do popup: download para cima, upload para baixo (docs/04 §B5, docs/06 §2).</summary>
+/// <summary>Popup mirrored chart: download upward, upload downward (docs/04 §B5, docs/06 §2).</summary>
 public sealed class MirrorChart : ScrollChart
 {
     private double[] down = [], up = [];
@@ -73,7 +73,7 @@ public sealed class MirrorChart : ScrollChart
 
     public MirrorChart() { Height = 64; SnapsToDevicePixels = true; }
 
-    /// <param name="slots">Pontos visíveis (histórico). Passe slots+1 valores para a borda esquerda não abrir buraco ao rolar.</param>
+    /// <param name="slots">Visible points (history). Pass slots+1 values so the left edge does not open a gap while scrolling.</param>
     public void Set(IReadOnlyList<double> down, IReadOnlyList<double> up, int slots, double scaleDown, double scaleUp)
     {
         var d = down.ToArray(); var u = up.ToArray();
@@ -120,7 +120,7 @@ public sealed class MirrorChart : ScrollChart
     }
 }
 
-/// <summary>Área/sparkline que rola; null quebra a linha (docs/06 §3). A escala acompanha os dados suavemente.</summary>
+/// <summary>Scrolling area/sparkline; null breaks the line (docs/06 §3). The scale follows the data smoothly.</summary>
 public sealed class AreaChart : ScrollChart
 {
     private float?[] values = [];
@@ -141,7 +141,7 @@ public sealed class AreaChart : ScrollChart
         else if (fixedRange != null || range is not { } r || !shifted) range = t;
         else
         {
-            // Expande na hora para nunca cortar dado; encolhe aos poucos para a curva não "pular".
+            // Expands immediately so data is never clipped; shrinks gradually so the curve does not "jump".
             var lo = t.Lo < r.Lo ? t.Lo : r.Lo + (t.Lo - r.Lo) * 0.3;
             var hi = t.Hi > r.Hi ? t.Hi : r.Hi + (t.Hi - r.Hi) * 0.3;
             range = (lo, hi);
@@ -190,7 +190,7 @@ public sealed class AreaChart : ScrollChart
     }
 }
 
-/// <summary>Base com Fraction animada (400 ms ease-out, docs/03 §Interação).</summary>
+/// <summary>Base with an animated Fraction (400 ms ease-out, docs/03 §Interaction).</summary>
 public abstract class FractionElement : FrameworkElement
 {
     public static readonly DependencyProperty FractionProperty = DependencyProperty.Register(nameof(Fraction), typeof(double), typeof(FractionElement),
@@ -201,12 +201,12 @@ public abstract class FractionElement : FrameworkElement
     public bool Animate { get; set; } = true;
     private double target = -1;
     public string ColorKey { get; set; } = Theme.Fill;
-    /// <summary>Atraso próprio do elemento (ms): cada caixinha anda no seu tempo, não a tela inteira de uma vez.</summary>
+    /// <summary>The element's own delay (ms): each little box moves on its own time, not the whole screen at once.</summary>
     public int StaggerMs { get; set; }
 
     public void SetFraction(double f, bool emphasis)
     {
-        // Sem leitura neste tick (NaN): mantém a barra onde estava, em vez de despencar para 0 e voltar.
+        // No reading on this tick (NaN): keep the bar where it was instead of dropping to 0 and back.
         if (!double.IsFinite(f)) return;
         f = Math.Clamp(f, 0, 1);
         var key = emphasis ? Theme.UStroke : Theme.Fill;
@@ -214,7 +214,7 @@ public abstract class FractionElement : FrameworkElement
         if (Math.Abs(f - target) < 1e-4) return;
         bool first = target < 0;
         target = f;
-        // Primeira atribuição (elemento recém-criado/reconstruído): já nasce no valor, sem subir do zero.
+        // First assignment (element just created/rebuilt): starts at the value, without rising from zero.
         if (first) { BeginAnimation(FractionProperty, null); Fraction = f; return; }
         if (!Animate || !IsVisible) { BeginAnimation(FractionProperty, null); Fraction = f; return; }
         var anim = new DoubleAnimation(f, TimeSpan.FromMilliseconds(420)) { EasingFunction = Ease, BeginTime = TimeSpan.FromMilliseconds(StaggerMs) };
@@ -223,7 +223,7 @@ public abstract class FractionElement : FrameworkElement
     }
 }
 
-/// <summary>Barra horizontal: trilho Track + preenchimento.</summary>
+/// <summary>Horizontal bar: Track rail + fill.</summary>
 public sealed class Bar : FractionElement
 {
     protected override void OnRender(DrawingContext dc)
@@ -234,7 +234,7 @@ public sealed class Bar : FractionElement
     }
 }
 
-/// <summary>Célula da grade: preenchimento de baixo para cima e valor curto no topo.</summary>
+/// <summary>Grid cell: bottom-up fill and a short value at the top.</summary>
 public sealed class Cell : FractionElement
 {
     private string label = "";
@@ -259,7 +259,7 @@ public sealed class Cell : FractionElement
     }
 }
 
-/// <summary>Gauge circular 38×38, r=15, traço 5, começando às 12h.</summary>
+/// <summary>Circular gauge 38×38, r=15, stroke 5, starting at 12 o'clock.</summary>
 public sealed class Gauge : FractionElement
 {
     public Gauge() { Width = 38; Height = 38; }
@@ -285,7 +285,7 @@ public sealed class Gauge : FractionElement
     }
 }
 
-/// <summary>Grade responsiva: colunas = floor((W+gap)/(min+gap)), itens esticados (CSS auto-fill/minmax).</summary>
+/// <summary>Responsive grid: columns = floor((W+gap)/(min+gap)), stretched items (CSS auto-fill/minmax).</summary>
 public sealed class FillGrid : System.Windows.Controls.Panel
 {
     public double MinItemWidth { get; set; } = 200;
@@ -328,9 +328,9 @@ public sealed class FillGrid : System.Windows.Controls.Panel
 }
 
 /// <summary>
-/// Interpola um número até o novo valor (ease-out, ~420 ms, com atraso próprio). Cada TextBlock/célula tem a sua
-/// instância, então os valores mudam um a um em vez de a tela inteira trocar no mesmo quadro.
-/// Só o texto exibido é interpolado; o valor real (último lido) é sempre o destino.
+/// Interpolates a number to the new value (ease-out, ~420 ms, with its own delay). Each TextBlock/cell has its own
+/// instance, so values change one by one instead of the whole screen switching on the same frame.
+/// Only the displayed text is interpolated; the real value (last read) is always the target.
 /// </summary>
 public sealed class NumberTween
 {
@@ -350,7 +350,7 @@ public sealed class NumberTween
         apply(v);
     }
 
-    /// <summary>Números trocam direto (pedido do usuário: sem contagem rápida). Barras e gráficos seguem animados.</summary>
+    /// <summary>Numbers switch directly (user request: no fast counting). Bars and charts stay animated.</summary>
     public static bool AnimateNumbers { get; set; }
 
     public void To(double v, bool animate)
@@ -375,7 +375,7 @@ public sealed class NumberTween
     }
 }
 
-/// <summary>Valor + unidade de um sensor com transição numérica própria.</summary>
+/// <summary>Value + unit of a sensor with its own numeric transition.</summary>
 public sealed class AnimatedValue
 {
     private readonly System.Windows.Controls.TextBlock value, unit;
@@ -390,7 +390,7 @@ public sealed class AnimatedValue
     public void Set(double? v, string unit)
     {
         bool unitChanged = unit != u; u = unit;
-        // Acumulados/contadores e mudanças de unidade não animam (seria um número que não existiu).
+        // Accumulated values/counters and unit changes do not animate (it would show a number that never existed).
         if (v is null || unitChanged || unit is "1" or "GiB" or "MiB" or "ns") { tween.Snap(v); return; }
         tween.To(v.Value, value.IsVisible);
     }

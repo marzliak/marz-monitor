@@ -1,20 +1,20 @@
 namespace MonitorTray.Core.Fans;
 
-/// <summary>Dispositivo do controle térmico: cada um tem o próprio modo e os próprios atuadores.</summary>
+/// <summary>Thermal control device: each one has its own mode and its own actuators.</summary>
 public enum ThermalDevice { Gpu, Board, Cooler }
 
-/// <summary>Item da faixa de fans do topo: um fan físico (rpm só se medido), apontando para o atuador (curva) que o move.</summary>
+/// <summary>Top fan strip item: one physical fan (rpm only if measured), pointing to the actuator (curve) that drives it.</summary>
 public sealed record StripItem(string Name, string? Nick, string? ActuatorId, int? Rpm, int? Percent, bool Off, bool Locked);
 
 /// <summary>
-/// Modelo "fonte → curva → atuador" do controle térmico: ids dos atuadores, fonte de temperatura de cada um,
-/// eixo do gráfico, itens da faixa e quando a curva da placa pode ser editada.
+/// Thermal control "source → curve → actuator" model: actuator ids, temperature source of each one,
+/// chart axis, strip items and when the board curve can be edited.
 /// </summary>
 public static class ThermalMap
 {
     public const string GpuId = "gpu", PumpId = "ry:pump", RadiatorId = "ry:rad", EmbeddedId = "ry:emb";
     public const string CpuSource = "calc:cpu-temp", GpuSource = "calc:gpu-temp";
-    /// <summary>Pontos da curva do cooler (a curva roda no PC; ryujin-fans.json guarda até 8).</summary>
+    /// <summary>Cooler curve points (the curve runs on the PC; ryujin-fans.json stores up to 8).</summary>
     public const int CoolerMaxPoints = 8;
 
     public static string BoardId(string acName) => "mb:" + acName;
@@ -25,7 +25,7 @@ public static class ThermalMap
         : actuatorId.StartsWith("mb:", StringComparison.Ordinal) ? ThermalDevice.Board
         : actuatorId is PumpId or RadiatorId or EmbeddedId ? ThermalDevice.Cooler : null;
 
-    /// <summary>Nome do conector como impresso na placa: "Chassis Fan 1" → "CHA_FAN1".</summary>
+    /// <summary>Header name as printed on the board: "Chassis Fan 1" → "CHA_FAN1".</summary>
     public static string BoardHeader(string acName) => acName switch
     {
         "CPU Fan" => "CPU_FAN", "CPU Optional Fan" => "CPU_OPT", "Water Pump+" => "W_PUMP+", "AIO Pump" => "AIO_PUMP",
@@ -34,12 +34,12 @@ public static class ThermalMap
     };
 
     /// <summary>
-    /// Fonte de temperatura de cada conector da placa como o serviço da ASUS grava (SetMultiFanSource, see asus-rog-protocol-notes):
-    /// o Chassis Fan 1 segue a GPU, os demais a CPU. Só leitura: a fonte é escolhida no Armoury Crate.
+    /// Temperature source of each board header as the ASUS service writes it (SetMultiFanSource, see asus-rog-protocol-notes):
+    /// Chassis Fan 1 follows the GPU, the others the CPU. Read only: the source is chosen in Armoury Crate.
     /// </summary>
     public static string BoardSource(string acName) => acName == "Chassis Fan 1" ? GpuSource : CpuSource;
 
-    /// <summary>Fonte (id do sensor) da curva do atuador: GPU = core; placa = fonte do conector; cooler = a escolhida no Marz.</summary>
+    /// <summary>Source (sensor id) of the actuator's curve: GPU = core; board = the header's source; cooler = the one chosen in Marz.</summary>
     public static string SourceOf(string actuatorId, string coolerSourceId) => DeviceOf(actuatorId) switch
     {
         ThermalDevice.Gpu => GpuSource,
@@ -48,8 +48,8 @@ public static class ThermalMap
     };
 
     /// <summary>
-    /// Eixo X do gráfico: líquido varia pouco (20–60 °C de 5 em 5); as demais fontes 20–100 °C de 10 em 10.
-    /// Cresce para caber os pontos da curva (um preset com ponto a 75 °C não é cortado no eixo do líquido).
+    /// Chart X axis: liquid varies little (20–60 °C in steps of 5); the other sources 20–100 °C in steps of 10.
+    /// Grows to fit the curve points (a preset with a point at 75 °C is not cut off on the liquid axis).
     /// </summary>
     public static (double Min, double Max, double Step) Axis(bool liquid, IEnumerable<double> temps)
     {
@@ -63,7 +63,7 @@ public static class ThermalMap
         return (min, max, step);
     }
 
-    /// <summary>Limites de edição: cooler 2..8 pontos (bomba ≥ <paramref name="pumpMin"/>%); placa = pontos do chip, CPU/bombas nunca 0%.</summary>
+    /// <summary>Editing limits: cooler 2..8 points (pump ≥ <paramref name="pumpMin"/>%); board = the chip's points, CPU/pumps never 0%.</summary>
     public static CurveLimits Limits(string actuatorId, (double Min, double Max, double Step) axis, int pumpMin, int boardPoints = 4)
     {
         var dev = DeviceOf(actuatorId);
@@ -75,23 +75,23 @@ public static class ThermalMap
         return new CurveLimits(axis.Min, axis.Max, actuatorId == PumpId ? pumpMin : 0, 2, CoolerMaxPoints);
     }
 
-    /// <summary>CPU e bombas da placa: a curva editada nunca desce abaixo disto (o cadeado do OFF vale também para a curva).</summary>
+    /// <summary>Board CPU and pumps: the edited curve never goes below this (the OFF lock also applies to the curve).</summary>
     public const int BoardLockedMinPercent = 20;
 
     /// <summary>
-    /// Por que a curva deste fan da placa não pode ser editada agora (null = pode). A escrita é a mesma do FULL/OFF
-    /// (curva User via Armoury Crate), então só vale em CURVAS, com o fan ligado e sem curva guardada pendente.
+    /// Why this board fan's curve cannot be edited right now (null = it can). The write is the same as FULL/OFF
+    /// (User curve via Armoury Crate), so it only works in CURVES, with the fan on and no stored curve pending.
     /// </summary>
     public static string? BoardEditBlock(bool available, string? mode, string? pending, bool off, bool savedPending, bool fits) =>
-        !available ? "Armoury Crate indisponível"
-        : pending != null ? "aplicando um modo"
-        : off ? "fan desligado: religue para editar"
-        : mode != null ? "edição só no modo CURVAS (a curva mostrada é a do modo ativo)"
-        : savedPending ? "a curva guardada antes do FULL/OFF ainda não voltou"
-        : !fits ? "curva fora do padrão de 4 pontos (fixa ou do Fan Xpert): edite no Armoury Crate"
+        !available ? "Armoury Crate unavailable"
+        : pending != null ? "applying a mode"
+        : off ? "fan off: turn it back on to edit"
+        : mode != null ? "editing only in CURVES mode (the curve shown is the active mode's)"
+        : savedPending ? "the curve stored before FULL/OFF has not been restored yet"
+        : !fits ? "curve is not the standard 4 points (fixed or from Fan Xpert): edit it in Armoury Crate"
         : null;
 
-    /// <summary>Fans da placa na faixa: todos os conectores, na ordem do Armoury Crate; rpm só dos conferidos.</summary>
+    /// <summary>Board fans in the strip: all headers, in Armoury Crate order; rpm only for the verified ones.</summary>
     public static IReadOnlyList<StripItem> BoardStrip(IEnumerable<string> acFans, Func<string, string?> nick,
         IReadOnlyDictionary<int, float> rpm, IReadOnlyDictionary<int, float> control, Func<string, bool> isOff) =>
         acFans.Select(f =>
@@ -100,17 +100,20 @@ public static class ThermalMap
             return new StripItem(BoardHeader(f), nick(f), BoardId(f), r.Rpm, r.Percent, isOff(f), BoardFanOff.Locked(f));
         }).ToList();
 
-    /// <summary>Fans do cooler na faixa: bomba, um item por fan do radiador e o fan embutido.</summary>
-    public static IReadOnlyList<StripItem> CoolerStrip(int? pumpRpm, int? pumpPct, IReadOnlyList<int> radRpm, int? radPct, int? embRpm, int? embPct)
+    /// <summary>Cooler fans in the strip: pump, one item per radiator fan and the embedded fan. <paramref name="custom"/>: user names per part.</summary>
+    public static IReadOnlyList<StripItem> CoolerStrip(int? pumpRpm, int? pumpPct, IReadOnlyList<int> radRpm, int? radPct, int? embRpm, int? embPct,
+        Func<string, string?>? custom = null)
     {
-        var l = new List<StripItem> { new("BOMBA", null, PumpId, pumpRpm, pumpPct, false, false) };
-        if (radRpm.Count == 0) l.Add(new("RADIADOR", null, RadiatorId, null, radPct, false, false));
-        for (int i = 0; i < radRpm.Count; i++) l.Add(new($"RAD {i + 1}", null, RadiatorId, radRpm[i], radPct, false, false));
-        l.Add(new("EMBUTIDO", null, EmbeddedId, embRpm, embPct, false, false));
+        string? Nick(string part) => custom?.Invoke(part);
+        var rad = Nick("radiator");
+        var l = new List<StripItem> { new("PUMP", Nick("pump"), PumpId, pumpRpm, pumpPct, false, false) };
+        if (radRpm.Count == 0) l.Add(new("RADIATOR", rad, RadiatorId, null, radPct, false, false));
+        for (int i = 0; i < radRpm.Count; i++) l.Add(new($"RAD {i + 1}", rad != null ? $"{rad} {i + 1}" : null, RadiatorId, radRpm[i], radPct, false, false));
+        l.Add(new("EMBEDDED", Nick("embedded"), EmbeddedId, embRpm, embPct, false, false));
         return l;
     }
 
-    /// <summary>Fans da GPU na faixa (todas seguem o mesmo modo do driver/Marz).</summary>
+    /// <summary>GPU fans in the strip (all follow the same driver/Marz mode).</summary>
     public static IReadOnlyList<StripItem> GpuStrip(IEnumerable<(uint? Percent, uint? Rpm)> fans) =>
         fans.Select((f, i) => new StripItem($"FAN {i + 1}", null, GpuId, f.Rpm is uint r ? (int)r : null, f.Percent is uint p ? (int)p : null, false, false)).ToList();
 }

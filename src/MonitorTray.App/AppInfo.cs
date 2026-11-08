@@ -2,7 +2,7 @@ using System.Reflection;
 
 namespace MonitorTray.App;
 
-/// <summary>Identidade do build, lida do assembly (Directory.Build.props é a fonte única da versão).</summary>
+/// <summary>Build identity, read from the assembly (Directory.Build.props is the single source of the version).</summary>
 public static class AppInfo
 {
     private static readonly Assembly Asm = typeof(AppInfo).Assembly;

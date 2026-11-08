@@ -1,4 +1,4 @@
-// Portado de CmpInf (homelab/hosts/nanim/apps/cmpinf/src, homolog 260a683f). Lógica de segurança mantida sem alterações.
+// Ported from CmpInf (homelab/hosts/nanim/apps/cmpinf/src, homolog 260a683f). Safety logic kept unchanged.
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,13 +13,13 @@ internal sealed partial class NvmlGpuApi : IGpuApi
     private bool initialized;
     internal NvmlGpuApi()
     {
-        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("NVML deste aplicativo requer Windows.");
+        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("This app's NVML requires Windows.");
         Check(Init(), "nvmlInit_v2"); initialized = true;
     }
     public IReadOnlyList<GpuIdentity> Discover()
     {
         Ready(); Check(Count(out uint count), "nvmlDeviceGetCount_v2");
-        if (count > 64) throw new InvalidOperationException("Quantidade GPU invalida.");
+        if (count > 64) throw new InvalidOperationException("Invalid GPU count.");
         var result = new List<GpuIdentity>();
         for (uint index = 0; index < count; index++)
         {
@@ -27,7 +27,7 @@ internal sealed partial class NvmlGpuApi : IGpuApi
             result.Add(Identity(handle));
         }
         if (result.Select(g => g.Uuid).Distinct(StringComparer.Ordinal).Count() != result.Count)
-            throw new InvalidOperationException("Identidade GPU duplicada.");
+            throw new InvalidOperationException("Duplicate GPU identity.");
         return result;
     }
     private static GpuIdentity Identity(IntPtr handle)
@@ -36,15 +36,15 @@ internal sealed partial class NvmlGpuApi : IGpuApi
         Check(Uuid(handle, uuid, 96), "nvmlDeviceGetUUID");
         Check(Name(handle, name, 256), "nvmlDeviceGetName");
         Check(FanCount(handle, out uint fans), "nvmlDeviceGetNumFans");
-        if (fans > 32) throw new InvalidOperationException("Quantidade de fans invalida.");
+        if (fans > 32) throw new InvalidOperationException("Invalid fan count.");
         if (!uuid.ToString().StartsWith("GPU-", StringComparison.Ordinal) || name.Length == 0)
-            throw new InvalidOperationException("Identidade NVML invalida.");
+            throw new InvalidOperationException("Invalid NVML identity.");
         return new GpuIdentity(uuid.ToString(), name.ToString(), (int)fans);
     }
     private IntPtr Handle(string uuid)
     {
         Ready(); Check(ByUuid(uuid, out IntPtr handle), "nvmlDeviceGetHandleByUUID");
-        if (Identity(handle).Uuid != uuid) throw new InvalidOperationException("NVML retornou GPU diferente.");
+        if (Identity(handle).Uuid != uuid) throw new InvalidOperationException("NVML returned a different GPU.");
         return handle;
     }
     public GpuReading Read(string uuid)
@@ -81,7 +81,7 @@ internal sealed partial class NvmlGpuApi : IGpuApi
             var result = read();
             if (result.Code == 0) return result.Value;
             if (result.Code is 3 or 13) return null; // unsupported / unavailable function
-            Check(result.Code, "Leitura NVML"); return null;
+            Check(result.Code, "NVML read"); return null;
         }
         catch (EntryPointNotFoundException) { return null; }
     }
@@ -92,7 +92,7 @@ internal sealed partial class NvmlGpuApi : IGpuApi
         if (percent < 100)
         {
             Check(FanRange(handle, out uint minimum, out uint maximum), "nvmlDeviceGetMinMaxFanSpeed");
-            if (minimum > maximum || maximum > 100 || percent < minimum || percent > maximum) throw new InvalidOperationException("Percentual fora da faixa NVML.");
+            if (minimum > maximum || maximum > 100 || percent < minimum || percent > maximum) throw new InvalidOperationException("Percentage outside the NVML range.");
         }
         // This call itself switches policy to manual. No separate low/zero target.
         Check(SetSpeed(handle, (uint)fan, percent), $"nvmlDeviceSetFanSpeed_v2 fan {fan}");
@@ -116,7 +116,7 @@ internal sealed partial class NvmlGpuApi : IGpuApi
     private static void Check(int result, string operation)
     {
         if (result == 0) return;
-        string message = Marshal.PtrToStringAnsi(ErrorString(result)) ?? "Erro desconhecido";
+        string message = Marshal.PtrToStringAnsi(ErrorString(result)) ?? "Unknown error";
         throw new InvalidOperationException($"{operation}: NVML {result} ({message})");
     }
 

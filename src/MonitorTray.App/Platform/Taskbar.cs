@@ -4,7 +4,7 @@ namespace MonitorTray.App.Platform;
 
 public enum Edge { Left, Top, Right, Bottom }
 
-/// <summary>Posição do popup acima do relógio, conforme a borda da taskbar (docs/07 §Posicionamento).</summary>
+/// <summary>Popup position above the clock, according to the taskbar edge (docs/07 §Positioning).</summary>
 public static class Taskbar
 {
     public readonly record struct Placement(Rect WorkPx, Edge Edge, double Scale);
@@ -21,7 +21,7 @@ public static class Taskbar
         }
         else if (anchor is { } a) pt = a;
         else Native.GetCursorPos(out pt);
-        if (anchor is { } an) pt = an; // monitor do ícone (clique) tem prioridade
+        if (anchor is { } an) pt = an; // the icon's monitor (click) takes priority
         var mon = Native.MonitorFromPoint(pt, 2 /* MONITOR_DEFAULTTONEAREST */);
         var mi = new Native.MONITORINFO { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<Native.MONITORINFO>() };
         Native.GetMonitorInfo(mon, ref mi);
@@ -31,7 +31,7 @@ public static class Taskbar
         return new Placement(new Rect(w.Left, w.Top, w.Right - w.Left, w.Bottom - w.Top), edge, scale);
     }
 
-    /// <summary>Canto do popup em DIP do monitor (W/H em DIP).</summary>
+    /// <summary>Popup corner in monitor DIP (W/H in DIP).</summary>
     public static Point PopupOrigin(Placement p, double w, double h)
     {
         const double M = 12;

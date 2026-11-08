@@ -6,8 +6,8 @@ using System.Windows.Media;
 namespace MonitorTray.App.Platform;
 
 /// <summary>
-/// Recorta a janela (e o blur do DWM) ao retângulo da moldura.
-/// Sem isso, a margem transparente apareceria como um halo desfocado.
+/// Clips the window (and the DWM blur) to the frame rectangle.
+/// Without it, the transparent margin would show up as a blurred halo.
 /// </summary>
 public static class FrameRegion
 {
@@ -16,7 +16,7 @@ public static class FrameRegion
     [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr h);
     [DllImport("user32.dll")] private static extern int SetWindowRgn(IntPtr h, IntPtr rgn, bool redraw);
 
-    /// <param name="margin">Margem (DIP) entre a borda da janela e a moldura.</param>
+    /// <param name="margin">Margin (DIP) between the window edge and the frame.</param>
     public static void Apply(Window w, double margin, bool clip)
     {
         var h = new WindowInteropHelper(w).Handle;
@@ -31,10 +31,10 @@ public static class FrameRegion
     }
 
     /// <summary>
-    /// Recorta ao retângulo do <paramref name="frame"/> como o WPF o desenhou, arredondado para dentro: nenhum pixel da janela
-    /// fica fora da moldura (em DPI fracionário a margem arredondada à parte podia deixar 1 px de blur sem fundo, uma linha clara).
+    /// Clips to the <paramref name="frame"/> rectangle as WPF drew it, rounded inward: no window pixel
+    /// is left outside the frame (at fractional DPI a separately rounded margin could leave 1 px of blur without background, a light line).
     /// </summary>
-    /// <returns>false = ainda sem layout/handle (nada aplicado).</returns>
+    /// <returns>false = no layout/handle yet (nothing applied).</returns>
     public static bool Apply(Window w, FrameworkElement frame)
     {
         var h = new WindowInteropHelper(w).Handle;
@@ -52,6 +52,6 @@ public static class FrameRegion
     private static void Set(IntPtr h, int l, int t, int r, int b)
     {
         var rgn = CreateRectRgn(l, t, r, b);
-        if (SetWindowRgn(h, rgn, true) == 0) DeleteObject(rgn); // em sucesso o sistema é dono da região
+        if (SetWindowRgn(h, rgn, true) == 0) DeleteObject(rgn); // on success the system owns the region
     }
 }

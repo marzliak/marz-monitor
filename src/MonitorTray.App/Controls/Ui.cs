@@ -7,7 +7,7 @@ using MonitorTray.App.Theming;
 
 namespace MonitorTray.App.Controls;
 
-/// <summary>Fábrica de elementos com recursos dinâmicos do tema.</summary>
+/// <summary>Element factory using dynamic theme resources.</summary>
 public static class Ui
 {
     public static TextBlock T(string text, double size, string brush = Theme.Text, bool head = true, int weight = 400, bool tabular = false)
@@ -55,7 +55,7 @@ public static class Ui
     public static T With<T>(this T e, Action<T> f) { f(e); return e; }
 }
 
-/// <summary>Botão plano: hover = fundo Hover e texto/ícone em Text (docs/03 §Interação).</summary>
+/// <summary>Flat button: hover = Hover background and text/icon in Text (docs/03 §Interaction).</summary>
 public sealed class FlatButton : Border
 {
     private readonly List<(DependencyObject Target, DependencyProperty Prop)> fg = [];
@@ -129,7 +129,7 @@ public sealed class FlatButton : Border
     }
 }
 
-/// <summary>Segmentado: borda 1 px, opções 3/9, selecionada com fundo Fill e texto Bg.</summary>
+/// <summary>Segmented control: 1 px border, 3/9 options, selected one with Fill background and Bg text.</summary>
 public sealed class Segmented : Border
 {
     private readonly List<(object Value, Border Cell, TextBlock Text)> cells = [];
@@ -170,7 +170,7 @@ public sealed class Segmented : Border
     public object? Selected => selected;
 }
 
-/// <summary>Caixa de seleção de 15 px.</summary>
+/// <summary>15 px check box.</summary>
 public sealed class Check15 : Border
 {
     private readonly Path mark;
@@ -200,7 +200,7 @@ public sealed class Check15 : Border
     }
 }
 
-/// <summary>Slider 40–100 passo 5 desenhado no tema.</summary>
+/// <summary>40–100 slider, step 5, drawn with the theme.</summary>
 public sealed class MiniSlider : FrameworkElement
 {
     public int Min { get; init; } = 40;
@@ -208,7 +208,7 @@ public sealed class MiniSlider : FrameworkElement
     public int Step { get; init; } = 5;
     private int value = 90;
     public event Action<int>? Changed;
-    /// <summary>Valor final: ao soltar o mouse ou a cada tecla (para gravar só no fim do arrasto).</summary>
+    /// <summary>Final value: on mouse release or on each key press (to save only at the end of the drag).</summary>
     public event Action<int>? Committed;
 
     public MiniSlider() { Width = 130; Height = 16; Cursor = Cursors.Hand; Focusable = true; FocusVisualStyle = null; }

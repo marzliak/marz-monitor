@@ -1,6 +1,6 @@
 namespace MonitorTray.Core.History;
 
-/// <summary>Buffer circular de tamanho fixo; ToArray devolve do mais antigo para o mais novo.</summary>
+/// <summary>Fixed-size circular buffer; ToArray returns oldest to newest.</summary>
 public sealed class RingBuffer<T>
 {
     private readonly T[] items;

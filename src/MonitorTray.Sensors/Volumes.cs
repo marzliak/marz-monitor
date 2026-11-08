@@ -4,16 +4,16 @@ using MonitorTray.Core.Model;
 namespace MonitorTray.Sensors;
 
 /// <summary>
-/// Unidades lógicas fixas/removíveis prontas, com o modelo do disco físico (WMI: DiskDrive → Partition → LogicalDisk).
-/// Espaço vem de DriveInfo a cada leitura (barato); o mapa letra→modelo é refeito a cada 60 s (WMI é lento).
-/// Somente leitura. Nenhum nome de hardware fixo: o modelo vem do sistema.
+/// Ready fixed/removable logical drives, with the physical disk model (WMI: DiskDrive → Partition → LogicalDisk).
+/// Space comes from DriveInfo on every read (cheap); the letter→model map is rebuilt every 60 s (WMI is slow).
+/// Read-only. No hardcoded hardware names: the model comes from the system.
 /// </summary>
 public sealed class Volumes
 {
     private Dictionary<string, string> models = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, (System.Diagnostics.PerformanceCounter R, System.Diagnostics.PerformanceCounter W)?> counters = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Leitura/escrita por unidade (PDH LogicalDisk), barato; chamado a cada tick com o popup aberto.</summary>
+    /// <summary>Read/write per drive (PDH LogicalDisk), cheap; called every tick while the popup is open.</summary>
     public IReadOnlyList<VolumeInfo> WithRates(IReadOnlyList<VolumeInfo> vols)
     {
         var list = new List<VolumeInfo>(vols.Count);

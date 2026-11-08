@@ -1,35 +1,35 @@
-# Arquitetura
+# Architecture
 
 ```
 src/
-  MonitorTray.Core     net10.0, sem WPF: modelo, formatação, normalização (categoria, nome, consolidação de memória,
-                       papéis/tags, sensor principal), histórico (RingBuffer, SensorTracker), view-model do Detalhes, Settings.
-  MonitorTray.Sensors  LibreHardwareMonitor (LhmSource), PDH/rede/memória (SystemSummarySource), unidades (Volumes, WMI),
-                       modo simulado, SensorService (thread própria, publica Snapshot imutável).
-  MonitorTray.Gpu      Controle de fans NVIDIA portado do GPU by MarzOps (NVML/NVAPI + GpuSafety) e GpuFanService.
-  MonitorTray.Keyboard (namespace MonitorTray.Oled) GameSense, escritor único do OLED, Raw Input da rodinha, compensação de mudo, KeyboardService (ciclo das telas).
-                       Lógica pura (WheelState, MuteCorrelation, DeviceFilter, KeyboardConfig, OledComposer) fica em Core/Keyboard.
-  MonitorTray.App      WPF montado em código: tema/paletas, controles desenhados, popup, Detalhes, Sobre, bandeja, plataforma.
-tests/MonitorTray.Core.Tests   xUnit: formatação, escalas, regras de sensores do kit, settings, fans (fakes).
-installer/             Installer.ps1 (não elevado), Elevated.ps1 (UAC), Uninstall.ps1.
-tools/build-package.py Pacote versionado.
-kit/                   Especificação original (docs, protótipo, screenshots, coleta de hardware).
+  MonitorTray.Core     net10.0, no WPF: model, formatting, normalization (category, name, memory consolidation,
+                       roles/tags, primary sensor), history (RingBuffer, SensorTracker), Details view-model, Settings.
+  MonitorTray.Sensors  LibreHardwareMonitor (LhmSource), PDH/network/memory (SystemSummarySource), drives (Volumes, WMI),
+                       simulated mode, SensorService (own thread, publishes immutable Snapshot).
+  MonitorTray.Gpu      NVIDIA fan control ported from GPU by MarzOps (NVML/NVAPI + GpuSafety) and GpuFanService.
+  MonitorTray.Keyboard (namespace MonitorTray.Oled) GameSense, single OLED writer, wheel Raw Input, mute compensation, KeyboardService (screen cycling).
+                       Pure logic (WheelState, MuteCorrelation, DeviceFilter, KeyboardConfig, OledComposer) lives in Core/Keyboard.
+  MonitorTray.App      WPF built in code: theme/palettes, drawn controls, popup, Details, About, tray, platform.
+tests/MonitorTray.Core.Tests   xUnit: formatting, scales, kit sensor rules, settings, fans (fakes).
+installer/             Installer.ps1 (not elevated), Elevated.ps1 (UAC), Uninstall.ps1.
+tools/build-package.py Versioned package.
+kit/                   Original specification (docs, prototype, screenshots, hardware survey).
 ```
 
-## Fluxo de dados
-- `SensorService` roda a cada `refreshMs`: Resumo barato sempre (PDH, memória, rede); LHM só com popup ou Detalhes aberto, numa thread do pool (tick atrasado é pulado, não enfileirado). Varredura completa a cada 30 s só com o Detalhes aberto; a primeira leitura depois do `Reset` é descartada.
-- A UI recebe `Snapshot` via `Dispatcher.BeginInvoke` e atualiza os elementos existentes. O painel do dispositivo só é recriado quando muda a **estrutura** (seções/sensores/cartões), nunca por valor.
-- `GpuFanService` lê a NVML a cada 1 s em outro timer, mantém o preset manual (reafirma, promove a 100% se a segurança exigir) e escreve `fan-status.json`.
+## Data flow
+- `SensorService` runs every `refreshMs`: the cheap Summary always (PDH, memory, network); LHM only with the popup or Details open, on a pool thread (a late tick is skipped, not queued). Full scan every 30 s only with Details open; the first reading after `Reset` is discarded.
+- The UI receives `Snapshot` via `Dispatcher.BeginInvoke` and updates the existing elements. The device panel is only rebuilt when the **structure** changes (sections/sensors/cards), never because of a value.
+- `GpuFanService` reads NVML every 1 s on another timer, holds the manual preset (reasserts it, promotes to 100% if safety requires) and writes `fan-status.json`.
 
-## Decisões (desvios do kit, combinados com o usuário)
-- .NET 10 em vez de 8 (fim de suporte). 
-- Sem marcas "+" nos cantos. Popup não fecha ao perder o foco por padrão (pin). Números sem animação; barras e gráficos animados.
-- Controle de fans incluído (fora do escopo v1 do kit).
-- "STORAGE" no lugar de "DISCO"; L/E numa célula; unidades lógicas compactas.
-- Sensor principal: `composite > core$ > hot spot` (o protótipo escolhia Hot Spot na GPU, contra o doc 06 §4).
-- Interfaces de filtro de rede (WFP/QoS/WAN Miniport) são ignoradas; 0 W de package sem admin vira "—".
-- Popup v2 (mock 01i): sem contorno claro; faixa de cards de temperatura (papéis de `TempCards`, escolhidos e ordenados nas Configurações, sensor ausente = card omitido); títulos GPU/PLACA-MÃE/WC sem temperaturas; FAN SPEED da GPU com o botão dos modos; cards de fan (placa e cooler) escolhidos nas Configurações; ↓↑ da rede lado a lado no canto inferior esquerdo; Configurações roláveis (máx. 760 px). Desligar fan da placa pelo card fica atrás de flag (ver fanxpert4-notes.md).
-- Popup v2, rodada 2: ↓↑ da rede numa linha própria embaixo do gráfico (nada cobre a curva); cards de fan da placa e do cooler no mesmo grid de 5 colunas, % no cabeçalho e rpm embaixo; rpm só de conector conferido (`BoardFanMap`: chassis), CPU/bombas mostram o % e "—" (rpm nunca derivado do %). Alerta dos cards pelos limites das proteções (`TempLimits`: CPU 85, GPU 80, VRAM 95, líquido 50; demais documentados no código), perto = limite − 5 °C. Faixa fina no topo (`StatusStrip`) com proteções que agiram e modo game. Clique no card de temperatura abre o Detalhes no sensor (tooltip com mín./máx. da sessão, `TempSession`). Ícone da bandeja opcional com a maior temperatura e/ou cor de alerta (mantém o LHM ativo com o popup fechado). Modo game automático por executável (`AutoGame`, processos a cada 3 s; desliga só o que ligou).
+## Decisions (deviations from the kit, agreed with the user)
+- .NET 10 instead of 8 (end of support). 
+- No "+" marks in the corners. The popup does not close on focus loss by default (pin). Numbers without animation; bars and charts animated.
+- Fan control included (outside the kit's v1 scope).
+- "STORAGE" instead of "DISK"; R/W in one cell; compact logical drives.
+- Primary sensor: `composite > core$ > hot spot` (the prototype picked Hot Spot on the GPU, contrary to doc 06 §4).
+- Network filter interfaces (WFP/QoS/WAN Miniport) are ignored; 0 W package power without admin becomes "—".
+- Popup v2 (mock 01i): no light outline; strip of temperature cards (`TempCards` roles, chosen and ordered in Settings, missing sensor = card omitted); GPU/MOTHERBOARD/WC titles without temperatures; GPU FAN SPEED with the modes button; fan cards (motherboard and cooler) chosen in Settings; network ↓↑ side by side in the bottom-left corner; scrollable Settings (max. 760 px). Turning a motherboard fan OFF from its card is behind a flag (see asus-rog-protocol-notes).
+- Popup v2, round 2: network ↓↑ on its own row below the chart (nothing covers the curve); motherboard and cooler fan cards in the same 5-column grid, % in the header and rpm below; rpm only from a verified header (`BoardFanMap`: chassis), CPU/pumps show the % and "—" (rpm never derived from %). Card alerts from the protection limits (`TempLimits`: CPU 85, GPU 80, VRAM 95, liquid 50; others documented in the code), near = limit − 5 °C. Thin strip at the top (`StatusStrip`) with protections that kicked in and game mode. Clicking a temperature card opens Details on that sensor (tooltip with session min./max., `TempSession`). Optional tray icon with the highest temperature and/or alert color (keeps LHM active with the popup closed). Automatic game mode per executable (`AutoGame`, processes every 3 s; only turns off what it turned on).
 
-## Elevação
-LHM precisa de admin para CPU/placa-mãe/SPD. A cópia instalada, aberta sem elevação (atalho), relança pela tarefa `MonitorTray-<SID>` e sai, então sempre roda elevada sem UAC.
+## Elevation
+LHM needs admin for CPU/motherboard/SPD. The installed copy, when opened without elevation (shortcut), relaunches through the `MonitorTray-<SID>` task and exits, so it always runs elevated without UAC.

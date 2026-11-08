@@ -3,9 +3,9 @@ namespace MonitorTray.Core.Normalize;
 public enum TrafficScope { Ignore, Local, Internet }
 
 /// <summary>
-/// Classifica um endereço IP como rede local ou internet. Local: privados (10/8, 172.16/12, 192.168/16), link-local,
-/// CGNAT/Tailscale (100.64/10), multicast/broadcast, IPv6 ULA (fc00::/7), link-local (fe80::/10) e multicast.
-/// Loopback e "não especificado" são ignorados (tráfego dentro do próprio PC).
+/// Classifies an IP address as local network or internet. Local: private (10/8, 172.16/12, 192.168/16), link-local,
+/// CGNAT/Tailscale (100.64/10), multicast/broadcast, IPv6 ULA (fc00::/7), link-local (fe80::/10) and multicast.
+/// Loopback and "unspecified" are ignored (traffic inside the PC itself).
 /// </summary>
 public static class NetScope
 {
@@ -30,7 +30,7 @@ public static class NetScope
         return TrafficScope.Internet;
     }
 
-    /// <summary>Um pacote é "internet" se qualquer ponta for pública; ignorado se ambas forem loopback.</summary>
+    /// <summary>A packet is "internet" if either end is public; ignored if both are loopback.</summary>
     public static TrafficScope Of(ReadOnlySpan<byte> x, ReadOnlySpan<byte> y)
     {
         var p = Classify(x); var q = Classify(y);

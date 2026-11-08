@@ -5,7 +5,7 @@ using MonitorTray.Core.Model;
 
 namespace MonitorTray.Sensors;
 
-/// <summary>Fonte de leituras de hardware completas (LHM ou simulado).</summary>
+/// <summary>Source of full hardware readings (LHM or simulated).</summary>
 public interface IHardwareSource : IDisposable
 {
     void Open();
@@ -14,7 +14,7 @@ public interface IHardwareSource : IDisposable
     string? Notice { get; }
 }
 
-/// <summary>Leituras baratas do Resumo: PDH (CPU, disco), GlobalMemoryStatusEx, rede por NetworkInterface.</summary>
+/// <summary>Cheap Summary readings: PDH (CPU, disk), GlobalMemoryStatusEx, network via NetworkInterface.</summary>
 public interface ISummarySource : IDisposable
 {
     void Open();
@@ -55,7 +55,7 @@ public sealed class SystemSummarySource : ISummarySource
         return (load, used, total, Next(diskRead) ?? 0, Next(diskWrite) ?? 0, down, up);
     }
 
-    /// <summary>Reabre os contadores PDH (invalidam após hibernação).</summary>
+    /// <summary>Reopens the PDH counters (they become invalid after hibernation).</summary>
     public void Reset() { Dispose(); Open(); }
 
     public void Dispose()
@@ -82,7 +82,7 @@ public static class MemoryProvider
     }
 }
 
-/// <summary>Σ bytes dos adaptadores Up (não loopback/túnel) ÷ Δt real (docs/06 §9).</summary>
+/// <summary>Σ bytes of Up adapters (not loopback/tunnel) ÷ real Δt (docs/06 §9).</summary>
 public sealed class NetworkRate
 {
     private readonly Stopwatch sw = new();
@@ -102,7 +102,7 @@ public sealed class NetworkRate
         {
             foreach (var (id, (rx, tx)) in now)
             {
-                if (!prev.TryGetValue(id, out var p)) continue; // adaptador novo: ressincroniza
+                if (!prev.TryGetValue(id, out var p)) continue; // new adapter: resync
                 var dr = rx - p.Rx; var dtx = tx - p.Tx;
                 if (dr > 0) down += dr / dt;
                 if (dtx > 0) up += dtx / dt;

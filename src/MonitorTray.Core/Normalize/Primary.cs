@@ -2,17 +2,17 @@ using System.Text.RegularExpressions;
 
 namespace MonitorTray.Core.Normalize;
 
-/// <summary>Sensor principal de um conjunto (docs/06 §4).</summary>
+/// <summary>Primary sensor of a set (docs/06 §4).</summary>
 public static class Primary
 {
     private static readonly Regex Excluded = new(@"distance|tjmax", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex[] Canon =
     [
-        new(@"^física", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+        new(@"^physical", RegexOptions.IgnoreCase | RegexOptions.Compiled),
         new(@"total", RegexOptions.IgnoreCase | RegexOptions.Compiled),
         new(@"package", RegexOptions.IgnoreCase | RegexOptions.Compiled),
-        // Desvio consciente do protótipo: lá "hot spot|composite" vem antes de "core$" e a GPU escolheria
-        // Hot Spot, contrariando os casos esperados de docs/06 §4 (GPU Temp → "GPU Core"). Vale o doc.
+        // Deliberate deviation from the prototype: there "hot spot|composite" comes before "core$" and the GPU would pick
+        // Hot Spot, contradicting the expected cases in docs/06 §4 (GPU Temp → "GPU Core"). The doc wins.
         new(@"composite", RegexOptions.IgnoreCase | RegexOptions.Compiled),
         new(@"(^|\s)core$", RegexOptions.IgnoreCase | RegexOptions.Compiled),
         new(@"hot spot", RegexOptions.IgnoreCase | RegexOptions.Compiled),

@@ -8,12 +8,12 @@ using MonitorTray.Sensors;
 
 namespace MonitorTray.App;
 
-/// <summary>--read-test &lt;json&gt;: uma coleta real somente leitura (LHM + PDH), 3 ticks, sem UI. Não escreve em hardware.</summary>
+/// <summary>--read-test &lt;json&gt;: one real read-only collection (LHM + PDH), 3 ticks, no UI. Does not write to hardware.</summary>
 public static class ReadTest
 {
     public static int Run(string output)
     {
-        if (File.Exists(output)) { Console.Error.WriteLine("Saída já existe."); return 2; }
+        if (File.Exists(output)) { Console.Error.WriteLine("Output already exists."); return 2; }
         var sw = System.Diagnostics.Stopwatch.StartNew();
         using var lhm = new LhmSource();
         lhm.Open();
@@ -36,11 +36,11 @@ public static class ReadTest
         var devices = DeviceBuilder.Build(raw, tracker, _ => false);
         var (cl, ct, cp) = SummaryPicker.Cpu(raw);
         var (gl, gt, gp) = SummaryPicker.Gpu(raw);
-        // Fans: serviço real, sem nenhum comando. Com o CmpInf aberto, deve ficar somente leitura.
+        // Fans: real service, no command at all. With CmpInf open, it must stay read only.
         using var fanSvc = new MonitorTray.Gpu.GpuFanService(statusPath: null);
         fanSvc.Start();
         var fanUntil = DateTime.UtcNow.AddSeconds(5);
-        while (fanSvc.State.Reading == null && fanSvc.State.Error is null or "Iniciando leitura NVML" && DateTime.UtcNow < fanUntil) Thread.Sleep(50);
+        while (fanSvc.State.Reading == null && (fanSvc.State.Error == null || fanSvc.State.Error == MonitorTray.Gpu.FanState.Starting.Error) && DateTime.UtcNow < fanUntil) Thread.Sleep(50);
         var fs = fanSvc.State;
         var fanReport = new
         {

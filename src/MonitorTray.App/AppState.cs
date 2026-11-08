@@ -3,7 +3,7 @@ using MonitorTray.Core.Model;
 
 namespace MonitorTray.App;
 
-/// <summary>Configurações vivas + persistência. Mudanças são aplicadas na hora e salvas (debounce 300 ms).</summary>
+/// <summary>Live settings + persistence. Changes are applied immediately and saved (300 ms debounce).</summary>
 public sealed class AppState
 {
     private readonly SettingsStore store;
